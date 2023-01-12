@@ -7,21 +7,32 @@ class Transformer(nn.Module):
     """Simple decoder-only transformer for autoregressive sequence modeling"""
 
     n_input: int
-    d_model: int = 256
-    d_mlp: int = 1024
+    d_model: int = 128
+    d_mlp: int = 512
     max_len_seq: int = 30
     n_layers: int = 6
     n_heads: int = 4
-    d_heads: int = 256 // 4
+    d_heads: int = 128 // 4
     p_dropout: float = 0.0
     use_mlp: bool = True
 
     @nn.compact
-    def __call__(self, x: jnp.ndarray, conditioning: jnp.ndarray):
+    def __call__(self, x: jnp.ndarray, conditioning: jnp.ndarray, mask=None):
+            
+        # Sequence length
+        L = x.shape[0]
 
         # Input embedding
         x = nn.Dense(int(self.d_model))(x)  # (seq_len, d_model)
         conditioning = nn.Dense(int(self.d_model))(conditioning)  # (d_model,)
+        
+        if mask is None:
+            mask_attn = jnp.zeros((L, L))
+        else:
+            mask_attn = jnp.ones((L, L))
+            mask = jnp.ones(L)
+            mask_idx = jnp.where(mask == 0.)
+            mask_attn = jnp.log(mask_attn.at[:, mask_idx].set(0.))
 
         # Transformer layers
         for _ in range(self.n_layers):
@@ -40,7 +51,7 @@ class Transformer(nn.Module):
                 query = nn.Dense(self.d_heads)(x1)
                 key = nn.Dense(self.d_heads)(x1)
 
-                score = query @ key.T
+                score = query @ key.T + mask_attn     
                 attn = jax.nn.softmax(self.d_heads**-0.5 * score, axis=1)
 
                 value = nn.Dense(self.d_heads)(x1)
