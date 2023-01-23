@@ -1,114 +1,124 @@
+import dataclasses
+
 import jax
 import flax.linen as nn
 import jax.numpy as np
-from jax import jit, vmap, grad
 import tensorflow_probability.substrates.jax as tfp
 
-from functools import partial
-
-from models.diffusion_utils import variance_preserving_map, alpha, sigma2, gamma, get_timestep_embedding
-from models.diffusion_utils import NoiseSchedule_Scalar, NoiseSchedule_FixedLinear
+from models.diffusion_utils import variance_preserving_map, alpha, sigma2, get_timestep_embedding
+from models.diffusion_utils import NoiseScheduleScalar, NoiseScheduleFixedLinear
 from models.transformer import Transformer
 
 tfd = tfp.distributions
 
 
 class ResNet(nn.Module):
-    hidden_size: int
+    input_size: int
     n_layers: int = 1
-    middle_size: int = 512
+    hidden_size: int = 512
 
     @nn.compact
     def __call__(self, x, cond=None):
-        assert x.shape[-1] == self.hidden_size, "Input must be hidden size."
+        assert x.shape[-1] == self.input_size, "Input size mis-specified."
         z = x
-        for i in range(self.n_layers):
+        for _ in range(self.n_layers):
             h = nn.gelu(nn.LayerNorm()(z))
-            h = nn.Dense(self.middle_size)(h)
+            h = nn.Dense(self.hidden_size)(h)
             if cond is not None:
-                h += nn.Dense(self.middle_size, use_bias=False)(cond[:, None, :])
+                h += nn.Dense(self.hidden_size, use_bias=False)(cond[:, None, :])  # Project context to hidden size and add
             h = nn.gelu(nn.LayerNorm()(h))
-            h = nn.Dense(self.hidden_size, kernel_init=jax.nn.initializers.zeros)(h)
-            z = z + h
+            h = nn.Dense(self.input_size, kernel_init=jax.nn.initializers.zeros)(h)
+            z = z + h  # Residual connection
         return z
 
 
 class Encoder(nn.Module):
-    hidden_size: int = 256
+    hidden_size: int = 32
     n_layers: int = 3
-    z_dim: int = 128
+    embedding_dim: int = 8
+    latent_diffusion: bool = False
 
     @nn.compact
-    def __call__(self, ims, cond=None):
-        # x = 2 * ims.astype('float32') - 1.0
-        # x = einops.rearrange(x, '... x y d -> ... (x y d)')
-        x = nn.Dense(self.hidden_size)(ims)
-        x = ResNet(self.hidden_size, self.n_layers)(x, cond=cond)
-        params = nn.Dense(self.z_dim)(ims)
-        # params = ims
-        return params
+    def __call__(self, x, cond=None):
+        if self.latent_diffusion:
+            x = nn.Dense(self.hidden_size)(x)
+            x = ResNet(input_size=self.hidden_size, n_layers=self.n_layers, hidden_size=int(4 * self.hidden_size))(x, cond=cond)
+            x = nn.Dense(self.embedding_dim)(x)
+        return x
 
 
 class Decoder(nn.Module):
-    hidden_size: int = 512
+    hidden_size: int = 32
     n_layers: int = 3
+    output_dim: int = 3
+    scale: float = 1.0e-3
+    latent_diffusion: bool = False
 
     @nn.compact
     def __call__(self, z, cond=None):
-        z = nn.Dense(self.hidden_size)(z)
-        z = ResNet(self.hidden_size, self.n_layers)(z, cond=cond)
-        logits = nn.Dense(3)(z)
-        # logits = z
-        # logits = einops.rearrange(logits, '... (x y d) -> ... x y d', x=28, y=28, d=1)
-        # return tfd.Independent(tfd.Bernoulli(logits=logits), 3)
-        # log_std = self.param('log_std', nn.initializers.constant(np.log(0.0001)), (1,))
-        # return tfd.Normal(loc=logits, scale=np.exp(log_std))
-        return tfd.Normal(loc=logits, scale=1.0e-3)
+        if self.latent_diffusion:
+            z = nn.Dense(self.hidden_size)(z)
+            z = ResNet(input_size=self.hidden_size, n_layers=self.n_layers, hidden_size=int(4 * self.hidden_size))(z, cond=cond)
+            z = nn.Dense(self.output_dim)(z)
+        return tfd.Normal(loc=z, scale=self.scale)
 
 
 class ScoreNet(nn.Module):
     embedding_dim: int = 128
-    n_layers: int = 10
+    dim_t_embed: int = 32
+    transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4, "flash_attention": True})
 
     @nn.compact
-    def __call__(self, z, g_t, conditioning, mask, dim_t_emd=32):
-        n_embd = self.embedding_dim
+    def __call__(self, z, t, conditioning, mask):
 
-        t = g_t
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
-        t = t * np.ones(z.shape[0])  # ensure t is a vector
-        temb = get_timestep_embedding(t, dim_t_emd)
-        cond = np.concatenate([temb, conditioning], axis=1)
-        # cond = np.concatenate([t[:, None], conditioning], axis=1)
-        cond = nn.gelu(nn.Dense(features=n_embd * 4, name="dense0")(cond))
-        cond = nn.gelu(nn.Dense(features=n_embd * 4, name="dense1")(cond))
-        cond = nn.Dense(n_embd)(cond)
+        t = t * np.ones(z.shape[0])  # Ensure t is a vector
 
-        h = nn.Dense(n_embd)(z)
-        # h = jax.vmap(ResNet(n_embd, self.n_layers))(h, cond)
+        temb = get_timestep_embedding(t, self.dim_t_embed)  # Timestep embeddings
+        cond = np.concatenate([temb, conditioning], axis=1)  # Concatenate with conditioning context
 
-        h = jax.vmap(Transformer(n_input=n_embd))(h, cond, mask)
-        # h = jax.vmap(Transformer(n_input=n_embd))(h[:, None, :], cond[:, :])
-        # h = h[:, 0, :]
+        # Pass context through a small MLP before passing into transformer
+        cond = nn.gelu(nn.Dense(features=self.embedding_dim * 4)(cond))
+        cond = nn.gelu(nn.Dense(features=self.embedding_dim * 4)(cond))
+        cond = nn.Dense(self.embedding_dim)(cond)
+
+        h = nn.Dense(self.embedding_dim)(z)  # Embed input before passing into transformer
+
+        h = Transformer(n_input=self.embedding_dim, **self.transformer_dict)(h, cond, mask)
 
         return z + h
 
 
-class VDM(nn.Module):
+class VariationalDiffusionModel(nn.Module):
     timesteps: int = 1000
-    gamma_min: float = -3.0  # -13.3
-    gamma_max: float = 3.0  # 5.0
-    embedding_dim: int = 256
+    gamma_min: float = -3.0
+    gamma_max: float = 3.0
+    embedding_dim: int = 8
+    encoding_hidden_dim: int = 256
     antithetic_time_sampling: bool = True
-    layers: int = 32
+    n_layers: int = 4
+    noise_schedule: str = "learned_linear"  # "learned_linear" or "scalar"
+    feature_dim: int = 3
+    output_noise_scale: float = 1.0e-3
+    latent_diffusion: bool = False
+    dim_t_embed: int = 32
+    transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4, "flash_attention": True})
 
     def setup(self):
-        # self.gamma = partial(gamma, gamma_min=self.gamma_min, gamma_max=self.gamma_max)
-        # self.gamma = NoiseSchedule_FixedLinear(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
-        self.gamma = NoiseSchedule_Scalar(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
-        self.score_model = ScoreNet(n_layers=self.layers, embedding_dim=self.embedding_dim)
-        self.encoder = Encoder(z_dim=self.embedding_dim)
-        self.decoder = Decoder()
+
+        if self.noise_schedule == "learned_linear":
+            self.gamma = NoiseScheduleFixedLinear(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
+        elif self.noise_schedule == "scalar":
+            self.gamma = NoiseScheduleScalar(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
+
+        if self.latent_diffusion:
+            embedding_dim = self.embedding_dim
+        else:
+            embedding_dim = self.feature_dim
+
+        self.score_model = ScoreNet(dim_t_embed=self.dim_t_embed, embedding_dim=embedding_dim, transformer_dict=self.transformer_dict)
+        self.encoder = Encoder(hidden_size=self.encoding_hidden_dim, n_layers=self.n_layers, embedding_dim=embedding_dim, latent_diffusion=self.latent_diffusion)
+        self.decoder = Decoder(hidden_size=self.encoding_hidden_dim, n_layers=self.n_layers, output_dim=self.feature_dim, scale=self.output_noise_scale, latent_diffusion=self.latent_diffusion)
 
     def gammat(self, t):
         return self.gamma(t)

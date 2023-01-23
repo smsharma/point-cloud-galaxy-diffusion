@@ -1,9 +1,14 @@
 import jax
 import jax.numpy as np
+import flax
 import flax.linen as nn
+import optax
+
+from typing import Any
+from functools import partial
 
 
-class NoiseSchedule_Scalar(nn.Module):
+class NoiseScheduleScalar(nn.Module):
     gamma_min: float = -6.0
     gamma_max: float = 6.0
 
@@ -18,7 +23,7 @@ class NoiseSchedule_Scalar(nn.Module):
         return self.b + -abs(self.w) * t
 
 
-class NoiseSchedule_FixedLinear(nn.Module):
+class NoiseScheduleFixedLinear(nn.Module):
     gamma_min: float = -6.0
     gamma_max: float = 6.0
 
@@ -64,7 +69,13 @@ def get_timestep_embedding(timesteps, embedding_dim: int, dtype=np.float32):
     emb = np.exp(np.arange(half_dim, dtype=dtype) * -emb)
     emb = timesteps.astype(dtype)[:, None] * emb[None, :]
     emb = np.concatenate([np.sin(emb), np.cos(emb)], axis=1)
-    if embedding_dim % 2 == 1:  # zero pad
+    if embedding_dim % 2 == 1:  # Zero pad
         emb = jax.lax.pad(emb, dtype(0), ((0, 0, 0), (0, 1, 0)))
     assert emb.shape == (timesteps.shape[0], embedding_dim)
     return emb
+
+
+def loss_vdm(params, model, rng, im, lb, mask, beta=1.0):
+    l1, l2, l3 = model.apply(params, im, lb, rngs={"sample": rng})
+    loss_batch = (((l1 + l2) * mask[:, :, None]).sum((-1, -2)) / beta + (l3 * mask[:, :, None]).sum((-1, -2))) / mask.sum(-1)
+    return loss_batch.mean()

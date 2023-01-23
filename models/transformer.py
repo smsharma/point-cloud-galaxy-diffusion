@@ -1,89 +1,89 @@
+import math
+
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
+from einops import rearrange, repeat
+
+from flash_attention_jax import flash_attention
+
+
+def scaled_dot_product_attention(q, k, v, mask=None):
+    d_k = q.shape[-1]
+    attn_logits = jnp.matmul(q, jnp.swapaxes(k, -2, -1))
+    attn_logits = attn_logits / math.sqrt(d_k)
+    if mask is not None:
+        attn_logits = jnp.where(mask[:, None, None, :] == 0, -9e15, attn_logits)
+    attention = nn.softmax(attn_logits, axis=-1)
+    values = jnp.matmul(attention, v)
+    return values, attention
 
 
 class Transformer(nn.Module):
     """Simple decoder-only transformer for autoregressive sequence modeling"""
 
     n_input: int
-    d_model: int = 128
+    d_model: int = 256
     d_mlp: int = 512
-    max_len_seq: int = 30
-    n_layers: int = 6
+    n_layers: int = 4
     n_heads: int = 4
-    d_heads: int = 128 // 4
-    p_dropout: float = 0.0
-    use_mlp: bool = True
+    flash_attention: bool = True
 
     @nn.compact
     def __call__(self, x: jnp.ndarray, conditioning: jnp.ndarray, mask=None):
-            
+
         # Sequence length
-        L = x.shape[0]
+        batch, seq_length = x.shape[0], x.shape[1]
 
         # Input embedding
         x = nn.Dense(int(self.d_model))(x)  # (seq_len, d_model)
         conditioning = nn.Dense(int(self.d_model))(conditioning)  # (d_model,)
-        
-        if mask is None:
-            mask_attn = jnp.zeros((L, L))
-        else:
-            mask_attn = jnp.ones((L, L))
-            mask = jnp.ones(L)
-            mask_idx = jnp.where(mask == 0.)
-            mask_attn = jnp.log(mask_attn.at[:, mask_idx].set(0.))
+
+        # Mask according to set cardinality
+        mask_attn = jnp.ones((batch, seq_length)) if mask is None else mask
 
         # Transformer layers
         for _ in range(self.n_layers):
 
-            x += conditioning[None, :]  # (seq_len, d_model)
+            x += conditioning[:, None, :]  # (batch, seq_len, d_model)
 
             # LayerNorm each time residual stream is written onto
             x1 = nn.LayerNorm()(x)
 
-            x_heads = []
+            # Get qkv projections
+            qkv = nn.Dense(3 * self.d_model, kernel_init=nn.initializers.xavier_uniform(), bias_init=nn.initializers.zeros)(x1)
 
-            # Multi-head self-attention
-            # Across-head computation can be vectorized
-            for _ in range(self.n_heads):
+            # Project out separate q, k, v
+            qkv = rearrange(qkv, "batch seq_length (n_heads d_heads_3) -> batch n_heads seq_length d_heads_3", n_heads=self.n_heads)
+            q, k, v = jnp.split(qkv, 3, axis=-1)  # (batch, n_heads, seq_length, d_heads)
 
-                query = nn.Dense(self.d_heads)(x1)
-                key = nn.Dense(self.d_heads)(x1)
+            # Compute attention
+            if self.flash_attention:
+                x_heads = flash_attention(q, k, v, key_mask=mask_attn)  # (batch, n_heads, seq_length, d_heads)
+            else:
+                x_heads, _ = scaled_dot_product_attention(q, k, v, mask=mask_attn)  # (batch, n_heads, seq_length, d_heads)
 
-                score = query @ key.T + mask_attn     
-                attn = jax.nn.softmax(self.d_heads**-0.5 * score, axis=1)
-
-                value = nn.Dense(self.d_heads)(x1)
-
-                self_attn = attn @ value
-
-                x_heads.append(self_attn)
-
-            # Concatenate attention from different heads
-            x_heads = jnp.concatenate(x_heads, -1)
+            x_heads = rearrange(x_heads, "batch n_heads seq_length d_heads -> batch seq_length (n_heads d_heads)")
 
             # Output
-            x_heads = nn.Dense(self.d_model)(x_heads)
+            x_heads = nn.Dense(self.d_model, kernel_init=nn.initializers.xavier_uniform(), bias_init=nn.initializers.zeros)(x_heads)
 
             x += x_heads  # Write residual stream
 
-            if self.use_mlp:
+            # LayerNorm
+            x2 = nn.LayerNorm()(x)
 
-                # LayerNorm
-                x2 = nn.LayerNorm()(x)
-
-                # MLP
-                x2 = nn.Dense(self.d_mlp)(x2)
-                x2 = jax.nn.gelu(x2)
-                x2 = nn.Dense(self.d_model)(x2)
+            # MLP
+            x2 = nn.Dense(self.d_mlp)(x2)
+            x2 = jax.nn.gelu(x2)
+            x2 = nn.Dense(self.d_model)(x2)
 
             x += x2  # Write residual stream
 
         # Final LayerNorm
         x = nn.LayerNorm()(x)
 
-        # Unembed into logits
+        # Unembed
         x = nn.Dense(self.n_input, kernel_init=jax.nn.initializers.zeros)(x)
 
         return x
