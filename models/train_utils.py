@@ -41,4 +41,4 @@ def train_step(store, loss_fn, model, batch, opt):
 
 
 def param_count(pytree):
-    return sum(x.size for x in jax.tree_leaves(pytree))
+    return sum(x.size for x in jax.tree_util.tree_leaves(pytree))

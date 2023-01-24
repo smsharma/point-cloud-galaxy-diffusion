@@ -83,7 +83,6 @@ class ScoreNet(nn.Module):
         cond = nn.Dense(self.embedding_dim)(cond)
 
         h = nn.Dense(self.embedding_dim)(z)  # Embed input before passing into transformer
-
         h = Transformer(n_input=self.embedding_dim, **self.transformer_dict)(h, cond, mask)
 
         return z + h
@@ -208,7 +207,7 @@ class VariationalDiffusionModel(nn.Module):
         cond = conditioning
         return self.decoder(z0, cond)
 
-    def sample_step(self, rng, i, T, z_t, conditioning, mask=None, guidance_weight=0.0):
+    def sample_step(self, rng, i, T, z_t, conditioning, mask=None):  # , guidance_weight=0.0):
         rng_body = jax.random.fold_in(rng, i)
         eps = jax.random.normal(rng_body, z_t.shape)
         t = (T - i) / T
@@ -221,9 +220,9 @@ class VariationalDiffusionModel(nn.Module):
 
         eps_hat_cond = self.score_model(z_t, g_t * np.ones((z_t.shape[0],), z_t.dtype), cond, mask)
 
-        eps_hat_uncond = self.score_model(z_t, g_t * np.ones((z_t.shape[0],), z_t.dtype), cond * 0.0, mask)
+        # eps_hat_uncond = self.score_model(z_t, g_t * np.ones((z_t.shape[0],), z_t.dtype), cond * 0.0, mask)
 
-        eps_hat = (1.0 + guidance_weight) * eps_hat_cond - guidance_weight * eps_hat_uncond
+        eps_hat = eps_hat_cond  # (1.0 + guidance_weight) * eps_hat_cond - guidance_weight * eps_hat_uncond
 
         a = nn.sigmoid(g_s)
         b = nn.sigmoid(g_t)
