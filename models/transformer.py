@@ -36,8 +36,8 @@ class Transformer(nn.Module):
         batch, seq_length = x.shape[0], x.shape[1]
 
         # Input embedding
-        x = nn.Dense(int(self.d_model))(x)  # (seq_len, d_model)
-        conditioning = nn.Dense(int(self.d_model))(conditioning)  # (d_model,)
+        x = nn.Dense(int(self.d_model))(x)  # (batch, seq_len, d_model)
+        conditioning = nn.Dense(int(self.d_model))(conditioning)  # (batch, d_model)
 
         # Mask according to set cardinality
         mask_attn = jnp.ones((batch, seq_length)) if mask is None else mask
@@ -45,6 +45,7 @@ class Transformer(nn.Module):
         # Transformer layers
         for _ in range(self.n_layers):
 
+            # Add conditioning to each element of set
             x += conditioning[:, None, :]  # (batch, seq_len, d_model)
 
             # LayerNorm each time residual stream is written onto
