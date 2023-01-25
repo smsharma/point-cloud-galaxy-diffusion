@@ -75,7 +75,7 @@ def get_timestep_embedding(timesteps, embedding_dim: int, dtype=np.float32):
     return emb
 
 
-def loss_vdm(params, model, rng, im, lb, mask, beta=1.0):
-    l1, l2, l3 = model.apply(params, im, lb, mask, rngs={"sample": rng})
-    loss_batch = (((l1 + l2) * mask[:, :, None]).sum((-1, -2)) / beta + (l3 * mask[:, :, None]).sum((-1, -2))) / mask.sum(-1)
+def loss_vdm(params, model, rng, x, conditioning, mask, beta=1.0):
+    loss_diff, loss_klz, loss_recon = model.apply(params, x, conditioning, mask, rngs={"sample": rng, "uncond": rng})
+    loss_batch = (((loss_diff + loss_klz) * mask[:, :, None]).sum((-1, -2)) / beta + (loss_recon * mask[:, :, None]).sum((-1, -2))) / mask.sum(-1)
     return loss_batch.mean()
