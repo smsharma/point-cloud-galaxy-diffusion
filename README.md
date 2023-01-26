@@ -2,10 +2,9 @@
 
 Transformer-guided variational diffusion model for class- and context-conditional generative modeling of and simulation-based inference on set data.
 
+## Basic usage
+
 ## TODO:
 
-- [X] Refactor
-- [X] Add class-conditioning
-- [X] Fix classifier-free generation; add unconditional dropout
-- [X] Add ELBO and likelihood evaluation
+- [ ] Add example for likelihood-based inference
 - [ ] Gracefully make flash attention optional

@@ -81,7 +81,7 @@ def loss_vdm(params, model, rng, x, conditioning, mask, beta=1.0):
     return loss_batch.mean()
 
 
-def generate(vdm, params, rng, shape, conditioning, mask=None, guidance_weight=0.0):
+def generate(vdm, params, rng, shape, conditioning, mask=None):
     """Generate samples from a VDM model."""
 
     # Generate latents
@@ -89,7 +89,7 @@ def generate(vdm, params, rng, shape, conditioning, mask=None, guidance_weight=0
     zt = jax.random.normal(spl, shape + (vdm.d_embedding,))
 
     def body_fn(i, z_t):
-        return vdm.apply(params, rng, i, vdm.timesteps, z_t, conditioning, mask=mask, guidance_weight=guidance_weight, method=vdm.sample_step)
+        return vdm.apply(params, rng, i, vdm.timesteps, z_t, conditioning, mask=mask, method=vdm.sample_step)
 
     z0 = jax.lax.fori_loop(lower=0, upper=vdm.timesteps, body_fun=body_fn, init_val=zt)
 
