@@ -97,7 +97,7 @@ class VariationalDiffusionModel(nn.Module):
     d_t_embedding: int = 32
     transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4, "flash_attention": True})
     p_uncond: float = 0.1
-    # n_classes: int = 0
+    n_classes: int = 0
 
     def setup(self):
 
@@ -115,28 +115,30 @@ class VariationalDiffusionModel(nn.Module):
         self.encoder = Encoder(d_hidden=self.d_hidden_encoding, n_layers=self.n_layers, d_embedding=embedding_dim, latent_diffusion=self.latent_diffusion)
         self.decoder = Decoder(d_hidden=self.d_hidden_encoding, n_layers=self.n_layers, d_output=self.d_feature, noise_scale=self.noise_scale, latent_diffusion=self.latent_diffusion)
 
-        # if self.n_classes > 0:
-        #     self.embedding_class = nn.Embed(self.n_classes, self.d_hidden_encoding)
+        if self.n_classes > 0:
+            self.embedding_class = nn.Embed(self.n_classes, self.d_hidden_encoding)
+        self.embedding_context = nn.Dense(self.d_hidden_encoding)
 
     def gammat(self, t):
         return self.gamma(t)
 
     def recon_loss(self, x, f, cond):
         """The reconstruction loss measures the gap in the first step.
-
-        We measure the gap from encoding the image to z_0 and back again."""
-        # ## Reconsturction loss 2
+        We measure the gap from encoding the image to z_0 and back again.
+        """
+        ### Reconsturction loss 2
         g_0 = self.gamma(0.0)
         eps_0 = jax.random.normal(self.make_rng("sample"), shape=f.shape)
         z_0 = variance_preserving_map(f, g_0, eps_0)
         z_0_rescaled = z_0 / alpha(g_0)
-        loss_recon = -self.decoder(z_0_rescaled, cond).log_prob(x)
+        loss_recon = -self.decode(z_0_rescaled, cond).log_prob(x)
         return loss_recon
 
     def latent_loss(self, f):
         """The latent loss measures the gap in the last step, this is the KL
         divergence between the final sample from the forward process and starting
-        distribution for the reverse process, here taken to be a N(0,1)."""
+        distribution for the reverse process, here taken to be a N(0,1).
+        """
         # KL z1 with N(0,1) prior
         g_1 = self.gamma(1.0)
         var_1 = sigma2(g_1)
@@ -145,73 +147,97 @@ class VariationalDiffusionModel(nn.Module):
         return loss_klz
 
     def diffusion_loss(self, t, f, cond, mask):
-        # sample z_t
+        """The diffusion loss measures the gap in the intermediate steps."""
+
+        # Sample z_t
         g_t = self.gamma(t)
         eps = jax.random.normal(self.make_rng("sample"), shape=f.shape)
         z_t = variance_preserving_map(f, g_t[:, None], eps)
-        # compute predicted noise
-        eps_hat = self.score_model(z_t, g_t, cond, mask)
-        # compute MSE of predicted noise
-        loss_diff_mse = np.square(eps - eps_hat)
 
-        # loss for finite depth T, i.e. discrete time
+        eps_hat = self.score_model(z_t, g_t, cond, mask)  # Compute predicted noise
+
+        loss_diff_mse = np.square(eps - eps_hat)  # Compute MSE of predicted noise
+
+        # Loss for finite depth T, i.e. discrete time
         T = self.timesteps
         s = t - (1.0 / T)
         g_s = self.gamma(s)
         loss_diff = 0.5 * T * np.expm1(g_s - g_t)[:, None, None] * loss_diff_mse
         return loss_diff
 
-    def __call__(self, images, conditioning=None, mask=None):
+    def __call__(self, x, conditioning=None, mask=None):
 
-        x = images
-        n_batch = images.shape[0]
-
-        cond = conditioning
+        d_batch = x.shape[0]
 
         # Unconditional dropout
-        rng_uncond = self.make_rng("uncond")
-        p_rnd = jax.random.uniform(rng_uncond, (cond.shape[0],))
-        cond = cond.at[p_rnd < self.p_uncond, ...].set(np.zeros_like(cond[0]))
+        # Set a random number of conditionining vectors to zero for unconditional modeling
+        if self.p_uncond and conditioning is not None:
+            rng_uncond = self.make_rng("uncond")
+            p_rnd = jax.random.uniform(rng_uncond, (conditioning.shape[0],))
+            mask_dropout = p_rnd < self.p_uncond
 
-        # 1. RECONSTRUCTION LOSS
-        # add noise and reconstruct
-        f = self.encoder(x, cond)
-        loss_recon = self.recon_loss(x, f, cond)
+            # Set context to -1 with random dropout
+            if self.n_classes == 0:
+                conditioning = np.where(mask_dropout[:, np.newaxis], -1.0 * np.ones_like(conditioning), conditioning)
+            else:  # If we have classes, only set non-class attributes to -1
+                conditioning.at[:, 1:].set(np.where(mask_dropout[:, np.newaxis], -1.0 * np.ones_like(conditioning[:, 1:]), conditioning[:, 1:]))
 
-        # 2. LATENT LOSS
+        # 1. Reconstruction loss
+        # Add noise and reconstruct
+        f = self.encode(x, conditioning)
+        loss_recon = self.recon_loss(x, f, conditioning)
+
+        # 2. Latent loss
         # KL z1 with N(0,1) prior
         loss_klz = self.latent_loss(f)
 
-        # 3. DIFFUSION LOSS
-        # sample time steps
+        # 3. Diffusion loss
+        # Sample time steps
         rng1 = self.make_rng("sample")
         if self.antithetic_time_sampling:
             t0 = jax.random.uniform(rng1)
-            t = np.mod(t0 + np.arange(0.0, 1.0, step=1.0 / n_batch), 1.0)
+            t = np.mod(t0 + np.arange(0.0, 1.0, step=1.0 / d_batch), 1.0)
         else:
-            t = jax.random.uniform(rng1, shape=(n_batch,))
+            t = jax.random.uniform(rng1, shape=(d_batch,))
 
-        # discretize time steps if we're working with discrete time
+        # Discretize time steps if we're working with discrete time
         T = self.timesteps
         t = np.ceil(t * T) / T
 
+        cond = self.embed(conditioning)
         loss_diff = self.diffusion_loss(t, f, cond, mask)
 
         # End of diffusion loss computation
         return (loss_diff, loss_klz, loss_recon)
 
     def embed(self, conditioning):
-        return conditioning
+        """Embed the conditioning vector, optionally including embedding a class assumed to be the first element of the vector."""
+        if self.n_classes > 0:
+            classes, conditioning = conditioning[..., 0].astype(np.int32), conditioning[..., 1:]
+            class_embedding, context_embedding = self.embedding_class(classes), self.embedding_context(conditioning)
+            return class_embedding + context_embedding
+        else:
+            context_embedding = self.embedding_context(conditioning)
+            return context_embedding
 
     def encode(self, x, conditioning=None):
-        cond = conditioning
+        """Encode an image x."""
+        if conditioning is not None:
+            cond = self.embed(conditioning)
+        else:
+            cond = None
         return self.encoder(x, cond)
 
     def decode(self, z0, conditioning=None):
-        cond = conditioning
+        """Decode a latent sample z0."""
+        if conditioning is not None:
+            cond = self.embed(conditioning)
+        else:
+            cond = None
         return self.decoder(z0, cond)
 
     def sample_step(self, rng, i, T, z_t, conditioning, mask=None, guidance_weight=0.0):
+        """Sample a single step of the diffusion process."""
         rng_body = jax.random.fold_in(rng, i)
         eps = jax.random.normal(rng_body, z_t.shape)
         t = (T - i) / T
@@ -220,7 +246,7 @@ class VariationalDiffusionModel(nn.Module):
         g_s = self.gamma(s)
         g_t = self.gamma(t)
 
-        cond = conditioning
+        cond = self.embed(conditioning)
 
         eps_hat_cond = self.score_model(z_t, g_t * np.ones((z_t.shape[0],), z_t.dtype), cond, mask)
         eps_hat_uncond = self.score_model(z_t, g_t * np.ones((z_t.shape[0],), z_t.dtype), cond * 0.0, mask)

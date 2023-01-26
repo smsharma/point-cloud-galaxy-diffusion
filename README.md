@@ -4,9 +4,8 @@ Transformer-guided variational diffusion model for class- and context-conditiona
 
 ## TODO:
 
-- [ ] Refactor
-- [ ] Add class-conditioning
+- [X] Refactor
+- [X] Add class-conditioning
 - [X] Fix classifier-free generation; add unconditional dropout
-- [ ] Add ELBO and likelihood evaluation
-- [ ] Figure out why identity encoder/decoder is not working
+- [X] Add ELBO and likelihood evaluation
 - [ ] Gracefully make flash attention optional

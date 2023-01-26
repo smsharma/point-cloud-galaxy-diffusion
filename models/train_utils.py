@@ -9,6 +9,8 @@ from typing import Any
 
 @flax.struct.dataclass
 class StateStore:
+    """A simple state store for training."""
+
     params: np.ndarray
     state: Any
     rng: Any
@@ -16,6 +18,8 @@ class StateStore:
 
 
 def create_input_iter(ds):
+    """Create an input iterator that prefetches to device."""
+
     def _prepare(xs):
         def _f(x):
             x = x._numpy()
@@ -30,6 +34,7 @@ def create_input_iter(ds):
 
 @partial(jax.pmap, axis_name="batch", static_broadcasted_argnums=(1, 2, 4))
 def train_step(store, loss_fn, model, batch, opt):
+    """Train for a single step."""
     rng, spl = jax.random.split(store.rng)
     im, lb, mask = batch
     out, grads = jax.value_and_grad(loss_fn)(store.params, model, spl, im, lb, mask)
@@ -41,4 +46,5 @@ def train_step(store, loss_fn, model, batch, opt):
 
 
 def param_count(pytree):
+    """Count the number of parameters in a pytree."""
     return sum(x.size for x in jax.tree_util.tree_leaves(pytree))
