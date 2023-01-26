@@ -1,11 +1,14 @@
 import jax
 import jax.numpy as np
+import flax
 import flax.linen as nn
+import optax
+
+from typing import Any
+from functools import partial
 
 
 class NoiseScheduleScalar(nn.Module):
-    """A noise schedule that returns a pre-defined scalar for each timestep."""
-
     gamma_min: float = -6.0
     gamma_max: float = 6.0
 
@@ -21,8 +24,6 @@ class NoiseScheduleScalar(nn.Module):
 
 
 class NoiseScheduleFixedLinear(nn.Module):
-    """A noise schedule that returns a fixed linear function of the timestep."""
-
     gamma_min: float = -6.0
     gamma_max: float = 6.0
 
@@ -74,44 +75,10 @@ def get_timestep_embedding(timesteps, embedding_dim: int, dtype=np.float32):
     return emb
 
 
-def loss_vdm(params, model, rng, x, conditioning, mask, beta=1.0):
-    """Compute the loss for a VDM model."""
+def loss_vdm(params, model, rng, x, conditioning, mask=None, beta=1.0):
     loss_diff, loss_klz, loss_recon = model.apply(params, x, conditioning, mask, rngs={"sample": rng, "uncond": rng})
+
+    if mask is None:
+        mask = np.ones(x.shape[:-1])
     loss_batch = (((loss_diff + loss_klz) * mask[:, :, None]).sum((-1, -2)) / beta + (loss_recon * mask[:, :, None]).sum((-1, -2))) / mask.sum(-1)
     return loss_batch.mean()
-
-
-def generate(vdm, params, rng, shape, conditioning, mask=None):
-    """Generate samples from a VDM model."""
-
-    # Generate latents
-    rng, spl = jax.random.split(rng)
-    zt = jax.random.normal(spl, shape + (vdm.d_embedding,))
-
-    def body_fn(i, z_t):
-        return vdm.apply(params, rng, i, vdm.timesteps, z_t, conditioning, mask=mask, method=vdm.sample_step)
-
-    z0 = jax.lax.fori_loop(lower=0, upper=vdm.timesteps, body_fun=body_fn, init_val=zt)
-
-    g0 = vdm.apply(params, 0.0, method=vdm.gammat)
-    var0 = sigma2(g0)
-    z0_rescaled = z0 / np.sqrt(1.0 - var0)
-    return vdm.apply(params, z0_rescaled, conditioning, method=vdm.decode)
-
-
-def elbo(vdm, params, rng, x, conditioning, mask):
-    rng, spl = jax.random.split(rng)
-    cond = vdm.apply(params, conditioning, method=vdm.embed)
-    f = vdm.apply(params, x, conditioning, method=vdm.encode)
-    loss_recon = vdm.apply(params, x, f, conditioning, rngs={"sample": rng}, method=vdm.recon_loss)
-    loss_klz = vdm.apply(params, f, method=vdm.latent_loss)
-
-    def body_fun(i, val):
-        loss, rng = val
-        rng, spl = jax.random.split(rng)
-        new_loss = vdm.apply(params, np.array([i / vdm.timesteps]), f, cond, mask, rngs={"sample": spl}, method=vdm.diffusion_loss)
-        return (loss + (new_loss * mask[:, :, None]).sum((-1, -2)) / vdm.timesteps, rng)
-
-    loss_diff, rng = jax.lax.fori_loop(0, vdm.timesteps, body_fun, (np.zeros(x.shape[0]), rng))
-
-    return ((loss_recon * mask[:, :, None]).sum((-1, -2)) + (loss_klz * mask[:, :, None]).sum((-1, -2)) + loss_diff) / mask.sum(-1)

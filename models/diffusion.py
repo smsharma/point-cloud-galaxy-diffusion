@@ -75,8 +75,17 @@ class ScoreNet(nn.Module):
         t = t * np.ones(z.shape[0])  # Ensure t is a vector
 
         t_embedding = get_timestep_embedding(t, self.d_t_embedding)  # Timestep embeddings
-        cond = np.concatenate([t_embedding, conditioning], axis=1)  # Concatenate with conditioning context
-        
+
+        if conditioning is not None:
+            cond = np.concatenate([t_embedding, conditioning], axis=1)  # Concatenate with conditioning context
+        else:
+            cond = t_embedding
+
+        # Pass context through a small MLP before passing into transformer
+        cond = nn.gelu(nn.Dense(features=self.d_embedding * 4)(cond))
+        cond = nn.gelu(nn.Dense(features=self.d_embedding * 4)(cond))
+        cond = nn.Dense(self.d_embedding)(cond)
+
         h = Transformer(n_input=self.d_embedding, **self.transformer_dict)(z, cond, mask)
 
         return z + h
@@ -113,7 +122,7 @@ class VariationalDiffusionModel(nn.Module):
         self.score_model = ScoreNet(d_t_embedding=self.d_t_embedding, d_embedding=embedding_dim, transformer_dict=self.transformer_dict)
         self.encoder = Encoder(d_hidden=self.d_hidden_encoding, n_layers=self.n_layers, d_embedding=embedding_dim, latent_diffusion=self.latent_diffusion)
         self.decoder = Decoder(d_hidden=self.d_hidden_encoding, n_layers=self.n_layers, d_output=self.d_feature, noise_scale=self.noise_scale, latent_diffusion=self.latent_diffusion)
-        
+
         # Embedding for class and context
         if self.n_classes > 0:
             self.embedding_class = nn.Embed(self.n_classes, self.d_hidden_encoding)
@@ -166,7 +175,7 @@ class VariationalDiffusionModel(nn.Module):
     def __call__(self, x, conditioning=None, mask=None):
 
         d_batch = x.shape[0]
-                                
+
         # 1. Reconstruction loss
         # Add noise and reconstruct
         f = self.encode(x, conditioning)
@@ -197,13 +206,21 @@ class VariationalDiffusionModel(nn.Module):
 
     def embed(self, conditioning):
         """Embed the conditioning vector, optionally including embedding a class assumed to be the first element of the vector."""
-        if self.n_classes > 0:
+
+        # If
+        if self.n_classes > 0 and conditioning.shape[-1] > 1:
             classes, conditioning = conditioning[..., 0].astype(np.int32), conditioning[..., 1:]
             class_embedding, context_embedding = self.embedding_class(classes), self.embedding_context(conditioning)
             return class_embedding + context_embedding
-        else:
+        elif self.n_classes > 0 and conditioning.shape[-1] == 1:
+            classes = conditioning[..., 0].astype(np.int32)
+            class_embedding = self.embedding_class(classes)
+            return class_embedding
+        elif self.n_classes == 0 and conditioning is not None:
             context_embedding = self.embedding_context(conditioning)
             return context_embedding
+        else:  # If no conditioning
+            return None
 
     def encode(self, x, conditioning=None):
         """Encode an image x."""
