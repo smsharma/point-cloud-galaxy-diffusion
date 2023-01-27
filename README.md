@@ -4,7 +4,48 @@ Transformer-guided variational diffusion model for class- and context-conditiona
 
 ## Basic usage
 
-## TODO:
+``` py
+import jax
+import jax.numpy as np
 
-- [ ] Add example for likelihood-based inference
-- [ ] Gracefully make flash attention optional
+from flax.core import FrozenDict
+
+from models.diffusion import VariationalDiffusionModel
+from models.diffusion_utils import generate, loss_vdm
+
+# Transformer args
+transformer_dict = FrozenDict({"d_model":256, "d_mlp":512, "n_layers":5, "n_heads":4, "flash_attention":True})
+
+# Instantiate model
+vdm = VariationalDiffusionModel(gamma_min=-6.0, gamma_max=6.0,  # Noise schedule parameters
+          d_feature=4,  # Number of features per set element
+          transformer_dict=transformer_dict,  # Score-prediction transformer parameters
+          noise_schedule="learned_linear",  # Noise schedule; "learned_linear" or "scalar"
+          n_layers=3,  # Layers in encoder/decoder element-wise ResNets
+          d_embedding=8,  # Dim to encode the per-element features to
+          d_hidden_encoding=64,  # Hidden dim used in various contexts (for embedding context, 4 * for encoding/decoding in ResNets)
+          timesteps=300,  # Number of diffusion steps
+          d_t_embedding=16,  # Timestep embedding dimension
+          noise_scale=1e-3,  # Data noise model
+          n_classes=0)  # Number of data classes. If >0, the first element of the conditioning vector is assumed to be integer class.
+
+rng = jax.random.PRNGKey(42)
+
+x = jax.random.normal(rng, (32, 100, 4))
+mask = jax.random.randint(rng, (32, 100), 0, 2)
+conditioning = jax.random.normal(rng, (32, 6))
+
+# Call to get losses
+(loss_diff, loss_klz, loss_recon), params = vdm.init_with_output({"sample": rng, "params": rng, "uncond":rng}, x, conditioning, mask)
+
+# Compute full loss, accounting for masking
+loss_vdm(params, vdm, rng, x, conditioning, mask)  # DeviceArray(5606182.5, dtype=float32)
+
+# Sample from model
+
+mask_sample = jax.random.randint(rng, (24, 100), 0, 2)
+conditionink_sample = jax.random.normal(rng, (24, 6))
+
+x_samples = generate(vdm, params, rng, (24, 100), conditionink_sample, mask_sample)
+x_samples.mean().shape  # Mean of decoded Normal distribution -- (24, 100, 4)
+```

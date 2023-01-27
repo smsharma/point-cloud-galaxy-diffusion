@@ -102,7 +102,7 @@ class VariationalDiffusionModel(nn.Module):
     noise_schedule: str = "learned_linear"  # "learned_linear" or "scalar"
     d_feature: int = 3
     noise_scale: float = 1.0e-3
-    latent_diffusion: bool = False
+    latent_diffusion: bool = True
     d_t_embedding: int = 32
     transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4, "flash_attention": True})
     n_classes: int = 0

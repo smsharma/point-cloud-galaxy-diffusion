@@ -1,11 +1,6 @@
 import jax
 import jax.numpy as np
-import flax
 import flax.linen as nn
-import optax
-
-from typing import Any
-from functools import partial
 
 
 class NoiseScheduleScalar(nn.Module):
@@ -75,7 +70,7 @@ def get_timestep_embedding(timesteps, embedding_dim: int, dtype=np.float32):
     return emb
 
 
-def loss_vdm(params, model, rng, x, conditioning, mask=None, beta=1.0):
+def loss_vdm(params, model, rng, x, conditioning=None, mask=None, beta=1.0):
     """Compute the loss for a VDM model, sum of diffusion, latent, and reconstruction losses, appropriately masked."""
     loss_diff, loss_klz, loss_recon = model.apply(params, x, conditioning, mask, rngs={"sample": rng, "uncond": rng})
 
@@ -86,7 +81,7 @@ def loss_vdm(params, model, rng, x, conditioning, mask=None, beta=1.0):
     return loss_batch.mean()
 
 
-def generate(vdm, params, rng, shape, conditioning, mask=None):
+def generate(vdm, params, rng, shape, conditioning=None, mask=None):
     """Generate samples from a VDM model."""
 
     # Generate latents
