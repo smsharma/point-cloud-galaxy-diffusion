@@ -1,6 +1,12 @@
 # Transformer-guided diffusion for modeling sets
 
-Transformer-guided variational diffusion model for class- and context-conditional generative modeling of and simulation-based inference on set data.
+Transformer-guided variational diffusion model for class- and context-conditional generative modeling of and inference on set data.
+
+## Description
+
+## Examples
+
+The [`notebooks`](notebooks/) directory contains usage example, including a simple [MNIST point cloud example](notebooks/example-mnist.ipynb) showing class-conditional generation, as well as a [particle physics example](notebooks/example-jets.ipynb).
 
 ## Basic usage
 
@@ -31,9 +37,9 @@ vdm = VariationalDiffusionModel(gamma_min=-6.0, gamma_max=6.0,  # Noise schedule
 
 rng = jax.random.PRNGKey(42)
 
-x = jax.random.normal(rng, (32, 100, 4))
-mask = jax.random.randint(rng, (32, 100), 0, 2)
-conditioning = jax.random.normal(rng, (32, 6))
+x = jax.random.normal(rng, (32, 100, 4))  # Input set
+mask = jax.random.randint(rng, (32, 100), 0, 2)  # Optional set mask; can be `None`
+conditioning = jax.random.normal(rng, (32, 6))  # Optional conditioning context; can be `None`
 
 # Call to get losses
 (loss_diff, loss_klz, loss_recon), params = vdm.init_with_output({"sample": rng, "params": rng, "uncond":rng}, x, conditioning, mask)
