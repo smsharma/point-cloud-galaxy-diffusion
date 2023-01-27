@@ -32,7 +32,7 @@ from models.diffusion_utils import generate, loss_vdm
 transformer_dict = FrozenDict({"d_model":256, "d_mlp":512, "n_layers":5, "n_heads":4, "flash_attention":True})
 
 # Instantiate model
-vdm = VariationalDiffusionModel(gamma_min=-6.0, gamma_max=6.0,  # Noise schedule parameters
+vdm = VariationalDiffusionModel(gamma_min=-6.0, gamma_max=6.0,  # Min and max initial log-SNR in the noise schedule
           d_feature=4,  # Number of features per set element
           transformer_dict=transformer_dict,  # Score-prediction transformer parameters
           noise_schedule="learned_linear",  # Noise schedule; "learned_linear" or "scalar"

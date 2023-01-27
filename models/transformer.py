@@ -25,7 +25,15 @@ def scaled_dot_product_attention(q, k, v, mask=None):
 
 
 class Transformer(nn.Module):
-    """Simple decoder-only transformer for set modeling."""
+    """Simple decoder-only transformer for set modeling.
+    Attributes:
+      n_input: The number of input (and output) features.
+      d_model: The dimension of the model embedding space.
+      d_mlp: The dimension of the multi-layer perceptron (MLP) used in the feed-forward network.
+      n_layers: Number of transformer layers.
+      n_heads: The number of attention heads.
+      flash_attention: Flag that indicates whether to use flash attention or not.
+    """
 
     n_input: int
     d_model: int = 256

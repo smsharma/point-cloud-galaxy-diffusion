@@ -92,15 +92,33 @@ class ScoreNet(nn.Module):
 
 
 class VariationalDiffusionModel(nn.Module):
+    """Variational Diffusion Model (VDM), adapted from https://github.com/google-research/vdm
+
+    Attributes:
+      d_feature: Number of features per set element.
+      timesteps: Number of diffusion steps.
+      gamma_min: Minimum log-SNR in the noise schedule (init if learned).
+      gamma_max: Maximum log-SNR in the noise schedule (init if learned).
+      d_embedding: Dim to encode the per-element features to.
+      n_layers: Layers in encoder/decoder element-wise ResNets.
+      antithetic_time_sampling: Flag that indicates whether to use flash attention or not.
+      noise_schedule: Noise schedule; "learned_linear" or "scalar".
+      noise_scale: Std of Normal noise model.
+      latent_diffusion: Whether to encode/decode and do diffusion in latent space.
+      d_t_embedding: Dimensions the timesteps are embedded to.
+      transformer_dict: Dict of transformer arguments (see transformer.py docstring).
+      n_classes: Number of classes in data. If >0, the first element of the conditioning vector is assumed to be integer class.
+    """
+
+    d_feature: int = 3
     timesteps: int = 1000
     gamma_min: float = -3.0
     gamma_max: float = 3.0
     d_embedding: int = 8
     d_hidden_encoding: int = 256
-    antithetic_time_sampling: bool = False
     n_layers: int = 4
+    antithetic_time_sampling: bool = False
     noise_schedule: str = "learned_linear"  # "learned_linear" or "scalar"
-    d_feature: int = 3
     noise_scale: float = 1.0e-3
     latent_diffusion: bool = True
     d_t_embedding: int = 32
