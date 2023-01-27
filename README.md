@@ -1,6 +1,6 @@
-# Transformer-guided diffusion for set modeling
+# Set Diffuser: Transformer-guided diffusion for set modeling
 
-Transformer-guided variational diffusion model for class- and context-conditional generative modeling of and inference on set data.
+Jax implementation of a transformer-guided variational diffusion model for class- and context-conditional generative modeling of and inference on set data.
 
 ![MNIST](./notebooks/mnist_dark.png#gh-dark-mode-only)
 ![MNIST](./notebooks/mnist_light.png#gh-light-mode-only)
