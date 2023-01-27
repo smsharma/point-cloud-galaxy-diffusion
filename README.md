@@ -5,6 +5,8 @@ Jax implementation of a transformer-guided variational diffusion model for class
 ![MNIST](./notebooks/mnist_dark.png#gh-dark-mode-only)
 ![MNIST](./notebooks/mnist_light.png#gh-light-mode-only)
 
+> "It is in complex systems, ones in which we have little visibility of the chains of cause-consequences, that tinkering, bricolage, or similar variations of trial and error have been shown to vastly outperform the teleological — it is nature’s modus operandi" -NNT
+
 ## Description
 
 - The diffusion backbone is based on the implementation of a [variational diffusion model](https://github.com/google-research/vdm) ([blog post](https://blog.alexalemi.com/diffusion.html)). 
