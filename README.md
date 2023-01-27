@@ -4,11 +4,17 @@ Transformer-guided variational diffusion model for class- and context-conditiona
 
 ## Description
 
+- The diffusion backbone is based on the implementation of a [variational diffusion model](https://github.com/google-research/vdm). 
+- The score model is a vanilla transformer without positional encodings and with masked attention to account for sets of different cardinality.
+- [Flash attention](https://github.com/lucidrains/flash-attention-jax) can be optionally installed to circumvent the quadratic scaling of standard attention with sequence length and scale to larger sets.
+- Simple element-wise residual MLPs project the set features to and from a latent space, where diffusion is modeled.
+- The model can be optionally conditioned on a class as well as a general context. If `n_classes` > 0, the first element of the conditioning vector is assumed to be the integer class.
+
 ## Examples
 
-The [`notebooks`](notebooks/) directory contains usage example, including a simple [MNIST point cloud example](notebooks/example-mnist.ipynb) showing class-conditional generation, as well as a [particle physics example](notebooks/example-jets.ipynb).
+The [`notebooks`](notebooks/) directory contains usage example, including a simple [MNIST point cloud example](notebooks/example-mnist.ipynb) showing class-conditional generation, as well as a [particle physics example](notebooks/example-jets.ipynb). 
 
-## Basic usage
+## Usage
 
 ``` py
 import jax
