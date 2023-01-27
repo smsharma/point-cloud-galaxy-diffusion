@@ -7,7 +7,7 @@ Transformer-guided variational diffusion model for class- and context-conditiona
 
 ## Description
 
-- The diffusion backbone is based on the implementation of a [variational diffusion model](https://github.com/google-research/vdm). 
+- The diffusion backbone is based on the implementation of a [variational diffusion model](https://github.com/google-research/vdm) ([blog post](https://blog.alexalemi.com/diffusion.html)). 
 - The score model is a vanilla transformer without positional encodings and with masked attention to account for sets of different cardinality.
 - [Flash attention](https://github.com/lucidrains/flash-attention-jax) can be optionally installed and used to circumvent the quadratic scaling of standard attention with sequence length and scale to larger sets.
 - Simple element-wise residual MLPs project the set features to and from a latent space, where diffusion is modeled.
@@ -50,7 +50,7 @@ x = jax.random.normal(rng, (32, 100, 4))  # Input set
 mask = jax.random.randint(rng, (32, 100), 0, 2)  # Optional set mask; can be `None`
 conditioning = jax.random.normal(rng, (32, 6))  # Optional conditioning context; can be `None`
 
-# Call to get losses
+# Call to get losses; see https://blog.alexalemi.com/diffusion.html
 (loss_diff, loss_klz, loss_recon), params = vdm.init_with_output({"sample": rng, "params": rng, "uncond":rng}, x, conditioning, mask)
 
 # Compute full loss, accounting for masking
