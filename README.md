@@ -64,3 +64,8 @@ conditionink_sample = jax.random.normal(rng, (24, 6))
 x_samples = generate(vdm, params, rng, (24, 100), conditionink_sample, mask_sample)
 x_samples.mean().shape  # Mean of decoded Normal distribution -- (24, 100, 4)
 ```
+
+## TODO
+
+- [ ] Add examples for ELBO-based likelihood inference
+- [ ] Experiment with different conditioning schemes
