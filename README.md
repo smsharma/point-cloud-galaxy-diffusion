@@ -1,14 +1,17 @@
-# Transformer-guided diffusion for modeling sets
+# Transformer-guided diffusion for set modeling
 
 Transformer-guided variational diffusion model for class- and context-conditional generative modeling of and inference on set data.
+
+![MNIST](./notebooks/mnist_dark.png#gh-dark-mode-only)
+![MNIST](./notebooks/mnist_light.png#gh-light-mode-only)
 
 ## Description
 
 - The diffusion backbone is based on the implementation of a [variational diffusion model](https://github.com/google-research/vdm). 
 - The score model is a vanilla transformer without positional encodings and with masked attention to account for sets of different cardinality.
-- [Flash attention](https://github.com/lucidrains/flash-attention-jax) can be optionally installed to circumvent the quadratic scaling of standard attention with sequence length and scale to larger sets.
+- [Flash attention](https://github.com/lucidrains/flash-attention-jax) can be optionally installed and used to circumvent the quadratic scaling of standard attention with sequence length and scale to larger sets.
 - Simple element-wise residual MLPs project the set features to and from a latent space, where diffusion is modeled.
-- The model can be optionally conditioned on a class as well as a general context. If `n_classes` > 0, the first element of the conditioning vector is assumed to be the integer class.
+- The model can be optionally conditioned on a class as well as a general context. If `n_classes` > 0, the first element of the conditioning vector is assumed to be the integer class of the sample.
 
 ## Examples
 
