@@ -64,7 +64,7 @@ class Decoder(nn.Module):
 
 
 class ScoreNet(nn.Module):
-    d_embedding: int = 128
+    d_embedding: int = 8
     d_t_embedding: int = 32
     transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4, "flash_attention": True})
 
@@ -77,13 +77,13 @@ class ScoreNet(nn.Module):
         t_embedding = get_timestep_embedding(t, self.d_t_embedding)  # Timestep embeddings
 
         if conditioning is not None:
-            cond = np.concatenate([t_embedding, conditioning], axis=1)  # Concatenate with conditioning context
+            cond = np.concatenate([t_embedding, conditioning], axis=-1)  # Concatenate with conditioning context
         else:
             cond = t_embedding
 
         # Pass context through a small MLP before passing into transformer
-        cond = nn.gelu(nn.Dense(features=self.d_embedding * 4)(cond))
-        cond = nn.gelu(nn.Dense(features=self.d_embedding * 4)(cond))
+        cond = nn.gelu(nn.Dense(features=self.d_embedding * 8)(cond))
+        cond = nn.gelu(nn.Dense(features=self.d_embedding * 8)(cond))
         cond = nn.Dense(self.d_embedding)(cond)
 
         h = Transformer(n_input=self.d_embedding, **self.transformer_dict)(z, cond, mask)
@@ -120,8 +120,8 @@ class VariationalDiffusionModel(nn.Module):
             embedding_dim = self.d_feature
 
         self.score_model = ScoreNet(d_t_embedding=self.d_t_embedding, d_embedding=embedding_dim, transformer_dict=self.transformer_dict)
-        self.encoder = Encoder(d_hidden=self.d_hidden_encoding, n_layers=self.n_layers, d_embedding=embedding_dim, latent_diffusion=self.latent_diffusion)
-        self.decoder = Decoder(d_hidden=self.d_hidden_encoding, n_layers=self.n_layers, d_output=self.d_feature, noise_scale=self.noise_scale, latent_diffusion=self.latent_diffusion)
+        self.encoder = Encoder(d_hidden=int(4 * self.d_hidden_encoding), n_layers=self.n_layers, d_embedding=embedding_dim, latent_diffusion=self.latent_diffusion)
+        self.decoder = Decoder(d_hidden=int(4 * self.d_hidden_encoding), n_layers=self.n_layers, d_output=self.d_feature, noise_scale=self.noise_scale, latent_diffusion=self.latent_diffusion)
 
         # Embedding for class and context
         if self.n_classes > 0:
@@ -201,7 +201,6 @@ class VariationalDiffusionModel(nn.Module):
         cond = self.embed(conditioning)
         loss_diff = self.diffusion_loss(t, f, cond, mask)
 
-        # End of diffusion loss computation
         return (loss_diff, loss_klz, loss_recon)
 
     def embed(self, conditioning):
