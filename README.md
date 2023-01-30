@@ -48,9 +48,9 @@ vdm = VariationalDiffusionModel(gamma_min=-6.0, gamma_max=6.0,  # Min and max in
 
 rng = jax.random.PRNGKey(42)
 
-x = jax.random.normal(rng, (32, 100, 4))  # Input set
-mask = jax.random.randint(rng, (32, 100), 0, 2)  # Optional set mask; can be `None`
-conditioning = jax.random.normal(rng, (32, 6))  # Optional conditioning context; can be `None`
+x = jax.random.normal(rng, (32, 100, 4))  # Input set, (batch_size, max_set_size, num_features)
+mask = jax.random.randint(rng, (32, 100), 0, 2)  # Optional set mask, (batch_size, max_set_size); can be `None`
+conditioning = jax.random.normal(rng, (32, 6))  # Optional conditioning context, (batch_size, context_size); can be `None`
 
 # Call to get losses; see https://blog.alexalemi.com/diffusion.html
 (loss_diff, loss_klz, loss_recon), params = vdm.init_with_output({"sample": rng, "params": rng, "uncond":rng}, x, conditioning, mask)
