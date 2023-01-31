@@ -36,11 +36,11 @@ class Transformer(nn.Module):
     """
 
     n_input: int
-    d_model: int = 256
+    d_model: int = 128
     d_mlp: int = 512
     n_layers: int = 4
     n_heads: int = 4
-    flash_attention: bool = True
+    flash_attention: bool = False
 
     @nn.compact
     def __call__(self, x: jnp.ndarray, conditioning: jnp.ndarray = None, mask=None):
@@ -56,12 +56,12 @@ class Transformer(nn.Module):
         # Mask according to set cardinality
         mask_attn = jnp.ones((batch, seq_length)) if mask is None else mask
 
+        if conditioning is not None:
+            # Add conditioning to each element of set
+            x += conditioning[:, None, :]  # (batch, seq_len, d_model)
+
         # Transformer layers
         for _ in range(self.n_layers):
-
-            if conditioning is not None:
-                # Add conditioning to each element of set
-                x += conditioning[:, None, :]  # (batch, seq_len, d_model)
 
             # LayerNorm each time residual stream is written onto
             x1 = nn.LayerNorm()(x)

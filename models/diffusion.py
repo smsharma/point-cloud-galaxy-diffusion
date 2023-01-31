@@ -36,14 +36,11 @@ class Encoder(nn.Module):
     d_hidden: int = 32
     n_layers: int = 3
     d_embedding: int = 8
-    latent_diffusion: bool = True
 
     @nn.compact
-    def __call__(self, x, cond=None):
-        if self.latent_diffusion:
-            x = nn.Dense(self.d_hidden)(x)
-            x = ResNet(d_input=self.d_hidden, n_layers=self.n_layers, d_hidden=int(4 * self.d_hidden))(x, cond=cond)
-            x = nn.Dense(self.d_embedding)(x)
+    def __call__(self, x, cond=None, mask=None):
+        x = nn.Dense(self.d_embedding)(x)
+        x = ResNet(d_input=self.d_embedding, n_layers=self.n_layers, d_hidden=self.d_hidden)(x, cond=cond)
         return x
 
 
@@ -51,15 +48,13 @@ class Decoder(nn.Module):
     d_hidden: int = 32
     n_layers: int = 3
     d_output: int = 3
+    d_input: int = 8
     noise_scale: float = 1.0e-3
-    latent_diffusion: bool = True
 
     @nn.compact
-    def __call__(self, z, cond=None):
-        if self.latent_diffusion:
-            z = nn.Dense(self.d_hidden)(z)
-            z = ResNet(d_input=self.d_hidden, n_layers=self.n_layers, d_hidden=int(4 * self.d_hidden))(z, cond=cond)
-            z = nn.Dense(self.d_output)(z)
+    def __call__(self, z, cond=None, mask=None):
+        z = ResNet(d_input=self.d_input, n_layers=self.n_layers, d_hidden=self.d_hidden)(z, cond=cond)
+        z = nn.Dense(self.d_output)(z)
         return tfd.Normal(loc=z, scale=self.noise_scale)
 
 
@@ -77,13 +72,13 @@ class ScoreNet(nn.Module):
         t_embedding = get_timestep_embedding(t, self.d_t_embedding)  # Timestep embeddings
 
         if conditioning is not None:
-            cond = np.concatenate([t_embedding, conditioning], axis=-1)  # Concatenate with conditioning context
+            cond = np.concatenate([t_embedding, conditioning], axis=1)  # Concatenate with conditioning context
         else:
             cond = t_embedding
 
         # Pass context through a small MLP before passing into transformer
-        cond = nn.gelu(nn.Dense(features=self.d_embedding * 8)(cond))
-        cond = nn.gelu(nn.Dense(features=self.d_embedding * 8)(cond))
+        cond = nn.gelu(nn.Dense(features=self.d_embedding * 4)(cond))
+        cond = nn.gelu(nn.Dense(features=self.d_embedding * 4)(cond))
         cond = nn.Dense(self.d_embedding)(cond)
 
         h = Transformer(n_input=self.d_embedding, **self.transformer_dict)(z, cond, mask)
@@ -104,10 +99,10 @@ class VariationalDiffusionModel(nn.Module):
       antithetic_time_sampling: Flag that indicates whether to use flash attention or not.
       noise_schedule: Noise schedule; "learned_linear" or "scalar".
       noise_scale: Std of Normal noise model.
-      latent_diffusion: Whether to encode/decode and do diffusion in latent space.
       d_t_embedding: Dimensions the timesteps are embedded to.
       transformer_dict: Dict of transformer arguments (see transformer.py docstring).
       n_classes: Number of classes in data. If >0, the first element of the conditioning vector is assumed to be integer class.
+      Embed_context: Whether to embed the conditioning context.
     """
 
     d_feature: int = 3
@@ -120,10 +115,10 @@ class VariationalDiffusionModel(nn.Module):
     antithetic_time_sampling: bool = False
     noise_schedule: str = "learned_linear"  # "learned_linear" or "scalar"
     noise_scale: float = 1.0e-3
-    latent_diffusion: bool = True
     d_t_embedding: int = 32
     transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4, "flash_attention": True})
     n_classes: int = 0
+    embed_context: bool = False
 
     def setup(self):
 
@@ -132,14 +127,9 @@ class VariationalDiffusionModel(nn.Module):
         elif self.noise_schedule == "scalar":
             self.gamma = NoiseScheduleScalar(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
 
-        if self.latent_diffusion:
-            embedding_dim = self.d_embedding
-        else:
-            embedding_dim = self.d_feature
-
-        self.score_model = ScoreNet(d_t_embedding=self.d_t_embedding, d_embedding=embedding_dim, transformer_dict=self.transformer_dict)
-        self.encoder = Encoder(d_hidden=int(4 * self.d_hidden_encoding), n_layers=self.n_layers, d_embedding=embedding_dim, latent_diffusion=self.latent_diffusion)
-        self.decoder = Decoder(d_hidden=int(4 * self.d_hidden_encoding), n_layers=self.n_layers, d_output=self.d_feature, noise_scale=self.noise_scale, latent_diffusion=self.latent_diffusion)
+        self.score_model = ScoreNet(d_t_embedding=self.d_t_embedding, d_embedding=self.d_embedding, transformer_dict=self.transformer_dict)
+        self.encoder = Encoder(d_hidden=self.d_hidden_encoding, n_layers=self.n_layers, d_embedding=self.d_embedding)
+        self.decoder = Decoder(d_input=self.d_embedding, d_hidden=self.d_hidden_encoding, n_layers=self.n_layers, d_output=self.d_feature, noise_scale=self.noise_scale)
 
         # Embedding for class and context
         if self.n_classes > 0:
@@ -222,38 +212,39 @@ class VariationalDiffusionModel(nn.Module):
         return (loss_diff, loss_klz, loss_recon)
 
     def embed(self, conditioning):
-        """Embed the conditioning vector, optionally including embedding a class assumed to be the first element of the vector."""
+        """Embed the conditioning vector, optionally including embedding a class assumed to be the first element of the context vector."""
+        if not self.embed_context:
+            return conditioning
+        else:
+            if self.n_classes > 0 and conditioning.shape[-1] > 1:
+                classes, conditioning = conditioning[..., 0].astype(np.int32), conditioning[..., 1:]
+                class_embedding, context_embedding = self.embedding_class(classes), self.embedding_context(conditioning)
+                return class_embedding + context_embedding
+            elif self.n_classes > 0 and conditioning.shape[-1] == 1:
+                classes = conditioning[..., 0].astype(np.int32)
+                class_embedding = self.embedding_class(classes)
+                return class_embedding
+            elif self.n_classes == 0 and conditioning is not None:
+                context_embedding = self.embedding_context(conditioning)
+                return context_embedding
+            else:  # If no conditioning
+                return None
 
-        # If
-        if self.n_classes > 0 and conditioning.shape[-1] > 1:
-            classes, conditioning = conditioning[..., 0].astype(np.int32), conditioning[..., 1:]
-            class_embedding, context_embedding = self.embedding_class(classes), self.embedding_context(conditioning)
-            return class_embedding + context_embedding
-        elif self.n_classes > 0 and conditioning.shape[-1] == 1:
-            classes = conditioning[..., 0].astype(np.int32)
-            class_embedding = self.embedding_class(classes)
-            return class_embedding
-        elif self.n_classes == 0 and conditioning is not None:
-            context_embedding = self.embedding_context(conditioning)
-            return context_embedding
-        else:  # If no conditioning
-            return None
-
-    def encode(self, x, conditioning=None):
+    def encode(self, x, conditioning=None, mask=None):
         """Encode an image x."""
         if conditioning is not None:
             cond = self.embed(conditioning)
         else:
             cond = None
-        return self.encoder(x, cond)
+        return self.encoder(x, cond, mask)
 
-    def decode(self, z0, conditioning=None):
+    def decode(self, z0, conditioning=None, mask=None):
         """Decode a latent sample z0."""
         if conditioning is not None:
             cond = self.embed(conditioning)
         else:
             cond = None
-        return self.decoder(z0, cond)
+        return self.decoder(z0, cond, mask)
 
     def sample_step(self, rng, i, T, z_t, conditioning=None, mask=None):
         """Sample a single step of the diffusion process."""
