@@ -33,12 +33,12 @@ os.environ["XLA_FLAGS"] = "--xla_gpu_force_compilation_parallelism=1"
 n_particles = 5000
 n_seq = 5000
 n_features = 7  # All 7 features
-batch_size = 8
-train_steps = 500_000
+batch_size = 4
+train_steps = 400_000
 warmup_steps = 4000
 save_every = 4000
 flash_attention = False
-ckpt_dir = "/n/dvorkin_lab/smsharma/functional-diffusion/notebooks/ckpts_all_batch/"
+ckpt_dir = "/n/dvorkin_lab/smsharma/functional-diffusion/notebooks/ckpts_all_batch_larger/"
 
 if os.path.exists(ckpt_dir):
     shutil.rmtree(ckpt_dir)
@@ -72,9 +72,9 @@ for batch_size in reversed(batch_dims):
 train_ds = train_ds.shuffle(n_train, seed=42)
 train_df = create_input_iter(train_ds)
 
-transformer_dict = FrozenDict({"d_model": 256, "d_mlp": 1024, "n_layers": 6, "n_heads": 4, "flash_attention": flash_attention})  # Transformer args
+transformer_dict = FrozenDict({"d_model": 256, "d_mlp": 1024, "n_layers": 8, "n_heads": 4, "flash_attention": flash_attention})  # Transformer args
 
-vdm = VariationalDiffusionModel(gamma_min=-8.0, gamma_max=6.0, noise_schedule="learned_linear", n_layers=5, d_embedding=12, d_hidden_encoding=512, timesteps=300, d_t_embedding=32, d_feature=n_features, antithetic_time_sampling=True, transformer_dict=transformer_dict, n_classes=0)
+vdm = VariationalDiffusionModel(gamma_min=-8.0, gamma_max=6.0, noise_schedule="learned_linear", n_layers=5, d_embedding=10, d_hidden_encoding=512, timesteps=1000, d_t_embedding=32, d_feature=n_features, antithetic_time_sampling=True, transformer_dict=transformer_dict, n_classes=0)
 batches = create_input_iter(train_ds)
 
 # Past a test batch through to initialize model
