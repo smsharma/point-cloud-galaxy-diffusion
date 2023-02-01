@@ -11,7 +11,6 @@ Jax implementation of a transformer-guided variational diffusion model for class
 
 - The diffusion backbone is based on the implementation of a [variational diffusion model](https://github.com/google-research/vdm) ([blog post](https://blog.alexalemi.com/diffusion.html)). 
 - The score model is a vanilla transformer without positional encodings and with masked attention to account for sets of different cardinality.
-- [Flash attention](https://github.com/lucidrains/flash-attention-jax) can be optionally installed and used to circumvent the quadratic scaling of standard attention with sequence length and scale to larger sets.
 - Simple element-wise residual MLPs project the set features to and from a latent space, where diffusion is modeled.
 - The model can be optionally conditioned on a class as well as a general context. If `n_classes` > 0, the first element of the conditioning vector is assumed to be the integer class of the sample.
 
@@ -31,7 +30,7 @@ from models.diffusion import VariationalDiffusionModel
 from models.diffusion_utils import generate, loss_vdm
 
 # Transformer args
-transformer_dict = FrozenDict({"d_model":256, "d_mlp":512, "n_layers":5, "n_heads":4, "flash_attention":True})
+transformer_dict = FrozenDict({"d_model":256, "d_mlp":512, "n_layers":5, "n_heads":4})
 
 # Instantiate model
 vdm = VariationalDiffusionModel(gamma_min=-6.0, gamma_max=6.0,  # Min and max initial log-SNR in the noise schedule

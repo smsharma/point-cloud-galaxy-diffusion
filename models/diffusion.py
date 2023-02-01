@@ -61,7 +61,7 @@ class Decoder(nn.Module):
 class ScoreNet(nn.Module):
     d_embedding: int = 8
     d_t_embedding: int = 32
-    transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4, "flash_attention": True})
+    transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
 
     @nn.compact
     def __call__(self, z, t, conditioning, mask):
@@ -96,7 +96,7 @@ class VariationalDiffusionModel(nn.Module):
       gamma_max: Maximum log-SNR in the noise schedule (init if learned).
       d_embedding: Dim to encode the per-element features to.
       n_layers: Layers in encoder/decoder element-wise ResNets.
-      antithetic_time_sampling: Flag that indicates whether to use flash attention or not.
+      antithetic_time_sampling: Antithetic time sampling to reduce variance.
       noise_schedule: Noise schedule; "learned_linear" or "scalar".
       noise_scale: Std of Normal noise model.
       d_t_embedding: Dimensions the timesteps are embedded to.
@@ -116,7 +116,7 @@ class VariationalDiffusionModel(nn.Module):
     noise_schedule: str = "learned_linear"  # "learned_linear" or "scalar"
     noise_scale: float = 1.0e-3
     d_t_embedding: int = 32
-    transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4, "flash_attention": True})
+    transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
     n_classes: int = 0
     embed_context: bool = False
 

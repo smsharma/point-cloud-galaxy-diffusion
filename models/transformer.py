@@ -1,15 +1,9 @@
 import math
-import importlib
 
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
 from einops import rearrange
-
-try:
-    from flash_attention_jax import flash_attention
-except ImportError:
-    print("Could not load flash attention; will use standard attention.")
 
 
 def scaled_dot_product_attention(q, k, v, mask=None):
@@ -32,7 +26,6 @@ class Transformer(nn.Module):
       d_mlp: The dimension of the multi-layer perceptron (MLP) used in the feed-forward network.
       n_layers: Number of transformer layers.
       n_heads: The number of attention heads.
-      flash_attention: Flag that indicates whether to use flash attention or not.
     """
 
     n_input: int
@@ -73,11 +66,8 @@ class Transformer(nn.Module):
             qkv = rearrange(qkv, "batch seq_length (n_heads d_heads_3) -> batch n_heads seq_length d_heads_3", n_heads=self.n_heads)
             q, k, v = jnp.split(qkv, 3, axis=-1)  # (batch, n_heads, seq_length, d_heads)
 
-            # Compute attention; use flash attention if available and specified
-            if self.flash_attention and importlib.util.find_spec("flash_attention_jax") is not None:
-                x_heads = flash_attention(q, k, v, key_mask=mask_attn)  # (batch, n_heads, seq_length, d_heads)
-            else:
-                x_heads, _ = scaled_dot_product_attention(q, k, v, mask=mask_attn)  # (batch, n_heads, seq_length, d_heads)
+            # Compute attention
+            x_heads, _ = scaled_dot_product_attention(q, k, v, mask=mask_attn)  # (batch, n_heads, seq_length, d_heads)
 
             x_heads = rearrange(x_heads, "batch n_heads seq_length d_heads -> batch seq_length (n_heads d_heads)")
 
