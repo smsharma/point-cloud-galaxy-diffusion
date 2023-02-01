@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=300GB
-#SBATCH --time=08:00:00
+#SBATCH --time=23:00:00
 #SBATCH --gres=gpu:4
 #SBATCH --account=iaifi_lab
 #SBATCH -p iaifi_gpu
