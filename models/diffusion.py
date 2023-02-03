@@ -133,8 +133,8 @@ class VariationalDiffusionModel(nn.Module):
 
         # Embedding for class and context
         if self.n_classes > 0:
-            self.embedding_class = nn.Embed(self.n_classes, int(self.d_hidden_encoding // 4))
-        self.embedding_context = nn.Dense(int(self.d_hidden_encoding // 4))
+            self.embedding_class = nn.Embed(self.n_classes, self.d_hidden_encoding)
+        self.embedding_context = nn.Dense(self.d_hidden_encoding)
 
     def gammat(self, t):
         return self.gamma(t)
