@@ -102,7 +102,7 @@ class VariationalDiffusionModel(nn.Module):
       d_t_embedding: Dimensions the timesteps are embedded to.
       transformer_dict: Dict of transformer arguments (see transformer.py docstring).
       n_classes: Number of classes in data. If >0, the first element of the conditioning vector is assumed to be integer class.
-      Embed_context: Whether to embed the conditioning context.
+      embed_context: Whether to embed the conditioning context.
     """
 
     d_feature: int = 3
@@ -133,8 +133,8 @@ class VariationalDiffusionModel(nn.Module):
 
         # Embedding for class and context
         if self.n_classes > 0:
-            self.embedding_class = nn.Embed(self.n_classes, self.d_hidden_encoding)
-        self.embedding_context = nn.Dense(self.d_hidden_encoding)
+            self.embedding_class = nn.Embed(self.n_classes, int(self.d_hidden_encoding // 4))
+        self.embedding_context = nn.Dense(int(self.d_hidden_encoding // 4))
 
     def gammat(self, t):
         return self.gamma(t)
