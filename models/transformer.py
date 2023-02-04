@@ -21,18 +21,16 @@ class MultiHeadAttentionBlock(nn.Module):
 
         # Multi-head attention
         x_mhsa = nn.MultiHeadDotProductAttention(num_heads=self.n_heads, qkv_features=self.d_model // self.n_heads, out_features=self.d_model)(x, y, mask)
-        
+
         # Add into residual stream and LN
-        x += x_mhsa
-        x = nn.LayerNorm()(x)
+        x = nn.LayerNorm()(x + x_mhsa)
 
         # MLP
         x_mlp = nn.gelu(nn.Dense(self.d_mlp)(x))
         x_mlp = nn.Dense(self.d_model)(x_mlp)
 
         # Add into residual stream and LN
-        x += x_mlp
-        x = nn.LayerNorm()(x)
+        x = nn.LayerNorm()(x + x_mlp)
 
         return x
 

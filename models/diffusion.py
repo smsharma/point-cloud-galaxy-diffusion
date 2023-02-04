@@ -107,12 +107,12 @@ class VariationalDiffusionModel(nn.Module):
 
     d_feature: int = 3
     timesteps: int = 1000
-    gamma_min: float = -3.0
-    gamma_max: float = 3.0
+    gamma_min: float = -6.0
+    gamma_max: float = 6.0
     d_embedding: int = 8
     d_hidden_encoding: int = 256
     n_layers: int = 4
-    antithetic_time_sampling: bool = False
+    antithetic_time_sampling: bool = True
     noise_schedule: str = "learned_linear"  # "learned_linear" or "scalar"
     noise_scale: float = 1.0e-3
     d_t_embedding: int = 32

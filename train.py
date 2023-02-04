@@ -28,87 +28,106 @@ from models.diffusion import VariationalDiffusionModel
 from models.diffusion_utils import loss_vdm
 from models.train_utils import create_input_iter, param_count, StateStore, train_step
 
-os.environ["XLA_FLAGS"] = "--xla_gpu_force_compilation_parallelism=1"
+EPS = 1e-7
 
-n_particles = 5000
-n_seq = 5000
-n_features = 7  # All 7 features
-batch_size = 4
-train_steps = 400_000
-warmup_steps = 4000
-save_every = 4000
-flash_attention = False
-ckpt_dir = "/n/dvorkin_lab/smsharma/functional-diffusion/notebooks/ckpts_all_batch_larger/"
 
-if os.path.exists(ckpt_dir):
-    shutil.rmtree(ckpt_dir)
+def train():
 
-print("{} devices visible".format(jax.device_count()))
+    # Training args
+    n_particles = 5000
+    n_features = 7  # All 7 features
+    batch_size = 16  # Must be divisible by number of devices
+    n_train_steps = 400_000
+    warmup_steps = 4000
+    save_every = 4000
+    learning_rate = 6e-4  # Peak learning rate
+    weight_decay = 1e-4
+    timesteps = 1000
+    d_hidden_encoding = 256
+    n_encoder_layers = 6
+    d_embedding = 10
+    embed_context = False
 
-x = np.load("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/halos.npy")
-x_mean = x.mean(axis=(0, 1))
-x_std = x.std(axis=(0, 1))
-x = (x - x_mean + 1e-7) / (x_std + 1e-7)
+    # Transformer args
+    induced_attention = False
+    n_inducing_points = 300
+    d_model = 256
+    d_mlp = 1024
+    n_transformer_layers = 8
+    n_heads = 4
 
-x = x[:, :n_particles, :n_features]
-x = np.pad(x, [(0, 0), (0, n_seq - n_particles), (0, 0)])
-conditioning = np.array(pd.read_csv("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/cosmology.csv").values)
+    ckpt_dir = "/n/dvorkin_lab/smsharma/functional-diffusion/notebooks/ckpts_all_batch_larger/"
 
-mask = np.ones((x.shape[0], n_particles))
-mask = np.pad(mask, [(0, 0), (0, n_seq - n_particles)])
+    if os.path.exists(ckpt_dir):
+        shutil.rmtree(ckpt_dir)
 
-batch_size = batch_size * jax.device_count()
-n_train = len(x)
+    print("{} devices visible".format(jax.device_count()))
 
-train_ds = tf.data.Dataset.from_tensor_slices((x, conditioning, mask))
-train_ds = train_ds.cache()
-train_ds = train_ds.repeat()
+    # Load data
 
-batch_dims = [jax.local_device_count(), batch_size // jax.device_count()]
+    x = np.load("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/halos.npy")
+    x_mean = x.mean(axis=(0, 1))
+    x_std = x.std(axis=(0, 1))
+    x = (x - x_mean) / (x_std + EPS)
 
-for batch_size in reversed(batch_dims):
-    train_ds = train_ds.batch(batch_size, drop_remainder=False)
+    x = x[:, :n_particles, :n_features]
+    conditioning = np.array(pd.read_csv("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/cosmology.csv").values)
 
-train_ds = train_ds.shuffle(n_train, seed=42)
-train_df = create_input_iter(train_ds)
+    mask = np.ones((x.shape[0], n_particles))
 
-transformer_dict = FrozenDict({"d_model": 256, "d_mlp": 1024, "n_layers": 8, "n_heads": 4, "flash_attention": flash_attention})  # Transformer args
+    # Make dataloader
 
-vdm = VariationalDiffusionModel(gamma_min=-8.0, gamma_max=6.0, noise_schedule="learned_linear", n_layers=5, d_embedding=10, d_hidden_encoding=512, timesteps=1000, d_t_embedding=32, d_feature=n_features, antithetic_time_sampling=True, transformer_dict=transformer_dict, n_classes=0)
-batches = create_input_iter(train_ds)
+    n_train = len(x)
 
-# Past a test batch through to initialize model
+    train_ds = tf.data.Dataset.from_tensor_slices((x, conditioning, mask))
+    train_ds = train_ds.cache()
+    train_ds = train_ds.repeat()
 
-x_batch, conditioning_batch, mask_batch = next(batches)
-rng = jax.random.PRNGKey(42)
-out, params = vdm.init_with_output({"sample": rng, "params": rng, "uncond": rng}, x_batch[0], conditioning_batch[0], mask_batch[0])
+    batch_dims = [jax.local_device_count(), batch_size // jax.device_count()]
 
-print(f"Params: {param_count(params):,}")
+    for batch_size in reversed(batch_dims):
+        train_ds = train_ds.batch(batch_size, drop_remainder=False)
 
-train_steps = train_steps // jax.device_count()
-warmup_steps = warmup_steps // jax.device_count()
+    train_ds = train_ds.shuffle(n_train, seed=42)
 
-schedule = optax.warmup_cosine_decay_schedule(
-    init_value=0.0,
-    peak_value=6e-4,
-    warmup_steps=warmup_steps,
-    decay_steps=train_steps,
-)
+    # Model configuration
 
-opt = optax.adamw(learning_rate=schedule, weight_decay=1e-4)
+    transformer_dict = FrozenDict({"d_model": d_model, "d_mlp": d_mlp, "n_layers": n_transformer_layers, "n_heads": n_heads})  # Transformer args
 
-# Init state store
-store = StateStore(params, opt.init(params), rng, 0)
-pstore = replicate(store)
+    vdm = VariationalDiffusionModel(n_layers=n_encoder_layers, d_embedding=d_embedding, d_hidden_encoding=d_hidden_encoding, timesteps=timesteps, d_feature=n_features, transformer_dict=transformer_dict, embed_context=embed_context)
+    batches = create_input_iter(train_ds)
 
-vals = []
-with trange(train_steps) as t:
-    for i in t:
-        pstore, val = train_step(pstore, loss_vdm, vdm, next(batches), opt)
-        v = unreplicate(val)
-        t.set_postfix(val=v)
-        vals.append(v)
+    # Pass a test batch through to initialize model
+    x_batch, conditioning_batch, mask_batch = next(batches)
+    rng = jax.random.PRNGKey(42)
+    out, params = vdm.init_with_output({"sample": rng, "params": rng}, x_batch[0], conditioning_batch[0], mask_batch[0])
 
-        if i % save_every == 0:
-            ckpt = unreplicate(pstore)
-            checkpoints.save_checkpoint(ckpt_dir=ckpt_dir, target=ckpt, step=i, overwrite=True, keep=3)
+    print(f"Params: {param_count(params):,}")
+
+    # Training config and loop
+
+    schedule = optax.warmup_cosine_decay_schedule(init_value=0.0, peak_value=learning_rate, warmup_steps=warmup_steps, decay_steps=n_train_steps)
+    opt = optax.adamw(learning_rate=schedule, weight_decay=weight_decay)
+
+    # Init state store
+    store = StateStore(params, opt.init(params), rng, 0)
+    pstore = replicate(store)
+
+    vals = []
+    with trange(n_train_steps) as t:
+        for i in t:
+            pstore, val = train_step(pstore, loss_vdm, vdm, next(batches), opt)
+            v = unreplicate(val)
+            t.set_postfix(val=v)
+            vals.append(v)
+
+            # Save checkpoint periodically
+            if (i % save_every == 0) and (i != 0) and (jax.host_id() == 0):
+                ckpt = unreplicate(pstore)
+                checkpoints.save_checkpoint(ckpt_dir=ckpt_dir, target=ckpt, step=i, overwrite=True, keep=np.inf)
+
+    return unreplicate(pstore)
+
+
+def main():
+    train()
