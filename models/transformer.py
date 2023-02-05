@@ -1,11 +1,6 @@
-import math
-
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
-from einops import rearrange
-
-from typing import Any, Callable, Optional
 
 
 class MultiHeadAttentionBlock(nn.Module):
@@ -22,14 +17,14 @@ class MultiHeadAttentionBlock(nn.Module):
         # Multi-head attention
         x_mhsa = nn.MultiHeadDotProductAttention(num_heads=self.n_heads, qkv_features=self.d_model // self.n_heads, out_features=self.d_model)(x, y, mask)
 
-        # Add into residual stream and LN
+        # Add into residual stream and norm
         x = nn.LayerNorm()(x + x_mhsa)
 
         # MLP
         x_mlp = nn.gelu(nn.Dense(self.d_mlp)(x))
         x_mlp = nn.Dense(self.d_model)(x_mlp)
 
-        # Add into residual stream and LN
+        # Add into residual stream and norm
         x = nn.LayerNorm()(x + x_mlp)
 
         return x

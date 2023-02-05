@@ -6,6 +6,7 @@ sys.path.append("./")
 sys.path.append("../")
 
 import pandas as pd
+from tqdm import trange
 
 import jax
 import jax.numpy as np
@@ -16,37 +17,37 @@ from flax.training import checkpoints
 
 import tensorflow as tf
 
-# Ensure TF does not see GPU and grab all GPU memory
-tf.config.set_visible_devices([], device_type="GPU")
-
-from tqdm import trange
+from models.diffusion import VariationalDiffusionModel
+from models.diffusion_utils import loss_vdm
+from models.train_utils import create_input_iter, param_count, StateStore, train_step
 
 replicate = flax.jax_utils.replicate
 unreplicate = flax.jax_utils.unreplicate
 
-from models.diffusion import VariationalDiffusionModel
-from models.diffusion_utils import loss_vdm
-from models.train_utils import create_input_iter, param_count, StateStore, train_step
+# Ensure TF does not see GPU and grab all GPU memory
+tf.config.set_visible_devices([], device_type="GPU")
 
 EPS = 1e-7
 
 
 def train():
 
-    # Training args
+    # VDM args
     n_particles = 5000
-    n_features = 7  # All 7 features
-    batch_size = 16  # Must be divisible by number of devices
-    n_train_steps = 400_000
-    warmup_steps = 4000
+    n_features = 3  # Input features per set element
     save_every = 4000
-    learning_rate = 6e-4  # Peak learning rate
-    weight_decay = 1e-4
     timesteps = 1000
     d_hidden_encoding = 256
-    n_encoder_layers = 6
+    n_encoder_layers = 5
     d_embedding = 10
     embed_context = False
+
+    # Training config
+    learning_rate = 6e-4  # Peak learning rate
+    weight_decay = 1e-4
+    batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
+    n_train_steps = 150_000
+    warmup_steps = 2000
 
     # Transformer args
     induced_attention = False
@@ -65,7 +66,7 @@ def train():
 
     # Load data
 
-    x = np.load("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/halos.npy")
+    x = np.load("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/positions.npy")
     x_mean = x.mean(axis=(0, 1))
     x_std = x.std(axis=(0, 1))
     x = (x - x_mean) / (x_std + EPS)
@@ -92,7 +93,7 @@ def train():
 
     # Model configuration
 
-    transformer_dict = FrozenDict({"d_model": d_model, "d_mlp": d_mlp, "n_layers": n_transformer_layers, "n_heads": n_heads})  # Transformer args
+    transformer_dict = FrozenDict({"d_model": d_model, "d_mlp": d_mlp, "n_layers": n_transformer_layers, "n_heads": n_heads, "induced_attention": induced_attention, "n_inducing_points": n_inducing_points})  # Transformer args
 
     vdm = VariationalDiffusionModel(n_layers=n_encoder_layers, d_embedding=d_embedding, d_hidden_encoding=d_hidden_encoding, timesteps=timesteps, d_feature=n_features, transformer_dict=transformer_dict, embed_context=embed_context)
     batches = create_input_iter(train_ds)
@@ -100,7 +101,7 @@ def train():
     # Pass a test batch through to initialize model
     x_batch, conditioning_batch, mask_batch = next(batches)
     rng = jax.random.PRNGKey(42)
-    out, params = vdm.init_with_output({"sample": rng, "params": rng}, x_batch[0], conditioning_batch[0], mask_batch[0])
+    _, params = vdm.init_with_output({"sample": rng, "params": rng}, x_batch[0], conditioning_batch[0], mask_batch[0])
 
     print(f"Params: {param_count(params):,}")
 
@@ -122,12 +123,12 @@ def train():
             vals.append(v)
 
             # Save checkpoint periodically
-            if (i % save_every == 0) and (i != 0) and (jax.host_id() == 0):
+            if (i % save_every == 0) and (i != 0) and (jax.process_index() == 0):
                 ckpt = unreplicate(pstore)
                 checkpoints.save_checkpoint(ckpt_dir=ckpt_dir, target=ckpt, step=i, overwrite=True, keep=np.inf)
 
     return unreplicate(pstore)
 
 
-def main():
+if __name__ == "__main__":
     train()
