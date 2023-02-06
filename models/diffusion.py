@@ -107,7 +107,7 @@ class VariationalDiffusionModel(nn.Module):
 
     d_feature: int = 3
     timesteps: int = 1000
-    gamma_min: float = -6.0
+    gamma_min: float = -8.0
     gamma_max: float = 6.0
     d_embedding: int = 8
     d_hidden_encoding: int = 256

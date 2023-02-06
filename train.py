@@ -46,8 +46,8 @@ def train():
     learning_rate = 6e-4  # Peak learning rate
     weight_decay = 1e-4
     batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
-    n_train_steps = 150_000
-    warmup_steps = 2000
+    n_train_steps = 75_000
+    warmup_steps = 1000
 
     # Transformer args
     induced_attention = False
@@ -57,7 +57,7 @@ def train():
     n_transformer_layers = 8
     n_heads = 4
 
-    ckpt_dir = "/n/holystore01/LABS/iaifi_lab/Users/smsharma/set-diffuser/notebooks/ckpts_debug/"
+    ckpt_dir = "/n/holystore01/LABS/iaifi_lab/Users/smsharma/set-diffuser/notebooks/ckpts_debug_old_transformer/"
 
     if os.path.exists(ckpt_dir):
         shutil.rmtree(ckpt_dir)
@@ -66,10 +66,10 @@ def train():
 
     # Load data
 
-    x = np.load("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/positions.npy")
+    x = np.load("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/halos.npy")
     x_mean = x.mean(axis=(0, 1))
     x_std = x.std(axis=(0, 1))
-    x = (x - x_mean) / (x_std + EPS)
+    x = (x - x_mean + EPS) / (x_std + EPS)
 
     x = x[:, :n_particles, :n_features]
     conditioning = np.array(pd.read_csv("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/cosmology.csv").values)
@@ -93,7 +93,8 @@ def train():
 
     # Model configuration
 
-    transformer_dict = FrozenDict({"d_model": d_model, "d_mlp": d_mlp, "n_layers": n_transformer_layers, "n_heads": n_heads, "induced_attention": induced_attention, "n_inducing_points": n_inducing_points})  # Transformer args
+    # transformer_dict = FrozenDict({"d_model": d_model, "d_mlp": d_mlp, "n_layers": n_transformer_layers, "n_heads": n_heads, "induced_attention": induced_attention, "n_inducing_points": n_inducing_points})  # Transformer args
+    transformer_dict = FrozenDict({"d_model": d_model, "d_mlp": d_mlp, "n_layers": n_transformer_layers, "n_heads": n_heads})  # Transformer args
 
     vdm = VariationalDiffusionModel(n_layers=n_encoder_layers, d_embedding=d_embedding, d_hidden_encoding=d_hidden_encoding, timesteps=timesteps, d_feature=n_features, transformer_dict=transformer_dict, embed_context=embed_context)
     batches = create_input_iter(train_ds)
