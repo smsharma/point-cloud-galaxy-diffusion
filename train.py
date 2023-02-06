@@ -37,7 +37,7 @@ def train():
     n_features = 3  # Input features per set element
     save_every = 4000
     timesteps = 1000
-    d_hidden_encoding = 256
+    d_hidden_encoding = 512
     n_encoder_layers = 5
     d_embedding = 10
     embed_context = False
@@ -57,7 +57,7 @@ def train():
     n_transformer_layers = 8
     n_heads = 4
 
-    ckpt_dir = "/n/dvorkin_lab/smsharma/functional-diffusion/notebooks/ckpts_all_batch_larger/"
+    ckpt_dir = "/n/holystore01/LABS/iaifi_lab/Users/smsharma/set-diffuser/notebooks/ckpts_debug/"
 
     if os.path.exists(ckpt_dir):
         shutil.rmtree(ckpt_dir)

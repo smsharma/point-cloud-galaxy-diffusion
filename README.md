@@ -2,8 +2,8 @@
 
 Jax implementation of a transformer-guided variational diffusion model for class- and context-conditional generative modeling of and inference on set data.
 
-![MNIST](./notebooks/mnist_dark.png#gh-dark-mode-only)
-![MNIST](./notebooks/mnist_light.png#gh-light-mode-only)
+![MNIST](./notebooks/plots/mnist_dark.png#gh-dark-mode-only)
+![MNIST](./notebooks/plots/mnist_light.png#gh-light-mode-only)
 
 > _"It is in complex systems, ones in which we have little visibility of the chains of cause-consequences, that tinkering, bricolage, or similar variations of trial and error have been shown to vastly outperform the teleological — it is nature’s modus operandi"_ -NNT
 
