@@ -2,6 +2,7 @@ import jax
 import jax.numpy as np
 import flax
 import optax
+from ml_collections import ConfigDict
 
 from functools import partial
 from typing import Any
@@ -36,15 +37,28 @@ def create_input_iter(ds):
 def train_step(store, loss_fn, model, batch, opt):
     """Train for a single step."""
     rng, spl = jax.random.split(store.rng)
-    im, lb, mask = batch
-    out, grads = jax.value_and_grad(loss_fn)(store.params, model, spl, im, lb, mask)
+    x, conditioning, mask = batch
+    loss, grads = jax.value_and_grad(loss_fn)(store.params, model, spl, x, conditioning, mask)
     grads = jax.lax.pmean(grads, "batch")
     updates, state = opt.update(grads, store.state, store.params)
     params = optax.apply_updates(store.params, updates)
 
-    return (store.replace(params=params, state=state, rng=rng, step=store.step + 1), jax.lax.pmean(out, "batch"))
+    metrics = {'loss':jax.lax.pmean(loss, "batch")}
+
+    return store.replace(params=params, state=state, rng=rng, step=store.step + 1), metrics
 
 
 def param_count(pytree):
     """Count the number of parameters in a pytree."""
     return sum(x.size for x in jax.tree_util.tree_leaves(pytree))
+
+
+def to_wandb_config(d: ConfigDict, parent_key: str = "", sep: str = "."):
+    items = []
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, ConfigDict):
+            items.extend(to_wandb_config(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)

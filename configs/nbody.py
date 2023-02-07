@@ -11,6 +11,7 @@ def get_config():
     wandb.project = "nbody"
     wandb.job_type = "training"
     wandb.name = None
+    wandb.log_train = True
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
@@ -36,6 +37,7 @@ def get_config():
     training.n_train_steps = 500_000
     training.warmup_steps = 5000
     training.log_every_steps = 100
+    training.save_every_steps = 5000
 
     # Data
     config.data = data = ml_collections.ConfigDict()

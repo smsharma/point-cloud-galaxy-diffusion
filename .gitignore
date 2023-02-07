@@ -164,3 +164,4 @@ data/*.hdf5
 notebooks/ckpts
 notebooks/ckpts*
 scripts/*.out
+logging/

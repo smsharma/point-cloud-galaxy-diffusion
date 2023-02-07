@@ -29,24 +29,24 @@ def nbody_dataset(n_features, n_particles, batch_size, seed):
     x = np.load("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/halos.npy")
     conditioning = np.array(pd.read_csv("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/cosmology.csv").values)
 
-    # Standardize
+    # Standardize per-feature (over datasets and particles)
     x_mean = x.mean(axis=(0, 1))
     x_std = x.std(axis=(0, 1))
     x = (x - x_mean + EPS) / (x_std + EPS)
 
     # Finalize
     x = x[:, :n_particles, :n_features]
-    mask = np.ones((x.shape[0], n_particles))
+    mask = np.ones((x.shape[0], n_particles))  # No mask
 
     train_ds = make_dataloader(x, conditioning, mask, batch_size, seed)
 
-    return train_ds
+    return train_ds, x_mean, x_std
 
 
 def load_data(dataset, n_features, n_particles, batch_size, seed):
     if dataset == "nbody":
-        train_ds = nbody_dataset(n_features, n_particles, batch_size, seed)
+        train_ds, x_mean, x_std = nbody_dataset(n_features, n_particles, batch_size, seed)
     else:
         raise ValueError("Unknown dataset: {}".format(dataset))
 
-    return train_ds
+    return train_ds, x_mean, x_std

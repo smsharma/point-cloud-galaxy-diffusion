@@ -1,5 +1,7 @@
 import dataclasses
 
+from absl import logging
+
 import jax
 import flax.linen as nn
 import jax.numpy as np

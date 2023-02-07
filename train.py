@@ -5,11 +5,12 @@ import shutil
 from absl import flags, logging
 from absl import logging
 from ml_collections import config_flags
+from clu import metric_writers
+import wandb
 
 sys.path.append("./")
 sys.path.append("../")
 
-import pandas as pd
 from tqdm import trange
 
 import jax
@@ -17,13 +18,13 @@ import jax.numpy as np
 import optax
 import flax
 from flax.core import FrozenDict
-from flax.training import checkpoints
+from flax.training import checkpoints, common_utils
 
 import tensorflow as tf
 
 from models.diffusion import VariationalDiffusionModel
 from models.diffusion_utils import loss_vdm
-from models.train_utils import create_input_iter, param_count, StateStore, train_step
+from models.train_utils import create_input_iter, param_count, StateStore, train_step, to_wandb_config
 
 from datasets import load_data
 
@@ -33,15 +34,16 @@ unreplicate = flax.jax_utils.unreplicate
 logging.set_verbosity(logging.INFO)
 
 
-def train(config):
+def train(config, workdir='./logging/'):
 
-    ckpt_dir = "/n/holystore01/LABS/iaifi_lab/Users/smsharma/set-diffuser/notebooks/ckpts_debug_inducing/"
-
-    if os.path.exists(ckpt_dir):
-        shutil.rmtree(ckpt_dir)
+    writer = metric_writers.create_default_writer(logdir=workdir, just_logging=jax.process_index() != 0)
+    # set up wandb run
+    if config.wandb.log_train and jax.process_index() == 0:
+        wandb_config = to_wandb_config(config)
+        wandb.init(entity=config.wandb.entity, project=config.wandb.project, job_type=config.wandb.job_type, config=wandb_config)
 
     # Load the dataset
-    train_ds = load_data(config.data.dataset, config.data.n_features, config.data.n_particles, config.training.batch_size, config.seed)
+    train_ds, x_mean, x_std = load_data(config.data.dataset, config.data.n_features, config.data.n_particles, config.training.batch_size, config.seed)
 
     ## Model configuration
 
@@ -60,7 +62,7 @@ def train(config):
 
     logging.info("Number of parameters: %d", param_count(params))
 
-    # Training config and loop
+    ## Training config and loop
 
     schedule = optax.warmup_cosine_decay_schedule(init_value=0.0, peak_value=config.optim.learning_rate, warmup_steps=config.training.warmup_steps, decay_steps=config.training.n_train_steps)
     opt = optax.adamw(learning_rate=schedule, weight_decay=config.optim.weight_decay)
@@ -69,18 +71,29 @@ def train(config):
     store = StateStore(params, opt.init(params), rng, 0)
     pstore = replicate(store)
 
-    vals = []
-    with trange(config.training.n_train_steps) as t:
-        for i in t:
-            pstore, val = train_step(pstore, loss_vdm, vdm, next(batches), opt)
-            v = unreplicate(val)
-            t.set_postfix(val=v)
-            vals.append(v)
+    train_metrics = []
+    with trange(config.training.n_train_steps) as steps:
+        for step in steps:
+            pstore, metrics = train_step(pstore, loss_vdm, vdm, next(batches), opt)
+            steps.set_postfix(val=unreplicate(metrics['loss']))
+            train_metrics.append(metrics)
 
-            # Save checkpoint periodically
-            if (i % config.training.log_every_steps == 0) and (i != 0) and (jax.process_index() == 0):
+            # Log periodically
+            if (step % config.training.log_every_steps == 0) and (step != 0) and (jax.process_index() == 0):
+
+                train_metrics = common_utils.get_metrics(train_metrics)
+                summary = {f"train/{k}": v for k, v in jax.tree_map(lambda x: x.mean(), train_metrics).items()}
+
+                writer.write_scalars(step, summary)
+                train_metrics = []
+
+                if config.wandb.log_train:
+                    wandb.log({"train/step": step, **summary})
+
+            # Save checkpoints periodically
+            if (step % config.training.save_every_steps == 0) and (step != 0) and (jax.process_index() == 0):
                 ckpt = unreplicate(pstore)
-                checkpoints.save_checkpoint(ckpt_dir=ckpt_dir, target=ckpt, step=i, overwrite=True, keep=5)
+                checkpoints.save_checkpoint(ckpt_dir=workdir, target=ckpt, step=step, overwrite=True, keep=np.inf)
 
     return unreplicate(pstore)
 
