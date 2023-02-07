@@ -46,7 +46,7 @@ class PoolingByMultiHeadAttention(nn.Module):
         seed_vectors = self.param("seed_vectors", nn.linear.default_embed_init, (self.n_seed_vectors, z.shape[-1]))
         seed_vectors = jnp.broadcast_to(seed_vectors, z.shape[:-2] + seed_vectors.shape)
         mask = None if mask is None else mask[..., None, :]
-        return MultiHeadAttentionBlock(n_heads=n_heads, d_model=self.d_model, d_mlp=d_mlp)(seed_vectors, z, mask)
+        return MultiHeadAttentionBlock(n_heads=self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp)(seed_vectors, z, mask)
 
 
 class Transformer(nn.Module):

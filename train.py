@@ -50,14 +50,14 @@ def train():
     warmup_steps = 1000
 
     # Transformer args
-    induced_attention = False
+    induced_attention = True
     n_inducing_points = 300
     d_model = 256
     d_mlp = 1024
     n_transformer_layers = 8
     n_heads = 4
 
-    ckpt_dir = "/n/holystore01/LABS/iaifi_lab/Users/smsharma/set-diffuser/notebooks/ckpts_debug/"
+    ckpt_dir = "/n/holystore01/LABS/iaifi_lab/Users/smsharma/set-diffuser/notebooks/ckpts_debug_inducing/"
 
     if os.path.exists(ckpt_dir):
         shutil.rmtree(ckpt_dir)
@@ -93,8 +93,7 @@ def train():
 
     # Model configuration
 
-    # transformer_dict = FrozenDict({"d_model": d_model, "d_mlp": d_mlp, "n_layers": n_transformer_layers, "n_heads": n_heads, "induced_attention": induced_attention, "n_inducing_points": n_inducing_points})  # Transformer args
-    transformer_dict = FrozenDict({"d_model": d_model, "d_mlp": d_mlp, "n_layers": n_transformer_layers, "n_heads": n_heads})  # Transformer args
+    transformer_dict = FrozenDict({"d_model": d_model, "d_mlp": d_mlp, "n_layers": n_transformer_layers, "n_heads": n_heads, "induced_attention": induced_attention, "n_inducing_points": n_inducing_points})  # Transformer args
 
     vdm = VariationalDiffusionModel(n_layers=n_encoder_layers, d_embedding=d_embedding, d_hidden_encoding=d_hidden_encoding, timesteps=timesteps, d_feature=n_features, transformer_dict=transformer_dict, embed_context=embed_context)
     batches = create_input_iter(train_ds)
