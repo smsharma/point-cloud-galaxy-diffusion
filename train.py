@@ -57,7 +57,7 @@ def train():
     n_transformer_layers = 8
     n_heads = 4
 
-    ckpt_dir = "/n/holystore01/LABS/iaifi_lab/Users/smsharma/set-diffuser/notebooks/ckpts_debug_old_transformer/"
+    ckpt_dir = "/n/holystore01/LABS/iaifi_lab/Users/smsharma/set-diffuser/notebooks/ckpts_debug/"
 
     if os.path.exists(ckpt_dir):
         shutil.rmtree(ckpt_dir)
