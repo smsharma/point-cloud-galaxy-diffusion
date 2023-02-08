@@ -1,0 +1,120 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.13.10
+    framework: keras
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    python_version: 3.9.12
+    start_time: 1675816018.051884
+    t:
+      1:
+      - 2
+      - 3
+      - 12
+      - 45
+      - 51
+      - 55
+      2:
+      - 2
+      - 3
+      - 12
+      - 45
+      - 51
+      - 55
+      3:
+      - 16
+      - 23
+      4: 3.9.12
+      5: 0.13.10
+      8:
+      - 5
+data.dataset:
+  desc: null
+  value: nbody
+data.n_features:
+  desc: null
+  value: 3
+data.n_particles:
+  desc: null
+  value: 5000
+optim.learning_rate:
+  desc: null
+  value: 0.0006
+optim.weight_decay:
+  desc: null
+  value: 0.0001
+seed:
+  desc: null
+  value: 42
+training.batch_size:
+  desc: null
+  value: 16
+training.half_precision:
+  desc: null
+  value: false
+training.log_every_steps:
+  desc: null
+  value: 100
+training.n_train_steps:
+  desc: null
+  value: 500000
+training.save_every_steps:
+  desc: null
+  value: 500
+training.warmup_steps:
+  desc: null
+  value: 5000
+transformer.d_mlp:
+  desc: null
+  value: 1024
+transformer.d_model:
+  desc: null
+  value: 256
+transformer.induced_attention:
+  desc: null
+  value: false
+transformer.n_heads:
+  desc: null
+  value: 4
+transformer.n_inducing_points:
+  desc: null
+  value: 500
+transformer.n_transformer_layers:
+  desc: null
+  value: 8
+vdm.d_embedding:
+  desc: null
+  value: 10
+vdm.d_hidden_encoding:
+  desc: null
+  value: 512
+vdm.embed_context:
+  desc: null
+  value: false
+vdm.n_encoder_layers:
+  desc: null
+  value: 5
+vdm.timesteps:
+  desc: null
+  value: 1000
+wandb.entity:
+  desc: null
+  value: null
+wandb.group:
+  desc: null
+  value: cosmology
+wandb.job_type:
+  desc: null
+  value: training
+wandb.log_train:
+  desc: null
+  value: true
+wandb.name:
+  desc: null
+  value: null
+wandb.project:
+  desc: null
+  value: set-diffusion

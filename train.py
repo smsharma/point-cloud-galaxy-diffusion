@@ -18,7 +18,7 @@ import jax.numpy as np
 import optax
 import flax
 from flax.core import FrozenDict
-from flax.training import checkpoints, common_utils
+from flax.training import checkpoints, common_utils, train_state
 
 import tensorflow as tf
 
@@ -34,13 +34,18 @@ unreplicate = flax.jax_utils.unreplicate
 logging.set_verbosity(logging.INFO)
 
 
-def train(config, workdir='./logging/'):
+def train(config, workdir="./logging/"):
 
-    writer = metric_writers.create_default_writer(logdir=workdir, just_logging=jax.process_index() != 0)
-    # set up wandb run
+    # Set up wandb run
     if config.wandb.log_train and jax.process_index() == 0:
         wandb_config = to_wandb_config(config)
-        wandb.init(entity=config.wandb.entity, project=config.wandb.project, job_type=config.wandb.job_type, config=wandb_config)
+        run = wandb.init(entity=config.wandb.entity, project=config.wandb.project, job_type=config.wandb.job_type, group=config.wandb.group, config=wandb_config)
+        workdir = os.path.join(workdir, run.group, run.name)
+
+        # Recursively create workdir
+        os.makedirs(workdir, exist_ok=True)
+
+    writer = metric_writers.create_default_writer(logdir=workdir, just_logging=jax.process_index() != 0)
 
     # Load the dataset
     train_ds, x_mean, x_std = load_data(config.data.dataset, config.data.n_features, config.data.n_particles, config.training.batch_size, config.seed)
@@ -65,17 +70,20 @@ def train(config, workdir='./logging/'):
     ## Training config and loop
 
     schedule = optax.warmup_cosine_decay_schedule(init_value=0.0, peak_value=config.optim.learning_rate, warmup_steps=config.training.warmup_steps, decay_steps=config.training.n_train_steps)
-    opt = optax.adamw(learning_rate=schedule, weight_decay=config.optim.weight_decay)
+    tx = optax.adamw(learning_rate=schedule, weight_decay=config.optim.weight_decay)
 
-    # Init state store
-    store = StateStore(params, opt.init(params), rng, 0)
-    pstore = replicate(store)
+    state = train_state.TrainState.create(apply_fn=vdm.apply, params=params, tx=tx)
+    pstate = replicate(state)
 
     train_metrics = []
     with trange(config.training.n_train_steps) as steps:
         for step in steps:
-            pstore, metrics = train_step(pstore, loss_vdm, vdm, next(batches), opt)
-            steps.set_postfix(val=unreplicate(metrics['loss']))
+
+            rng, *train_step_rng = jax.random.split(rng, num=jax.local_device_count() + 1)
+            train_step_rng = np.asarray(train_step_rng)
+
+            pstate, metrics = train_step(pstate, next(batches), train_step_rng, vdm, loss_vdm)
+            steps.set_postfix(val=unreplicate(metrics["loss"]))
             train_metrics.append(metrics)
 
             # Log periodically
@@ -92,10 +100,10 @@ def train(config, workdir='./logging/'):
 
             # Save checkpoints periodically
             if (step % config.training.save_every_steps == 0) and (step != 0) and (jax.process_index() == 0):
-                ckpt = unreplicate(pstore)
-                checkpoints.save_checkpoint(ckpt_dir=workdir, target=ckpt, step=step, overwrite=True, keep=np.inf)
+                state_ckpt = unreplicate(pstate)
+                checkpoints.save_checkpoint(ckpt_dir=workdir, target=state_ckpt, step=step, overwrite=True, keep=np.inf)
 
-    return unreplicate(pstore)
+    return unreplicate(pstate)
 
 
 if __name__ == "__main__":

@@ -8,7 +8,8 @@ def get_config():
     # Wandb logging
     config.wandb = wandb = ml_collections.ConfigDict()
     wandb.entity = None
-    wandb.project = "nbody"
+    wandb.project = "set-diffusion"
+    wandb.group = "cosmology"
     wandb.job_type = "training"
     wandb.name = None
     wandb.log_train = True
@@ -37,7 +38,7 @@ def get_config():
     training.n_train_steps = 500_000
     training.warmup_steps = 5000
     training.log_every_steps = 100
-    training.save_every_steps = 5000
+    training.save_every_steps = 500
 
     # Data
     config.data = data = ml_collections.ConfigDict()

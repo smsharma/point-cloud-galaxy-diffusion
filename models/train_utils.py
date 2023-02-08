@@ -33,19 +33,15 @@ def create_input_iter(ds):
     return it
 
 
-@partial(jax.pmap, axis_name="batch", static_broadcasted_argnums=(1, 2, 4))
-def train_step(store, loss_fn, model, batch, opt):
+@partial(jax.pmap, axis_name="batch", static_broadcasted_argnums=(3, 4))
+def train_step(state, batch, rng, model, loss_fn):
     """Train for a single step."""
-    rng, spl = jax.random.split(store.rng)
     x, conditioning, mask = batch
-    loss, grads = jax.value_and_grad(loss_fn)(store.params, model, spl, x, conditioning, mask)
+    loss, grads = jax.value_and_grad(loss_fn)(state.params, model, rng, x, conditioning, mask)
     grads = jax.lax.pmean(grads, "batch")
-    updates, state = opt.update(grads, store.state, store.params)
-    params = optax.apply_updates(store.params, updates)
-
-    metrics = {'loss':jax.lax.pmean(loss, "batch")}
-
-    return store.replace(params=params, state=state, rng=rng, step=store.step + 1), metrics
+    new_state = state.apply_gradients(grads=grads)
+    metrics = {"loss": jax.lax.pmean(loss, "batch")}
+    return new_state, metrics
 
 
 def param_count(pytree):
