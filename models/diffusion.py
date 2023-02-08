@@ -218,15 +218,15 @@ class VariationalDiffusionModel(nn.Module):
         if not self.embed_context:
             return conditioning
         else:
-            if self.n_classes > 0 and conditioning.shape[-1] > 1:
+            if self.n_classes > 0 and conditioning.shape[-1] > 1:  # If both classes and conditioning
                 classes, conditioning = conditioning[..., 0].astype(np.int32), conditioning[..., 1:]
                 class_embedding, context_embedding = self.embedding_class(classes), self.embedding_context(conditioning)
                 return class_embedding + context_embedding
-            elif self.n_classes > 0 and conditioning.shape[-1] == 1:
+            elif self.n_classes > 0 and conditioning.shape[-1] == 1:  # If no conditioning but classes
                 classes = conditioning[..., 0].astype(np.int32)
                 class_embedding = self.embedding_class(classes)
                 return class_embedding
-            elif self.n_classes == 0 and conditioning is not None:
+            elif self.n_classes == 0 and conditioning is not None:  # If no classes but conditioning
                 context_embedding = self.embedding_context(conditioning)
                 return context_embedding
             else:  # If no conditioning

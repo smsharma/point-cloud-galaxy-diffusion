@@ -1,9 +1,10 @@
 import sys
 import os
-import shutil
+import yaml
 
 from absl import flags, logging
 from absl import logging
+import ml_collections
 from ml_collections import config_flags
 from clu import metric_writers
 import wandb
@@ -34,21 +35,28 @@ unreplicate = flax.jax_utils.unreplicate
 logging.set_verbosity(logging.INFO)
 
 
-def train(config, workdir="./logging/"):
+def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> train_state.TrainState:
 
     # Set up wandb run
     if config.wandb.log_train and jax.process_index() == 0:
         wandb_config = to_wandb_config(config)
         run = wandb.init(entity=config.wandb.entity, project=config.wandb.project, job_type=config.wandb.job_type, group=config.wandb.group, config=wandb_config)
+        wandb.define_metric("*", step_metric="train/step")  # Set default x-axis as 'train/step'
         workdir = os.path.join(workdir, run.group, run.name)
 
         # Recursively create workdir
         os.makedirs(workdir, exist_ok=True)
 
+    # Dump a yaml config file
+    with open(os.path.join(workdir, "config.yaml"), "w") as f:
+        yaml.dump(config.to_dict(), f)
+
     writer = metric_writers.create_default_writer(logdir=workdir, just_logging=jax.process_index() != 0)
 
     # Load the dataset
-    train_ds, x_mean, x_std = load_data(config.data.dataset, config.data.n_features, config.data.n_particles, config.training.batch_size, config.seed)
+    train_ds = load_data(config.data.dataset, config.data.n_features, config.data.n_particles, config.training.batch_size, config.seed, **config.data.kwargs)
+
+    logging.info("Loaded the %s dataset", config.data.dataset)
 
     ## Model configuration
 
@@ -56,15 +64,18 @@ def train(config, workdir="./logging/"):
     transformer_dict = FrozenDict({"d_model": config.transformer.d_model, "d_mlp": config.transformer.d_mlp, "n_layers": config.transformer.n_transformer_layers, "n_heads": config.transformer.n_heads, "induced_attention": config.transformer.induced_attention, "n_inducing_points": config.transformer.n_inducing_points})
 
     # Diffusion model
-    vdm = VariationalDiffusionModel(n_layers=config.vdm.n_encoder_layers, d_embedding=config.vdm.d_embedding, d_hidden_encoding=config.vdm.d_hidden_encoding, timesteps=config.vdm.timesteps, d_feature=config.data.n_features, transformer_dict=transformer_dict, embed_context=config.vdm.embed_context)
+    vdm = VariationalDiffusionModel(n_layers=config.vdm.n_encoder_layers, d_embedding=config.vdm.d_embedding, d_hidden_encoding=config.vdm.d_hidden_encoding, timesteps=config.vdm.timesteps, d_feature=config.data.n_features, transformer_dict=transformer_dict, embed_context=config.vdm.embed_context, n_classes=config.vdm.n_classes)
+
     batches = create_input_iter(train_ds)
 
     rng = jax.random.PRNGKey(config.seed)
+    rng, rng_params = jax.random.split(rng)
 
     # Pass a test batch through to initialize model
     x_batch, conditioning_batch, mask_batch = next(batches)
-    _, params = vdm.init_with_output({"sample": rng, "params": rng}, x_batch[0], conditioning_batch[0], mask_batch[0])
+    _, params = vdm.init_with_output({"sample": rng, "params": rng_params}, x_batch[0], conditioning_batch[0], mask_batch[0])
 
+    logging.info("Instantiated the model")
     logging.info("Number of parameters: %d", param_count(params))
 
     ## Training config and loop
@@ -74,6 +85,8 @@ def train(config, workdir="./logging/"):
 
     state = train_state.TrainState.create(apply_fn=vdm.apply, params=params, tx=tx)
     pstate = replicate(state)
+
+    logging.info("Starting training...")
 
     train_metrics = []
     with trange(config.training.n_train_steps) as steps:
@@ -102,6 +115,8 @@ def train(config, workdir="./logging/"):
             if (step % config.training.save_every_steps == 0) and (step != 0) and (jax.process_index() == 0):
                 state_ckpt = unreplicate(pstate)
                 checkpoints.save_checkpoint(ckpt_dir=workdir, target=state_ckpt, step=step, overwrite=True, keep=np.inf)
+
+    logging.info("All done! Have a great day.")
 
     return unreplicate(pstate)
 
