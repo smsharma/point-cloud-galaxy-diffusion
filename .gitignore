@@ -165,3 +165,5 @@ notebooks/ckpts
 notebooks/ckpts*
 scripts/*.out
 logging/
+wandb
+wandb/*
