@@ -25,27 +25,27 @@ def get_config():
 
     # Transformer score model
     config.transformer = transformer = ml_collections.ConfigDict()
-    transformer.induced_attention = False
+    transformer.induced_attention = True
     transformer.n_inducing_points = 500
     transformer.d_model = 256
     transformer.d_mlp = 1024
-    transformer.n_transformer_layers = 8
+    transformer.n_transformer_layers = 5
     transformer.n_heads = 4
 
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
     training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
-    training.n_train_steps = 100_000
-    training.warmup_steps = 5000
+    training.n_train_steps = 500_000
+    training.warmup_steps = 10_000
     training.log_every_steps = 100
-    training.save_every_steps = 5000
+    training.save_every_steps = 10_000
 
     # Data
     config.data = data = ml_collections.ConfigDict()
     data.dataset = "nbody"
     data.n_particles = 5000  # Select the first n_particles particles
-    data.n_features = 3  # Select the first n_features features
+    data.n_features = 7  # Select the first n_features features
     data.kwargs = {}
 
     # Optimizer (AdamW)
