@@ -22,8 +22,8 @@ def make_dataloader(x, conditioning, mask, batch_size, seed):
 
     batch_dims = [jax.local_device_count(), batch_size // jax.device_count()]
 
-    for batch_size in reversed(batch_dims):
-        train_ds = train_ds.batch(batch_size, drop_remainder=False)
+    for _batch_size in reversed(batch_dims):
+        train_ds = train_ds.batch(_batch_size, drop_remainder=False)
 
     train_ds = train_ds.shuffle(n_train, seed=seed)
 

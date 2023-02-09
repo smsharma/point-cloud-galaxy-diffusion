@@ -167,3 +167,4 @@ scripts/*.out
 logging/
 wandb
 wandb/*
+notebooks/data

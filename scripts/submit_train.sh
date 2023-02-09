@@ -22,4 +22,5 @@ module load OpenBLAS/0.3.7-fasrc01
 
 cd /n/holystore01/LABS/iaifi_lab/Users/smsharma/set-diffuser/
 
-python -u train.py
+# python -u train.py --config ./configs/nbody.py
+python -u train.py --config ./configs/jets.py
