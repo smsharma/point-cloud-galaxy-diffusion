@@ -35,6 +35,9 @@ def nbody_dataset(n_features, n_particles, batch_size, seed):
     x = np.load("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/halos.npy")
     conditioning = np.array(pd.read_csv("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/cosmology.csv").values)
 
+    if n_features == 7:
+        x = x.at[:, :, -1].set(np.log10(x[:, :, -1]))  # Use log10(mass)
+
     # Standardize per-feature (over datasets and particles)
     x_mean = x.mean(axis=(0, 1))
     x_std = x.std(axis=(0, 1))
@@ -43,6 +46,7 @@ def nbody_dataset(n_features, n_particles, batch_size, seed):
     # Finalize
     x = x[:, :n_particles, :n_features]
     mask = np.ones((x.shape[0], n_particles))  # No mask
+    conditioning[:, [0, -1]]  # Select only omega_m and sigma_8
 
     train_ds = make_dataloader(x, conditioning, mask, batch_size, seed)
 
@@ -56,7 +60,7 @@ def jetnet_dataset(n_features, n_particles, batch_size, seed, jet_type=["q", "g"
     # Normalize everything BUT the class (first element of `jet_data`
     jet_data_mean = jet_data[:, 1:].mean(axis=(0,))
     jet_data_std = jet_data[:, 1:].std(axis=(0,))
-    jet_data[:, 1:] = (jet_data[:, 1:] - jet_data_mean) / (jet_data_std + EPS)
+    jet_data[:, 1:] = (jet_data[:, 1:] - jet_data_mean + EPS) / (jet_data_std + EPS)
 
     # Remove cardinality (last element); keep pT, eta, mass as jet features for conditioning on
     conditioning = jet_data[:, :-1]
@@ -64,11 +68,6 @@ def jetnet_dataset(n_features, n_particles, batch_size, seed, jet_type=["q", "g"
     # Get mask (to specify varying cardinality) and particle features to be modeled (eta, phi, pT)
     mask = particle_data[:, :, -1]
     x = particle_data[:, :, :n_features]
-
-    # Standardize per-feature (over datasets and particles)
-    x_mean = x.mean(axis=(0, 1))
-    x_std = x.std(axis=(0, 1))
-    x = (x - x_mean + EPS) / (x_std + EPS)
 
     train_ds = make_dataloader(x, conditioning, mask, batch_size, seed)
 

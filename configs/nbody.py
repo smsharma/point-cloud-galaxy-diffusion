@@ -29,13 +29,13 @@ def get_config():
     transformer.n_inducing_points = 500
     transformer.d_model = 256
     transformer.d_mlp = 1024
-    transformer.n_transformer_layers = 5
+    transformer.n_transformer_layers = 8
     transformer.n_heads = 4
 
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
-    training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
+    training.batch_size = 32  # Must be divisible by number of devices; this is the total batch size, not per-device
     training.n_train_steps = 500_000
     training.warmup_steps = 10_000
     training.log_every_steps = 100
@@ -53,6 +53,6 @@ def get_config():
     optim.learning_rate = 6e-4
     optim.weight_decay = 1e-4
 
-    config.seed = 42
+    config.seed = 44
 
     return config
