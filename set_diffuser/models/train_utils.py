@@ -37,7 +37,9 @@ def create_input_iter(ds):
 def train_step(state, batch, rng, model, loss_fn):
     """Train for a single step."""
     x, conditioning, mask = batch
-    loss, grads = jax.value_and_grad(loss_fn)(state.params, model, rng, x, conditioning, mask)
+    loss, grads = jax.value_and_grad(loss_fn)(
+        state.params, model, rng, x, conditioning, mask
+    )
     grads = jax.lax.pmean(grads, "batch")
     new_state = state.apply_gradients(grads=grads)
     metrics = {"loss": jax.lax.pmean(loss, "batch")}

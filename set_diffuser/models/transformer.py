@@ -18,10 +18,18 @@ class MultiHeadAttentionBlock(nn.Module):
         # Multi-head attention
         if x is y:  # Self-attention
             x_sa = nn.LayerNorm()(x)  # pre-LN
-            x_sa = nn.MultiHeadDotProductAttention(num_heads=self.n_heads, kernel_init=nn.initializers.xavier_uniform(), bias_init=nn.initializers.zeros)(x_sa, x_sa, mask)
+            x_sa = nn.MultiHeadDotProductAttention(
+                num_heads=self.n_heads,
+                kernel_init=nn.initializers.xavier_uniform(),
+                bias_init=nn.initializers.zeros,
+            )(x_sa, x_sa, mask)
         else:  # Cross-attention
             x_sa, y_sa = nn.LayerNorm()(x), nn.LayerNorm()(y)
-            x_sa = nn.MultiHeadDotProductAttention(num_heads=self.n_heads, kernel_init=nn.initializers.xavier_uniform(), bias_init=nn.initializers.zeros)(x_sa, y_sa, mask)
+            x_sa = nn.MultiHeadDotProductAttention(
+                num_heads=self.n_heads,
+                kernel_init=nn.initializers.xavier_uniform(),
+                bias_init=nn.initializers.zeros,
+            )(x_sa, y_sa, mask)
 
         # Add into residual stream
         x += x_sa
@@ -47,10 +55,16 @@ class PoolingByMultiHeadAttention(nn.Module):
 
     @nn.compact
     def __call__(self, z, mask=None):
-        seed_vectors = self.param("seed_vectors", nn.linear.default_embed_init, (self.n_seed_vectors, z.shape[-1]))
+        seed_vectors = self.param(
+            "seed_vectors",
+            nn.linear.default_embed_init,
+            (self.n_seed_vectors, z.shape[-1]),
+        )
         seed_vectors = np.broadcast_to(seed_vectors, z.shape[:-2] + seed_vectors.shape)
         mask = None if mask is None else mask[..., None, :]
-        return MultiHeadAttentionBlock(n_heads=self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp)(seed_vectors, z, mask)
+        return MultiHeadAttentionBlock(
+            n_heads=self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp
+        )(seed_vectors, z, mask)
 
 
 class Transformer(nn.Module):
@@ -88,12 +102,23 @@ class Transformer(nn.Module):
         for _ in range(self.n_layers):
 
             if not self.induced_attention:  # Vanilla self-attention
-                mask_attn = None if mask is None else mask[..., None] * mask[..., None, :]
-                x = MultiHeadAttentionBlock(n_heads=self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp)(x, x, mask_attn)
+                mask_attn = (
+                    None if mask is None else mask[..., None] * mask[..., None, :]
+                )
+                x = MultiHeadAttentionBlock(
+                    n_heads=self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp
+                )(x, x, mask_attn)
             else:  # Induced attention from set transformer paper
-                h = PoolingByMultiHeadAttention(self.n_inducing_points, self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp)(x, mask)
+                h = PoolingByMultiHeadAttention(
+                    self.n_inducing_points,
+                    self.n_heads,
+                    d_model=self.d_model,
+                    d_mlp=self.d_mlp,
+                )(x, mask)
                 mask_attn = None if mask is None else mask[..., None]
-                x = MultiHeadAttentionBlock(n_heads=self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp)(x, h, mask_attn)
+                x = MultiHeadAttentionBlock(
+                    n_heads=self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp
+                )(x, h, mask_attn)
 
         # Final LN as in pre-LN configuration
         x = nn.LayerNorm()(x)

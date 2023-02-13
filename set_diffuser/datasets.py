@@ -33,7 +33,11 @@ def make_dataloader(x, conditioning, mask, batch_size, seed):
 def nbody_dataset(n_features, n_particles, batch_size, seed):
 
     x = np.load("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/halos.npy")
-    conditioning = np.array(pd.read_csv("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/cosmology.csv").values)
+    conditioning = np.array(
+        pd.read_csv(
+            "/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/cosmology.csv"
+        ).values
+    )
 
     if n_features == 7:
         x = x.at[:, :, -1].set(np.log10(x[:, :, -1]))  # Use log10(mass)
@@ -55,7 +59,9 @@ def nbody_dataset(n_features, n_particles, batch_size, seed):
 
 def jetnet_dataset(n_features, n_particles, batch_size, seed, jet_type=["q", "g", "t"]):
 
-    particle_data, jet_data = JetNet.getData(jet_type=jet_type, data_dir="./data/", num_particles=n_particles)
+    particle_data, jet_data = JetNet.getData(
+        jet_type=jet_type, data_dir="./data/", num_particles=n_particles
+    )
 
     # Normalize everything BUT the class (first element of `jet_data`
     jet_data_mean = jet_data[:, 1:].mean(axis=(0,))

@@ -7,7 +7,12 @@ import flax.linen as nn
 import jax.numpy as np
 import tensorflow_probability.substrates.jax as tfp
 
-from models.diffusion_utils import variance_preserving_map, alpha, sigma2, get_timestep_embedding
+from models.diffusion_utils import (
+    variance_preserving_map,
+    alpha,
+    sigma2,
+    get_timestep_embedding,
+)
 from models.diffusion_utils import NoiseScheduleScalar, NoiseScheduleFixedLinear
 from models.transformer import Transformer
 
@@ -27,7 +32,9 @@ class ResNet(nn.Module):
             h = nn.gelu(nn.LayerNorm()(z))
             h = nn.Dense(self.d_hidden)(h)
             if cond is not None:
-                h += nn.Dense(self.d_hidden, use_bias=False)(cond[:, None, :])  # Project context to hidden size and add
+                h += nn.Dense(self.d_hidden, use_bias=False)(
+                    cond[:, None, :]
+                )  # Project context to hidden size and add
             h = nn.gelu(nn.LayerNorm()(h))
             h = nn.Dense(self.d_input, kernel_init=jax.nn.initializers.zeros)(h)
             z = z + h  # Residual connection
@@ -42,7 +49,9 @@ class Encoder(nn.Module):
     @nn.compact
     def __call__(self, x, cond=None, mask=None):
         x = nn.Dense(self.d_embedding)(x)
-        x = ResNet(d_input=self.d_embedding, n_layers=self.n_layers, d_hidden=self.d_hidden)(x, cond=cond)
+        x = ResNet(
+            d_input=self.d_embedding, n_layers=self.n_layers, d_hidden=self.d_hidden
+        )(x, cond=cond)
         return x
 
 
@@ -55,7 +64,9 @@ class Decoder(nn.Module):
 
     @nn.compact
     def __call__(self, z, cond=None, mask=None):
-        z = ResNet(d_input=self.d_input, n_layers=self.n_layers, d_hidden=self.d_hidden)(z, cond=cond)
+        z = ResNet(
+            d_input=self.d_input, n_layers=self.n_layers, d_hidden=self.d_hidden
+        )(z, cond=cond)
         z = nn.Dense(self.d_output)(z)
         return tfd.Normal(loc=z, scale=self.noise_scale)
 
@@ -63,7 +74,14 @@ class Decoder(nn.Module):
 class ScoreNet(nn.Module):
     d_embedding: int = 8
     d_t_embedding: int = 32
-    transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
+    transformer_dict: dict = dataclasses.field(
+        default_factory=lambda: {
+            "d_model": 256,
+            "d_mlp": 512,
+            "n_layers": 4,
+            "n_heads": 4,
+        }
+    )
 
     @nn.compact
     def __call__(self, z, t, conditioning, mask):
@@ -71,10 +89,14 @@ class ScoreNet(nn.Module):
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
         t = t * np.ones(z.shape[0])  # Ensure t is a vector
 
-        t_embedding = get_timestep_embedding(t, self.d_t_embedding)  # Timestep embeddings
+        t_embedding = get_timestep_embedding(
+            t, self.d_t_embedding
+        )  # Timestep embeddings
 
         if conditioning is not None:
-            cond = np.concatenate([t_embedding, conditioning], axis=1)  # Concatenate with conditioning context
+            cond = np.concatenate(
+                [t_embedding, conditioning], axis=1
+            )  # Concatenate with conditioning context
         else:
             cond = t_embedding
 
@@ -83,7 +105,9 @@ class ScoreNet(nn.Module):
         cond = nn.gelu(nn.Dense(features=self.d_embedding * 4)(cond))
         cond = nn.Dense(self.d_embedding)(cond)
 
-        h = Transformer(n_input=self.d_embedding, **self.transformer_dict)(z, cond, mask)
+        h = Transformer(n_input=self.d_embedding, **self.transformer_dict)(
+            z, cond, mask
+        )
 
         return z + h
 
@@ -118,20 +142,45 @@ class VariationalDiffusionModel(nn.Module):
     noise_schedule: str = "learned_linear"  # "learned_linear" or "scalar"
     noise_scale: float = 1.0e-3
     d_t_embedding: int = 32
-    transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
+    transformer_dict: dict = dataclasses.field(
+        default_factory=lambda: {
+            "d_model": 256,
+            "d_mlp": 512,
+            "n_layers": 4,
+            "n_heads": 4,
+        }
+    )
     n_classes: int = 0
     embed_context: bool = False
 
     def setup(self):
 
         if self.noise_schedule == "learned_linear":
-            self.gamma = NoiseScheduleFixedLinear(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
+            self.gamma = NoiseScheduleFixedLinear(
+                gamma_min=self.gamma_min, gamma_max=self.gamma_max
+            )
         elif self.noise_schedule == "scalar":
-            self.gamma = NoiseScheduleScalar(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
+            self.gamma = NoiseScheduleScalar(
+                gamma_min=self.gamma_min, gamma_max=self.gamma_max
+            )
 
-        self.score_model = ScoreNet(d_t_embedding=self.d_t_embedding, d_embedding=self.d_embedding, transformer_dict=self.transformer_dict)
-        self.encoder = Encoder(d_hidden=self.d_hidden_encoding, n_layers=self.n_layers, d_embedding=self.d_embedding)
-        self.decoder = Decoder(d_input=self.d_embedding, d_hidden=self.d_hidden_encoding, n_layers=self.n_layers, d_output=self.d_feature, noise_scale=self.noise_scale)
+        self.score_model = ScoreNet(
+            d_t_embedding=self.d_t_embedding,
+            d_embedding=self.d_embedding,
+            transformer_dict=self.transformer_dict,
+        )
+        self.encoder = Encoder(
+            d_hidden=self.d_hidden_encoding,
+            n_layers=self.n_layers,
+            d_embedding=self.d_embedding,
+        )
+        self.decoder = Decoder(
+            d_input=self.d_embedding,
+            d_hidden=self.d_hidden_encoding,
+            n_layers=self.n_layers,
+            d_output=self.d_feature,
+            noise_scale=self.noise_scale,
+        )
 
         # Embedding for class and context
         if self.n_classes > 0:
@@ -218,15 +267,26 @@ class VariationalDiffusionModel(nn.Module):
         if not self.embed_context:
             return conditioning
         else:
-            if self.n_classes > 0 and conditioning.shape[-1] > 1:  # If both classes and conditioning
-                classes, conditioning = conditioning[..., 0].astype(np.int32), conditioning[..., 1:]
-                class_embedding, context_embedding = self.embedding_class(classes), self.embedding_context(conditioning)
+            if (
+                self.n_classes > 0 and conditioning.shape[-1] > 1
+            ):  # If both classes and conditioning
+                classes, conditioning = (
+                    conditioning[..., 0].astype(np.int32),
+                    conditioning[..., 1:],
+                )
+                class_embedding, context_embedding = self.embedding_class(
+                    classes
+                ), self.embedding_context(conditioning)
                 return class_embedding + context_embedding
-            elif self.n_classes > 0 and conditioning.shape[-1] == 1:  # If no conditioning but classes
+            elif (
+                self.n_classes > 0 and conditioning.shape[-1] == 1
+            ):  # If no conditioning but classes
                 classes = conditioning[..., 0].astype(np.int32)
                 class_embedding = self.embedding_class(classes)
                 return class_embedding
-            elif self.n_classes == 0 and conditioning is not None:  # If no classes but conditioning
+            elif (
+                self.n_classes == 0 and conditioning is not None
+            ):  # If no classes but conditioning
                 context_embedding = self.embedding_context(conditioning)
                 return context_embedding
             else:  # If no conditioning
@@ -260,12 +320,17 @@ class VariationalDiffusionModel(nn.Module):
 
         cond = self.embed(conditioning)
 
-        eps_hat_cond = self.score_model(z_t, g_t * np.ones((z_t.shape[0],), z_t.dtype), cond, mask)
+        eps_hat_cond = self.score_model(
+            z_t, g_t * np.ones((z_t.shape[0],), z_t.dtype), cond, mask
+        )
 
         a = nn.sigmoid(g_s)
         b = nn.sigmoid(g_t)
         c = -np.expm1(g_t - g_s)
         sigma_t = np.sqrt(sigma2(g_t))
-        z_s = np.sqrt(a / b) * (z_t - sigma_t * c * eps_hat_cond) + np.sqrt((1.0 - a) * c) * eps
+        z_s = (
+            np.sqrt(a / b) * (z_t - sigma_t * c * eps_hat_cond)
+            + np.sqrt((1.0 - a) * c) * eps
+        )
 
         return z_s
