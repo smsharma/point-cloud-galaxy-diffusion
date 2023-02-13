@@ -1,4 +1,5 @@
 import dataclasses
+from typing import Dict
 
 from absl import logging
 
@@ -17,6 +18,8 @@ from models.diffusion_utils import NoiseScheduleScalar, NoiseScheduleFixedLinear
 from models.transformer import Transformer
 
 tfd = tfp.distributions
+
+EPS = 1e-7 # Use to standarize features
 
 
 class ResNet(nn.Module):
@@ -131,6 +134,7 @@ class VariationalDiffusionModel(nn.Module):
       embed_context: Whether to embed the conditioning context.
     """
 
+    x_standarization_dict: Dict[str, np.array]
     d_feature: int = 3
     timesteps: int = 1000
     gamma_min: float = -8.0
@@ -154,7 +158,10 @@ class VariationalDiffusionModel(nn.Module):
     embed_context: bool = False
 
     def setup(self):
-
+        self.x_mean = self.variable(col='standarize', name='x_mean')
+        self.x_mean.value = self.x_standarziation_dict['x_mean']
+        self.x_std = self.variable(col='standarize', name='x_std')
+        self.x_std.value = self.x_standarziation_dict['x_std']
         if self.noise_schedule == "learned_linear":
             self.gamma = NoiseScheduleFixedLinear(
                 gamma_min=self.gamma_min, gamma_max=self.gamma_max
@@ -231,8 +238,30 @@ class VariationalDiffusionModel(nn.Module):
         loss_diff = 0.5 * T * np.expm1(g_s - g_t)[:, None, None] * loss_diff_mse
         return loss_diff
 
-    def __call__(self, x, conditioning=None, mask=None):
+    def standarize_features(self, x: np.array)->np.array:
+        """Standarize features using the mean and std of the training set.
 
+        Args:
+            x (jnp.array): features 
+
+        Returns:
+            jnp.array: standarized features 
+        """
+        return (x - self.x_mean.value + EPS) / (self.x_std.value + EPS)
+
+    def destandarize_features(self, x: np.array)->np.array:
+        """Destandarize features using the mean and std of the training set.
+
+        Args:
+            x (np.array): standarized features 
+
+        Returns:
+            np.array: features 
+        """
+        return x * (self.x_std.value + EPS) + self.x_mean.value - EPS 
+
+    def __call__(self, x, conditioning=None, mask=None):
+        x = self.standarize_features(x)
         d_batch = x.shape[0]
 
         # 1. Reconstruction loss

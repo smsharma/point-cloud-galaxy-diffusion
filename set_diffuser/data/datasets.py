@@ -3,6 +3,7 @@ import jax
 import jax.numpy as np
 import pandas as pd
 from absl import logging
+from set_diffuser.data.nbody import NbodyDataset
 
 try:
     from jetnet.datasets import JetNet
@@ -31,30 +32,21 @@ def make_dataloader(x, conditioning, mask, batch_size, seed):
 
 
 def nbody_dataset(n_features, n_particles, batch_size, seed):
-
-    x = np.load("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/halos.npy")
-    conditioning = np.array(
-        pd.read_csv(
-            "/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/cosmology.csv"
-        ).values
+    nbody_data = NbodyDataset(
+        stage="train",
+        include_pos_in_features=True,
+        n_features=n_features,
+        n_particles=n_particles,
     )
-
-    if n_features == 7:
-        x = x.at[:, :, -1].set(np.log10(x[:, :, -1]))  # Use log10(mass)
-
-    # Standardize per-feature (over datasets and particles)
-    x_mean = x.mean(axis=(0, 1))
-    x_std = x.std(axis=(0, 1))
-    x = (x - x_mean + EPS) / (x_std + EPS)
-
-    # Finalize
-    x = x[:, :n_particles, :n_features]
-    mask = np.ones((x.shape[0], n_particles))  # No mask
-    conditioning[:, [0, -1]]  # Select only omega_m and sigma_8
-
-    train_ds = make_dataloader(x, conditioning, mask, batch_size, seed)
-
-    return train_ds
+    train_ds = make_dataloader(
+        x=nbody_data.features,
+        conditioning=nbody_data.conditioning,
+        mask=nbody_data.mask,
+        batch_size=batch_size,
+        seed=seed,
+    )
+    x_standarization_dict = nbody_data.get_standarization_dict()
+    return train_ds, x_standarization_dict
 
 
 def jetnet_dataset(n_features, n_particles, batch_size, seed, jet_type=["q", "g", "t"]):
@@ -66,7 +58,7 @@ def jetnet_dataset(n_features, n_particles, batch_size, seed, jet_type=["q", "g"
     # Normalize everything BUT the class (first element of `jet_data`
     jet_data_mean = jet_data[:, 1:].mean(axis=(0,))
     jet_data_std = jet_data[:, 1:].std(axis=(0,))
-    jet_data[:, 1:] = (jet_data[:, 1:] - jet_data_mean + EPS) / (jet_data_std + EPS)
+    x_standarization_dict = {"mean": jet_data_mean, "std": jet_data_std}
 
     # Remove cardinality (last element); keep pT, eta, mass as jet features for conditioning on
     conditioning = jet_data[:, :-1]
@@ -77,15 +69,13 @@ def jetnet_dataset(n_features, n_particles, batch_size, seed, jet_type=["q", "g"
 
     train_ds = make_dataloader(x, conditioning, mask, batch_size, seed)
 
-    return train_ds
+    return train_ds, x_standarization_dict
 
 
 def load_data(dataset, n_features, n_particles, batch_size, seed, **kwargs):
     if dataset == "nbody":
-        train_ds = nbody_dataset(n_features, n_particles, batch_size, seed)
+        return nbody_dataset(n_features, n_particles, batch_size, seed)
     elif dataset == "jetnet":
-        train_ds = jetnet_dataset(n_features, n_particles, batch_size, seed, **kwargs)
+        return jetnet_dataset(n_features, n_particles, batch_size, seed, **kwargs)
     else:
         raise ValueError("Unknown dataset: {}".format(dataset))
-
-    return train_ds

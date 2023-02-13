@@ -110,4 +110,5 @@ def generate(vdm, params, rng, shape, conditioning=None, mask=None):
     g0 = vdm.apply(params, 0.0, method=vdm.gammat)
     var0 = sigma2(g0)
     z0_rescaled = z0 / np.sqrt(1.0 - var0)
-    return vdm.apply(params, z0_rescaled, conditioning, method=vdm.decode)
+    x = vdm.apply(params, z0_rescaled, conditioning, method=vdm.decode)
+    return vdm.destandarize_features(x=x)

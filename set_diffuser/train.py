@@ -29,7 +29,7 @@ from set_diffuser.models.train_utils import (
     to_wandb_config,
 )
 
-from set_diffuser.datasets import load_data
+from set_diffuser.data import load_data
 
 replicate = flax.jax_utils.replicate
 unreplicate = flax.jax_utils.unreplicate
@@ -68,7 +68,7 @@ def train(
     )
 
     # Load the dataset
-    train_ds = load_data(
+    train_ds, x_standarization_dict = load_data(
         config.data.dataset,
         config.data.n_features,
         config.data.n_particles,
@@ -103,6 +103,7 @@ def train(
         transformer_dict=transformer_dict,
         embed_context=config.vdm.embed_context,
         n_classes=config.vdm.n_classes,
+        x_standarization_dict=x_standarization_dict,
     )
 
     batches = create_input_iter(train_ds)
