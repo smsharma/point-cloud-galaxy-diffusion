@@ -35,8 +35,8 @@ def get_config():
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
-    training.batch_size = 32  # Must be divisible by number of devices; this is the total batch size, not per-device
-    training.n_train_steps = 500_000
+    training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
+    training.n_train_steps = 200_000
     training.warmup_steps = 10_000
     training.log_every_steps = 100
     training.save_every_steps = 10_000
@@ -45,7 +45,7 @@ def get_config():
     config.data = data = ml_collections.ConfigDict()
     data.dataset = "nbody"
     data.n_particles = 5000  # Select the first n_particles particles
-    data.n_features = 7  # Select the first n_features features
+    data.n_features = 3  # Select the first n_features features
     data.kwargs = {}
 
     # Optimizer (AdamW)
