@@ -14,7 +14,7 @@ Jax implementation of a transformer-guided variational diffusion model for class
 
 ## Examples
 
-The [`notebooks`](notebooks/) directory contains usage example, including a simple [MNIST point cloud example](notebooks/example-mnist.ipynb) showing class-conditional generation, as well as a [particle physics example](notebooks/example-jets.ipynb). 
+The [`notebooks`](notebooks/) directory contains usage example, including a simple [MNIST point cloud example](notebooks/example-mnist.ipynb) showing class-conditional generation, as well as a [particle physics example](notebooks/example-jets-minimal.ipynb). 
 
 ## Usage
 
