@@ -16,8 +16,8 @@ def get_config():
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
-    vdm.timesteps = 500
-    vdm.d_hidden_encoding = 128
+    vdm.timesteps = 1000
+    vdm.d_hidden_encoding = 256
     vdm.n_encoder_layers = 5
     vdm.d_embedding = 8
     vdm.embed_context = True
@@ -36,10 +36,10 @@ def get_config():
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
     training.batch_size = 128  # Must be divisible by number of devices; this is the total batch size, not per-device
-    training.n_train_steps = 1_200_000
+    training.n_train_steps = 3_000_001
     training.warmup_steps = 10_000
     training.log_every_steps = 100
-    training.save_every_steps = 10_000
+    training.save_every_steps = 100_000
 
     # Data
     config.data = data = ml_collections.ConfigDict()

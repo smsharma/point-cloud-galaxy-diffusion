@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=300GB
-#SBATCH --time=48:00:00
+#SBATCH --time=96:00:00
 #SBATCH --gres=gpu:4
 #SBATCH --account=iaifi_lab
 #SBATCH -p iaifi_gpu
@@ -22,5 +22,5 @@ module load OpenBLAS/0.3.7-fasrc01
 
 cd /n/holystore01/LABS/iaifi_lab/Users/smsharma/set-diffuser/
 
-python -u train.py --config ./configs/nbody.py
-# python -u train.py --config ./configs/jets.py
+# python -u train.py --config ./configs/nbody.py
+python -u train.py --config ./configs/jets.py
