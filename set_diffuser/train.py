@@ -25,7 +25,6 @@ from set_diffuser.models.diffusion_utils import loss_vdm
 from set_diffuser.models.train_utils import (
     create_input_iter,
     param_count,
-    StateStore,
     train_step,
     to_wandb_config,
 )
