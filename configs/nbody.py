@@ -16,9 +16,9 @@ def get_config():
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
-    vdm.timesteps = 1000
-    vdm.d_hidden_encoding = 512
-    vdm.n_encoder_layers = 5
+    vdm.timesteps = 200
+    vdm.d_hidden_encoding = 256
+    vdm.n_encoder_layers = 4
     vdm.d_embedding = 10
     vdm.embed_context = False
     vdm.n_classes = 0
@@ -26,20 +26,20 @@ def get_config():
     # Transformer score model
     config.transformer = transformer = ml_collections.ConfigDict()
     transformer.induced_attention = True
-    transformer.n_inducing_points = 500
+    transformer.n_inducing_points = 200
     transformer.d_model = 256
-    transformer.d_mlp = 1024
-    transformer.n_transformer_layers = 8
+    transformer.d_mlp = 512
+    transformer.n_transformer_layers = 5
     transformer.n_heads = 4
 
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
     training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
-    training.n_train_steps = 200_000
+    training.n_train_steps = 400_000
     training.warmup_steps = 10_000
     training.log_every_steps = 100
-    training.save_every_steps = 10_000
+    training.save_every_steps = 20_000
 
     # Data
     config.data = data = ml_collections.ConfigDict()
