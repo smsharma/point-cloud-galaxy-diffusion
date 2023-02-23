@@ -175,11 +175,20 @@ class VariationalDiffusionModel(nn.Module):
 
         loss_diff_mse = np.square(eps - eps_hat)  # Compute MSE of predicted noise
 
-        # Loss for finite depth T, i.e. discrete time
         T = self.timesteps
-        s = t - (1.0 / T)
-        g_s = self.gamma(s)
-        loss_diff = 0.5 * T * np.expm1(g_s - g_t)[:, None, None] * loss_diff_mse
+
+        # Note: retain dimension here so that mask can be applied later (hence dummy dims)
+        # Note 2: opposite sign convention to official VDM repo!
+        if T == 0:
+            # Loss for infinite depth T, i.e. continuous time
+            _, g_t_grad = jax.jvp(self.gamma, (t,), (np.ones_like(t),))
+            loss_diff = -0.5 * g_t_grad[:, None, None] * loss_diff_mse
+        else:
+            # Loss for finite depth T, i.e. discrete time
+            s = t - (1.0 / T)
+            g_s = self.gamma(s)
+            loss_diff = 0.5 * T * np.expm1(g_s - g_t)[:, None, None] * loss_diff_mse
+
         return loss_diff
 
     def __call__(self, x, conditioning=None, mask=None):
@@ -206,7 +215,8 @@ class VariationalDiffusionModel(nn.Module):
 
         # Discretize time steps if we're working with discrete time
         T = self.timesteps
-        t = np.ceil(t * T) / T
+        if T > 0:
+            t = np.ceil(t * T) / T
 
         cond = self.embed(conditioning)
         loss_diff = self.diffusion_loss(t, f, cond, mask)

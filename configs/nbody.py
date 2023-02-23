@@ -12,11 +12,11 @@ def get_config():
     wandb.group = "cosmology"
     wandb.job_type = "training"
     wandb.name = None
-    wandb.log_train = True
+    wandb.log_train = False
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
-    vdm.timesteps = 200
+    vdm.timesteps = 0
     vdm.d_hidden_encoding = 256
     vdm.n_encoder_layers = 4
     vdm.d_embedding = 10
