@@ -71,3 +71,4 @@ x_samples.mean().shape  # Mean of decoded Normal distribution -- (24, 100, 4)
 - [X] Add continuous-time VLB formulation
 - [ ] Refactor dataset class
 - [ ] Experiment with including self-attention in addition to cross-attention in ISAB (see [repo](https://github.com/lucidrains/isab-pytorch))
+- [ ] Add ability to restart runs
