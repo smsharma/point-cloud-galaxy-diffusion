@@ -81,17 +81,25 @@ def loss_vdm(params, model, rng, x, conditioning=None, mask=None, beta=1.0):
     return loss_batch.mean()
 
 
-def generate(vdm, params, rng, shape, conditioning=None, mask=None):
+def generate(vdm, params, rng, shape, conditioning=None, mask=None, steps=None):
     """Generate samples from a VDM model."""
 
     # Generate latents
     rng, spl = jax.random.split(rng)
-    zt = jax.random.normal(spl, shape + (vdm.d_embedding,))
+    zt = jax.random.normal(spl, shape + (vdm.d_embedding if vdm.use_encdec else vdm.d_feature,))
+
+    if vdm.timesteps == 0:
+        if steps is None:
+            raise Exception("Need to specify steps argument for continuous-time VLB")
+        else:
+            timesteps = steps
+    else:
+        timesteps = vdm.timesteps
 
     def body_fn(i, z_t):
-        return vdm.apply(params, rng, i, vdm.timesteps, z_t, conditioning, mask=mask, method=vdm.sample_step)
+        return vdm.apply(params, rng, i, timesteps, z_t, conditioning, mask=mask, method=vdm.sample_step)
 
-    z0 = jax.lax.fori_loop(lower=0, upper=vdm.timesteps, body_fun=body_fn, init_val=zt)
+    z0 = jax.lax.fori_loop(lower=0, upper=timesteps, body_fun=body_fn, init_val=zt)
 
     g0 = vdm.apply(params, 0.0, method=vdm.gammat)
     var0 = sigma2(g0)

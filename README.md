@@ -67,7 +67,10 @@ x_samples.mean().shape  # Mean of decoded Normal distribution -- (24, 100, 4)
 
 ## TODO
 
-- [ ] Add examples for ELBO-based likelihood inference
-- [ ] Add continuous-time VLB formulation
+- [X] Add examples for ELBO-based likelihood inference
+- [X] Add continuous-time VLB formulation
+- [X] Make latent diffusion optional
+- [ ] Revisit loss scale
 - [ ] Refactor dataset class
 - [ ] Experiment with including self-attention in addition to cross-attention in ISAB (see [repo](https://github.com/lucidrains/isab-pytorch))
+- [ ] Add ability to restart runs
