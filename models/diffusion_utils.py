@@ -86,7 +86,7 @@ def generate(vdm, params, rng, shape, conditioning=None, mask=None, steps=None):
 
     # Generate latents
     rng, spl = jax.random.split(rng)
-    zt = jax.random.normal(spl, shape + (vdm.d_embedding,))
+    zt = jax.random.normal(spl, shape + (vdm.d_embedding if vdm.use_encdec else vdm.d_feature,))
 
     if vdm.timesteps == 0:
         if steps is None:

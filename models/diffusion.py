@@ -96,7 +96,7 @@ class VariationalDiffusionModel(nn.Module):
       timesteps: Number of diffusion steps.
       gamma_min: Minimum log-SNR in the noise schedule (init if learned).
       gamma_max: Maximum log-SNR in the noise schedule (init if learned).
-      d_embedding: Dim to encode the per-element features to.
+      d_embedding: Dim to encode the per-element features to. Only relevant if use_encdec=True.
       n_layers: Layers in encoder/decoder element-wise ResNets.
       antithetic_time_sampling: Antithetic time sampling to reduce variance.
       noise_schedule: Noise schedule; "learned_linear" or "scalar".
@@ -105,12 +105,13 @@ class VariationalDiffusionModel(nn.Module):
       transformer_dict: Dict of transformer arguments (see transformer.py docstring).
       n_classes: Number of classes in data. If >0, the first element of the conditioning vector is assumed to be integer class.
       embed_context: Whether to embed the conditioning context.
+      use_encdec: Whether to use an encoder-decoder for latent diffusion.
     """
 
     d_feature: int = 3
     timesteps: int = 1000
     gamma_min: float = -8.0
-    gamma_max: float = 6.0
+    gamma_max: float = 14.0
     d_embedding: int = 8
     d_hidden_encoding: int = 256
     n_layers: int = 4
@@ -121,6 +122,7 @@ class VariationalDiffusionModel(nn.Module):
     transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
     n_classes: int = 0
     embed_context: bool = False
+    use_encdec: bool = False
 
     def setup(self):
 
@@ -129,7 +131,8 @@ class VariationalDiffusionModel(nn.Module):
         elif self.noise_schedule == "scalar":
             self.gamma = NoiseScheduleScalar(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
 
-        self.score_model = ScoreNet(d_t_embedding=self.d_t_embedding, d_embedding=self.d_embedding, transformer_dict=self.transformer_dict)
+        self.score_model = ScoreNet(d_t_embedding=self.d_t_embedding, d_embedding=self.d_embedding if self.use_encdec else self.d_feature, transformer_dict=self.transformer_dict)
+
         self.encoder = Encoder(d_hidden=self.d_hidden_encoding, n_layers=self.n_layers, d_embedding=self.d_embedding)
         self.decoder = Decoder(d_input=self.d_embedding, d_hidden=self.d_hidden_encoding, n_layers=self.n_layers, d_output=self.d_feature, noise_scale=self.noise_scale)
 
@@ -244,19 +247,29 @@ class VariationalDiffusionModel(nn.Module):
 
     def encode(self, x, conditioning=None, mask=None):
         """Encode an image x."""
-        if conditioning is not None:
-            cond = self.embed(conditioning)
+
+        # Encode if using encoder-decoder; otherwise just return data sample
+        if self.use_encdec:
+            if conditioning is not None:
+                cond = self.embed(conditioning)
+            else:
+                cond = None
+            return self.encoder(x, cond, mask)
         else:
-            cond = None
-        return self.encoder(x, cond, mask)
+            return x
 
     def decode(self, z0, conditioning=None, mask=None):
         """Decode a latent sample z0."""
-        if conditioning is not None:
-            cond = self.embed(conditioning)
+
+        # Decode if using encoder-decoder; otherwise just return last latent
+        if self.use_encdec:
+            if conditioning is not None:
+                cond = self.embed(conditioning)
+            else:
+                cond = None
+            return self.decoder(z0, cond, mask)
         else:
-            cond = None
-        return self.decoder(z0, cond, mask)
+            return z0
 
     def sample_step(self, rng, i, T, z_t, conditioning=None, mask=None):
         """Sample a single step of the diffusion process."""
