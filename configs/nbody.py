@@ -22,22 +22,23 @@ def get_config():
     vdm.d_embedding = 10
     vdm.embed_context = False
     vdm.n_classes = 0
+    vdm.use_encdec = False
 
     # Transformer score model
     config.transformer = transformer = ml_collections.ConfigDict()
     transformer.induced_attention = False
     transformer.n_inducing_points = 200
-    transformer.d_model = 256
-    transformer.d_mlp = 1024
+    transformer.d_model = 128
+    transformer.d_mlp = 512
     transformer.n_transformer_layers = 5
-    transformer.n_heads = 4
+    transformer.n_heads = 2
 
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
     training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
-    training.n_train_steps = 121_000
-    training.warmup_steps = 10_000
+    training.n_train_steps = 301_000
+    training.warmup_steps = 5_000
     training.log_every_steps = 100
     training.save_every_steps = 20_000
 

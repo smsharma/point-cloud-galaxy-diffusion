@@ -46,7 +46,7 @@ def nbody_dataset(n_features, n_particles, batch_size, seed):
     # Finalize
     x = x[:, :n_particles, :n_features]
     mask = np.ones((x.shape[0], n_particles))  # No mask
-    conditioning[:, [0, -1]]  # Select only omega_m and sigma_8
+    conditioning = conditioning[:, [0, -1]]  # Select only omega_m and sigma_8
 
     train_ds = make_dataloader(x, conditioning, mask, batch_size, seed)
 

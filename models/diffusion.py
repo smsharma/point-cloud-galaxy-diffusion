@@ -122,7 +122,7 @@ class VariationalDiffusionModel(nn.Module):
     transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
     n_classes: int = 0
     embed_context: bool = False
-    use_encdec: bool = False
+    use_encdec: bool = True
 
     def setup(self):
 
@@ -261,7 +261,7 @@ class VariationalDiffusionModel(nn.Module):
     def decode(self, z0, conditioning=None, mask=None):
         """Decode a latent sample z0."""
 
-        # Decode if using encoder-decoder; otherwise just return last latent
+        # Decode if using encoder-decoder; otherwise just return last latent distribution
         if self.use_encdec:
             if conditioning is not None:
                 cond = self.embed(conditioning)
@@ -269,7 +269,7 @@ class VariationalDiffusionModel(nn.Module):
                 cond = None
             return self.decoder(z0, cond, mask)
         else:
-            return z0
+            return tfd.Normal(loc=z0, scale=self.noise_scale)
 
     def sample_step(self, rng, i, T, z_t, conditioning=None, mask=None):
         """Sample a single step of the diffusion process."""

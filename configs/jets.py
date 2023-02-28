@@ -16,12 +16,13 @@ def get_config():
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
-    vdm.timesteps = 1000
+    vdm.timesteps = 0
     vdm.d_hidden_encoding = 256
     vdm.n_encoder_layers = 5
     vdm.d_embedding = 8
     vdm.embed_context = True
     vdm.n_classes = 3
+    vdm.use_encdec = False
 
     # Transformer score model
     config.transformer = transformer = ml_collections.ConfigDict()
