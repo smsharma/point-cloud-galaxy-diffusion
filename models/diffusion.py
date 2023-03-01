@@ -6,10 +6,13 @@ import jax
 import flax.linen as nn
 import jax.numpy as np
 import tensorflow_probability.substrates.jax as tfp
+import jraph
 
 from models.diffusion_utils import variance_preserving_map, alpha, sigma2, get_timestep_embedding
 from models.diffusion_utils import NoiseScheduleScalar, NoiseScheduleFixedLinear
 from models.transformer import Transformer
+from models.gnn import GraphConvNet
+from models.graph_utils import nearest_neighbors
 
 tfd = tfp.distributions
 
@@ -64,6 +67,7 @@ class ScoreNet(nn.Module):
     d_embedding: int = 8
     d_t_embedding: int = 32
     transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
+    pos_features: int = 2  # TODO: Generalize data structure. Breaks previous transformer models.
 
     @nn.compact
     def __call__(self, z, t, conditioning, mask):
@@ -83,7 +87,16 @@ class ScoreNet(nn.Module):
         cond = nn.gelu(nn.Dense(features=self.d_embedding * 4)(cond))
         cond = nn.Dense(self.d_embedding)(cond)
 
-        h = Transformer(n_input=self.d_embedding, **self.transformer_dict)(z, cond, mask)
+        # h = Transformer(n_input=self.d_embedding, **self.transformer_dict)(z, cond, mask)
+
+        k = 20
+        sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., : self.pos_features], k, mask=mask)
+
+        n_batch = z.shape[0]
+        graph = jraph.GraphsTuple(n_node=mask.sum(-1)[:, None], n_edge=np.array(n_batch * [[k]]), nodes=z, edges=None, globals=cond, senders=sources, receivers=targets)
+
+        h = jax.vmap(GraphConvNet(latent_size=128, num_mlp_layers=4, message_passing_steps=4, skip_connections=True))(graph)
+        h = h.nodes
 
         return z + h
 

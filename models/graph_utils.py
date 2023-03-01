@@ -8,6 +8,7 @@ from functools import partial
 
 @partial(jax.jit, static_argnums=(1,))
 def nearest_neighbors(x, k, mask=None):
+    """The shittiest implementation of nearest neighbours with masking in the world"""
 
     if mask is None:
         mask = np.ones((x.shape[0],), dtype=np.int32)
@@ -16,9 +17,8 @@ def nearest_neighbors(x, k, mask=None):
 
     distance_matrix = np.sum((x[:, None, :] - x[None, :, :]) ** 2, axis=-1)
 
-    # Set masked distances to infinity
-    distance_matrix = distance_matrix.at[np.argwhere(mask == 0), :].set(np.inf)
-    distance_matrix = distance_matrix.at[:, np.argwhere(mask == 0)].set(np.inf)
+    distance_matrix = np.where(mask[:, None], distance_matrix, np.inf)
+    distance_matrix = np.where(mask[None, :], distance_matrix, np.inf)
 
     indices = np.argsort(distance_matrix, axis=-1)[:, :k]
 
