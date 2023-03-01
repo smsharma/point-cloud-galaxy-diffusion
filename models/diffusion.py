@@ -67,7 +67,7 @@ class ScoreNet(nn.Module):
     d_embedding: int = 8
     d_t_embedding: int = 32
     transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
-    pos_features: int = 2  # TODO: Generalize data structure. Breaks previous transformer models.
+    pos_features: int = 3  # TODO: Generalize data structure. Breaks previous transformer models.
 
     @nn.compact
     def __call__(self, z, t, conditioning, mask):
@@ -89,7 +89,7 @@ class ScoreNet(nn.Module):
 
         # h = Transformer(n_input=self.d_embedding, **self.transformer_dict)(z, cond, mask)
 
-        k = 6
+        k = 60
         sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., : self.pos_features], k, mask=mask)
 
         n_batch = z.shape[0]

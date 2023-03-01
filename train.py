@@ -23,6 +23,7 @@ from flax.training import checkpoints, common_utils, train_state
 
 import tensorflow as tf
 
+from eval import eval_generation
 from models.diffusion import VariationalDiffusionModel
 from models.diffusion_utils import loss_vdm
 from models.train_utils import create_input_iter, param_count, StateStore, train_step, to_wandb_config
@@ -110,6 +111,17 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
 
                 if config.wandb.log_train:
                     wandb.log({"train/step": step, **summary})
+
+            if (step % config.training.eval_every_steps == 0) and (step != 0)  and (jax.process_index() == 0):
+                eval_generation(
+                    vdm=vdm,
+                    pstate=unreplicate(pstate),
+                    rng=rng,
+                    n_samples=config.training.batch_size,
+                    n_particles=config.data.n_particles,
+                    conditioning=conditioning_batch.reshape((-1, *conditioning_batch.shape[2:])),
+                    mask=mask_batch.reshape((-1, *mask_batch.shape[2:])),
+                )
 
             # Save checkpoints periodically
             if (step % config.training.save_every_steps == 0) and (step != 0) and (jax.process_index() == 0):
