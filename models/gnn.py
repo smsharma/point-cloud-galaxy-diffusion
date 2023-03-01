@@ -24,7 +24,7 @@ class MLP(nn.Module):
 
 
 class GraphConvNet(nn.Module):
-    """A Graph Convolution Network + Pooling model defined with Jraph."""
+    """A Graph Convolution Network."""
 
     latent_size: int
     num_mlp_layers: int
@@ -35,10 +35,9 @@ class GraphConvNet(nn.Module):
     @nn.compact
     def __call__(self, graphs: jraph.GraphsTuple) -> jraph.GraphsTuple:
 
-        # We will first linearly project the original node features as 'embeddings'.
-
         in_features = graphs.nodes.shape[-1]
 
+        # We will first linearly project the original node features as 'embeddings'.
         embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.latent_size))
         processed_graphs = embedder(graphs)
 

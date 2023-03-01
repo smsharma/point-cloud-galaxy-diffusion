@@ -89,7 +89,7 @@ class ScoreNet(nn.Module):
 
         # h = Transformer(n_input=self.d_embedding, **self.transformer_dict)(z, cond, mask)
 
-        k = 20
+        k = 6
         sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., : self.pos_features], k, mask=mask)
 
         n_batch = z.shape[0]
