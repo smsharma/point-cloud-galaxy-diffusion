@@ -3,6 +3,7 @@ import jax.numpy as np
 import flax.linen as nn
 import e3nn_jax as e3nn
 
+import dataclasses
 from typing import Callable, List, Tuple
 
 
@@ -62,6 +63,8 @@ class EquivariantTransformerBlock(nn.Module):
 
 class EquivariantTransformer(nn.Module):
     irreps_out: e3nn.Irreps
+    list_neurons: List[int] = dataclasses.field(default_factory=lambda: [16, 16])
+    act: str = "gelu"
 
     @nn.compact
     def __call__(
@@ -93,8 +96,8 @@ class EquivariantTransformer(nn.Module):
 
         features = EquivariantTransformerBlock(
             irreps_node_output=e3nn.Irreps("1o") + self.irreps_out,
-            list_neurons=(64, 64),
-            act=jax.nn.gelu,
+            list_neurons=self.list_neurons,
+            act=getattr(jax.nn, self.act),
             num_heads=1,
         )(senders, receivers, edge_weight_cutoff, edge_attr, features)
 

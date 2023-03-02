@@ -34,19 +34,19 @@ def get_config():
     # score.n_layers = 5
     # score.n_heads = 2
 
-    # Graph score model
-    config.score = score = ml_collections.ConfigDict()
-    score.score = "graph"
-    score.k = 20
-    score.num_mlp_layers = 4
-    score.latent_size = 64
-    score.skip_connections = True
-    score.message_passing_steps = 4
-
-    # # Equivariant score model
+    # # Graph score model
     # config.score = score = ml_collections.ConfigDict()
-    # score.score = "equivariant"
+    # score.score = "graph"
     # score.k = 20
+    # score.num_mlp_layers = 4
+    # score.latent_size = 64
+    # score.skip_connections = True
+    # score.message_passing_steps = 4
+
+    # Equivariant score model
+    config.score = score = ml_collections.ConfigDict()
+    score.score = "equivariant"
+    score.k = 20
 
     # Training
     config.training = training = ml_collections.ConfigDict()

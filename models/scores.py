@@ -15,6 +15,8 @@ from models.diffusion_utils import get_timestep_embedding
 
 
 class TransformerScoreNet(nn.Module):
+    """Transformer score network."""
+
     d_embedding: int = 8
     d_t_embedding: int = 32
     score_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
@@ -43,6 +45,8 @@ class TransformerScoreNet(nn.Module):
 
 
 class GraphScoreNet(nn.Module):
+    """Graph-convolutional score network."""
+
     d_embedding: int = 8
     d_t_embedding: int = 32
     score_dict: dict = dataclasses.field(default_factory=lambda: {"k": 20, "num_mlp_layers": 4, "latent_size": 128, "skip_connections": True, "message_passing_steps": 4})
@@ -85,6 +89,8 @@ class GraphScoreNet(nn.Module):
 
 
 class EquivariantTransformereNet(nn.Module):
+    """Equivariant transformer score network. NOTE: Does not currently support masking."""
+
     d_embedding: int = 8
     d_t_embedding: int = 32
     score_dict: dict = dataclasses.field(default_factory=lambda: {"k": 20})
@@ -110,11 +116,13 @@ class EquivariantTransformereNet(nn.Module):
 
         k = self.score_dict["k"]
 
+        # Isolate positions, velocities, and masses; get nearest neighbor edges.
         pos, vel, mass = z[..., : self.pos_features], z[..., self.pos_features : 2 * self.pos_features], z[..., 2 * self.pos_features :]
-        sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., : self.pos_features], k, mask=mask)
+        sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., : self.pos_features], k)
 
+        # Position and feature irreps arrays. Add the mass to the conditioning vectors.
         pos = e3nn.IrrepsArray("1o", pos)
-        feat = e3nn.IrrepsArray("1o + {}x0e".format(self.d_embedding), np.concatenate([vel, mass + cond[:, None, :]], -1))
+        feat = e3nn.IrrepsArray(f"1o + {self.d_embedding}x0e", np.concatenate([vel, mass + cond[:, None, :]], -1))
 
         # Make copy of score dict since original cannot be in-place modified; remove `k` argument before passing to Net
         score_dict = dict(self.score_dict)
@@ -122,9 +130,6 @@ class EquivariantTransformereNet(nn.Module):
         score_dict.pop("score")
 
         pos_update, feat_update = jax.vmap(EquivariantTransformer(irreps_out="1o + 0e"))(pos, feat, sources, targets)
-        z = np.concatenate([pos_update.array, feat_update.array], -1)
+        h = np.concatenate([pos_update.array, feat_update.array], -1)
 
-        return z
-
-
-# TODO: Fix d_embedding; add comment about masking in equivariant transformer
+        return z + h
