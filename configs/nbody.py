@@ -12,7 +12,7 @@ def get_config():
     wandb.group = "cosmology"
     wandb.job_type = "training"
     wandb.name = None
-    wandb.log_train = True
+    wandb.log_train = False
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
@@ -24,14 +24,29 @@ def get_config():
     vdm.n_classes = 0
     vdm.use_encdec = False
 
-    # Transformer score model
-    config.transformer = transformer = ml_collections.ConfigDict()
-    transformer.induced_attention = False
-    transformer.n_inducing_points = 200
-    transformer.d_model = 128
-    transformer.d_mlp = 512
-    transformer.n_transformer_layers = 5
-    transformer.n_heads = 2
+    # # Transformer score model
+    # config.score = score = ml_collections.ConfigDict()
+    # score.score = "transformer"
+    # score.induced_attention = False
+    # score.n_inducing_points = 200
+    # score.d_model = 128
+    # score.d_mlp = 512
+    # score.n_layers = 5
+    # score.n_heads = 2
+
+    # Graph score model
+    config.score = score = ml_collections.ConfigDict()
+    score.score = "graph"
+    score.k = 20
+    score.num_mlp_layers = 4
+    score.latent_size = 64
+    score.skip_connections = True
+    score.message_passing_steps = 4
+
+    # # Equivariant score model
+    # config.score = score = ml_collections.ConfigDict()
+    # score.score = "equivariant"
+    # score.k = 20
 
     # Training
     config.training = training = ml_collections.ConfigDict()
@@ -47,7 +62,7 @@ def get_config():
     config.data = data = ml_collections.ConfigDict()
     data.dataset = "nbody"
     data.n_particles = 5000  # Select the first n_particles particles
-    data.n_features = 3  # Select the first n_features features
+    data.n_features = 7  # Select the first n_features features
     data.kwargs = {}
 
     # Optimizer (AdamW)

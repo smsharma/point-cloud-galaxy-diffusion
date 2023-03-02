@@ -6,13 +6,10 @@ import jax
 import flax.linen as nn
 import jax.numpy as np
 import tensorflow_probability.substrates.jax as tfp
-import jraph
 
-from models.diffusion_utils import variance_preserving_map, alpha, sigma2, get_timestep_embedding
+from models.diffusion_utils import variance_preserving_map, alpha, sigma2
 from models.diffusion_utils import NoiseScheduleScalar, NoiseScheduleFixedLinear
-from models.transformer import Transformer
-from models.gnn import GraphConvNet
-from models.graph_utils import nearest_neighbors
+from models.scores import TransformerScoreNet, GraphScoreNet, EquivariantTransformereNet
 
 tfd = tfp.distributions
 
@@ -63,44 +60,6 @@ class Decoder(nn.Module):
         return tfd.Normal(loc=z, scale=self.noise_scale)
 
 
-class ScoreNet(nn.Module):
-    d_embedding: int = 8
-    d_t_embedding: int = 32
-    transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
-    pos_features: int = 3  # TODO: Generalize data structure. Breaks previous transformer models.
-
-    @nn.compact
-    def __call__(self, z, t, conditioning, mask):
-
-        assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
-        t = t * np.ones(z.shape[0])  # Ensure t is a vector
-
-        t_embedding = get_timestep_embedding(t, self.d_t_embedding)  # Timestep embeddings
-
-        if conditioning is not None:
-            cond = np.concatenate([t_embedding, conditioning], axis=1)  # Concatenate with conditioning context
-        else:
-            cond = t_embedding
-
-        # Pass context through a small MLP before passing into transformer
-        cond = nn.gelu(nn.Dense(features=self.d_embedding * 4)(cond))
-        cond = nn.gelu(nn.Dense(features=self.d_embedding * 4)(cond))
-        cond = nn.Dense(self.d_embedding)(cond)
-
-        # h = Transformer(n_input=self.d_embedding, **self.transformer_dict)(z, cond, mask)
-
-        k = 60
-        sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., : self.pos_features], k, mask=mask)
-
-        n_batch = z.shape[0]
-        graph = jraph.GraphsTuple(n_node=mask.sum(-1)[:, None], n_edge=np.array(n_batch * [[k]]), nodes=z, edges=None, globals=cond, senders=sources, receivers=targets)
-
-        h = jax.vmap(GraphConvNet(latent_size=128, num_mlp_layers=4, message_passing_steps=4, skip_connections=True))(graph)
-        h = h.nodes
-
-        return z + h
-
-
 class VariationalDiffusionModel(nn.Module):
     """Variational Diffusion Model (VDM), adapted from https://github.com/google-research/vdm
 
@@ -132,7 +91,8 @@ class VariationalDiffusionModel(nn.Module):
     noise_schedule: str = "learned_linear"  # "learned_linear" or "scalar"
     noise_scale: float = 1.0e-3
     d_t_embedding: int = 32
-    transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
+    score: str = "transformer"  # "transformer", "graph", "equivariant"
+    score_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
     n_classes: int = 0
     embed_context: bool = False
     use_encdec: bool = True
@@ -144,7 +104,12 @@ class VariationalDiffusionModel(nn.Module):
         elif self.noise_schedule == "scalar":
             self.gamma = NoiseScheduleScalar(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
 
-        self.score_model = ScoreNet(d_t_embedding=self.d_t_embedding, d_embedding=self.d_embedding if self.use_encdec else self.d_feature, transformer_dict=self.transformer_dict)
+        if self.score == "transformer":
+            self.score_model = TransformerScoreNet(d_t_embedding=self.d_t_embedding, d_embedding=self.d_embedding if self.use_encdec else self.d_feature, score_dict=self.score_dict)
+        elif self.score == "graph":
+            self.score_model = GraphScoreNet(d_t_embedding=self.d_t_embedding, d_embedding=self.d_embedding if self.use_encdec else self.d_feature, score_dict=self.score_dict)
+        elif self.score == "equivariant":
+            self.score_model = EquivariantTransformereNet(d_t_embedding=self.d_t_embedding, d_embedding=self.d_embedding if self.use_encdec else self.d_feature, score_dict=self.score_dict)
 
         self.encoder = Encoder(d_hidden=self.d_hidden_encoding, n_layers=self.n_layers, d_embedding=self.d_embedding)
         self.decoder = Decoder(d_input=self.d_embedding, d_hidden=self.d_hidden_encoding, n_layers=self.n_layers, d_output=self.d_feature, noise_scale=self.noise_scale)
