@@ -39,7 +39,7 @@ vdm = VariationalDiffusionModel(gamma_min=-6.0, gamma_max=6.0,  # Min and max in
           d_embedding=8,  # Dim to encode the per-element features to
           d_hidden_encoding=64,  # Hidden dim used in encoder/decoder and for projecting context, optinally
           embed_context=False,  # Whether to embed context vector. Must be true for class-conditioning i.e., if n_classes > 0.
-          timesteps=300,  # Number of diffusion steps
+          timesteps=300,  # Number of diffusion steps; set 0 for continuous-time version of variational lower bound
           d_t_embedding=16,  # Timestep embedding dimension
           noise_scale=1e-3,  # Data noise model
           n_classes=0)  # Number of data classes. If >0, the first element of the conditioning vector is assumed to be integer class.
@@ -51,7 +51,7 @@ mask = jax.random.randint(rng, (32, 100), 0, 2)  # Optional set mask, (batch_siz
 conditioning = jax.random.normal(rng, (32, 6))  # Optional conditioning context, (batch_size, context_size); can be `None`
 
 # Call to get losses; see https://blog.alexalemi.com/diffusion.html
-(loss_diff, loss_klz, loss_recon), params = vdm.init_with_output({"sample": rng, "params": rng, "uncond":rng}, x, conditioning, mask)
+(loss_diff, loss_klz, loss_recon), params = vdm.init_with_output({"sample": rng, "params": rng}, x, conditioning, mask)
 
 # Compute full loss, accounting for masking
 loss_vdm(params, vdm, rng, x, conditioning, mask)  # DeviceArray(5606182.5, dtype=float32)
@@ -59,9 +59,9 @@ loss_vdm(params, vdm, rng, x, conditioning, mask)  # DeviceArray(5606182.5, dtyp
 # Sample from model
 
 mask_sample = jax.random.randint(rng, (24, 100), 0, 2)
-conditionink_sample = jax.random.normal(rng, (24, 6))
+conditioning_sample = jax.random.normal(rng, (24, 6))
 
-x_samples = generate(vdm, params, rng, (24, 100), conditionink_sample, mask_sample)
+x_samples = generate(vdm, params, rng, (24, 100), conditioning_sample, mask_sample)
 x_samples.mean().shape  # Mean of decoded Normal distribution -- (24, 100, 4)
 ```
 
@@ -70,6 +70,11 @@ x_samples.mean().shape  # Mean of decoded Normal distribution -- (24, 100, 4)
 - [X] Add examples for ELBO-based likelihood inference
 - [X] Add continuous-time VLB formulation
 - [X] Make latent diffusion optional
+- [ ] Improve GNN model
+- [ ] Move encoder and decoder specifications to a separate dict
+- [ ] Fix encodims dims issues
+- [ ] Add unconditional dropout and generation
+- [ ] Add SEGNN score model
 - [ ] Revisit loss scale
 - [ ] Refactor dataset class
 - [ ] Experiment with including self-attention in addition to cross-attention in ISAB (see [repo](https://github.com/lucidrains/isab-pytorch))
