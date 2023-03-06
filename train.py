@@ -20,6 +20,7 @@ import optax
 import flax
 from flax.core import FrozenDict
 from flax.training import checkpoints, common_utils, train_state
+from jax.config import config
 
 import tensorflow as tf
 
@@ -34,6 +35,7 @@ replicate = flax.jax_utils.replicate
 unreplicate = flax.jax_utils.unreplicate
 
 logging.set_verbosity(logging.INFO)
+config.update("jax_enable_x64", True)
 
 
 def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> train_state.TrainState:

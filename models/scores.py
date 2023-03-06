@@ -39,7 +39,11 @@ class TransformerScoreNet(nn.Module):
         d_cond = cond.shape[-1]  # Dimension of conditioning context
         cond = MLP([d_cond * 4, d_cond * 4, d_cond])(cond)
 
-        h = Transformer(n_input=z.shape[-1], **self.score_dict)(z, cond, mask)
+        # Make copy of score dict since original cannot be in-place modified; remove `score` argument before passing to Net
+        score_dict = dict(self.score_dict)
+        score_dict.pop("score")
+
+        h = Transformer(n_input=z.shape[-1], **score_dict)(z, cond, mask)
 
         return z + h
 

@@ -62,7 +62,7 @@ def get_config():
     score.score = "equivariant"
     score.k = 20
     score.n_pos_features = 3
-    score.d_hidden = 16
+    score.d_hidden = 32
     score.n_layers = 2
 
     # Training

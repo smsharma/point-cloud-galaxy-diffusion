@@ -2,8 +2,8 @@ import jax
 import jax.numpy as np
 import flax.linen as nn
 import e3nn_jax as e3nn
+from models.equivariant_batchnorm import EquivariantBatchNorm
 
-import dataclasses
 from typing import Callable, List, Tuple
 
 
@@ -74,7 +74,7 @@ class EquivariantTransformer(nn.Module):
         features: e3nn.IrrepsArray,  # [N, D] dtype=float
         senders: np.array,
         receivers: np.array,
-        cutoff: float = 1.0,
+        cutoff: float = 0.1,
     ):
         r"""Equivariant Transformer.
 
@@ -107,7 +107,7 @@ class EquivariantTransformer(nn.Module):
         displacements, features = features.slice_by_mul[:1], features.slice_by_mul[1:]
 
         # Normalize
-        positions = positions + e3nn.IrrepsArray("1o", nn.LayerNorm()(displacements.array))
-        features = e3nn.IrrepsArray(self.irreps_out, nn.LayerNorm()(features.array))
+        displacements = EquivariantBatchNorm("1o")(displacements)
+        features = EquivariantBatchNorm(self.irreps_out)(features)
 
-        return positions, features
+        return positions + displacements, features
