@@ -1,26 +1,8 @@
-import jax
-import jax.numpy as np
 import flax.linen as nn
 import jraph
 
 from models.graph_utils import add_graphs_tuples
-
-from typing import Sequence, Callable
-
-
-class MLP(nn.Module):
-    """A multi-layer perceptron."""
-
-    feature_sizes: Sequence[int]
-    activation: Callable[[np.ndarray], np.ndarray] = nn.relu
-
-    @nn.compact
-    def __call__(self, inputs):
-        x = inputs
-        for size in self.feature_sizes:
-            x = nn.Dense(features=size)(x)
-            x = self.activation(x)
-        return x
+from models.mlp import MLP
 
 
 class GraphConvNet(nn.Module):

@@ -16,13 +16,20 @@ def get_config():
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
-    vdm.timesteps = 0
-    vdm.d_hidden_encoding = 256
-    vdm.n_encoder_layers = 4
-    vdm.d_embedding = 10
+    vdm.gamma_min = -8.0
+    vdm.gamma_max = 14.0
+    vdm.noise_schedule = "learned_linear"
+    vdm.noise_scale = 1e-3
+    vdm.timesteps = 0  # 0 for continuous-time VLB
     vdm.embed_context = False
     vdm.n_classes = 0
-    vdm.use_encdec = False
+
+    # Encoder and decoder specification
+    config.encdec = encdec = ml_collections.ConfigDict()
+    encdec.use_encdec = False
+    encdec.d_hidden = 256
+    encdec.n_layers = 4
+    encdec.d_embedding = 12
 
     # # Transformer score model
     # config.score = score = ml_collections.ConfigDict()
@@ -42,11 +49,13 @@ def get_config():
     # score.latent_size = 64
     # score.skip_connections = True
     # score.message_passing_steps = 4
+    # score.n_pos_features = 3
 
     # Equivariant score model
     config.score = score = ml_collections.ConfigDict()
     score.score = "equivariant"
     score.k = 20
+    score.n_pos_features = 3
 
     # Training
     config.training = training = ml_collections.ConfigDict()
@@ -55,14 +64,15 @@ def get_config():
     training.n_train_steps = 501_000
     training.warmup_steps = 5_000
     training.log_every_steps = 100
-    training.eval_every_steps = 2
+    training.eval_every_steps = 1000
     training.save_every_steps = 20_000
 
     # Data
     config.data = data = ml_collections.ConfigDict()
     data.dataset = "nbody"
     data.n_particles = 5000  # Select the first n_particles particles
-    data.n_features = 3  # Select the first n_features features
+    data.n_features = 7  # Select the first n_features features
+    data.n_pos_features = 3  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
     data.kwargs = {}
 
     # Optimizer (AdamW)

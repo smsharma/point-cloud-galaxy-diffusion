@@ -16,22 +16,30 @@ def get_config():
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
-    vdm.timesteps = 0
-    vdm.d_hidden_encoding = 256
-    vdm.n_encoder_layers = 5
-    vdm.d_embedding = 8
+    vdm.gamma_min = -8.0
+    vdm.gamma_max = 14.0
+    vdm.noise_schedule = "learned_linear"
+    vdm.noise_scale = 1e-3
+    vdm.timesteps = 0  # 0 for continuous-time VLB
     vdm.embed_context = True
     vdm.n_classes = 3
-    vdm.use_encdec = False
+
+    # Encoder and decoder specification
+    config.encdec = encdec = ml_collections.ConfigDict()
+    encdec.use_encdec = False
+    encdec.d_hidden = 256
+    encdec.n_layers = 4
+    encdec.d_embedding = 12
 
     # Transformer score model
-    config.transformer = transformer = ml_collections.ConfigDict()
-    transformer.induced_attention = False
-    transformer.n_inducing_points = 500
-    transformer.d_model = 256
-    transformer.d_mlp = 1024
-    transformer.n_transformer_layers = 6
-    transformer.n_heads = 4
+    config.score = score = ml_collections.ConfigDict()
+    score.score = "transformer"
+    score.induced_attention = False
+    score.n_inducing_points = 200
+    score.d_model = 256
+    score.d_mlp = 1024
+    score.n_layers = 6
+    score.n_heads = 4
 
     # Training
     config.training = training = ml_collections.ConfigDict()
@@ -40,6 +48,7 @@ def get_config():
     training.n_train_steps = 3_000_001
     training.warmup_steps = 10_000
     training.log_every_steps = 100
+    training.eval_every_steps = training.n_train_steps + 1  # Eval not yet supported for jets
     training.save_every_steps = 100_000
 
     # Data
@@ -47,6 +56,7 @@ def get_config():
     data.dataset = "jetnet"
     data.n_particles = 150  # Select the first n_particles particles
     data.n_features = 3  # Select the first n_features features
+    data.n_pos_features = 2  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
     data.kwargs = {"jet_type": ["q", "g", "t"]}
 
     # Optimizer (AdamW)

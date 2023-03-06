@@ -26,7 +26,7 @@ import tensorflow as tf
 from eval import eval_generation
 from models.diffusion import VariationalDiffusionModel
 from models.diffusion_utils import loss_vdm
-from models.train_utils import create_input_iter, param_count, StateStore, train_step, to_wandb_config
+from models.train_utils import create_input_iter, param_count, train_step, to_wandb_config
 
 from datasets import load_data
 
@@ -48,7 +48,7 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
         # Recursively create workdir
         os.makedirs(workdir, exist_ok=True)
 
-    # Dump a yaml config file
+    # Dump a yaml config file in the output directory
     with open(os.path.join(workdir, "config.yaml"), "w") as f:
         yaml.dump(config.to_dict(), f)
 
@@ -57,17 +57,18 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
     # Load the dataset
     train_ds = load_data(config.data.dataset, config.data.n_features, config.data.n_particles, config.training.batch_size, config.seed, **config.data.kwargs)
 
+    batches = create_input_iter(train_ds)
+
     logging.info("Loaded the %s dataset", config.data.dataset)
 
     ## Model configuration
 
-    # Score model
+    # Score and (optional) encoder model configs
     score_dict = FrozenDict(config.score)
+    encdec_dict = FrozenDict(config.encdec)
 
     # Diffusion model
-    vdm = VariationalDiffusionModel(n_layers=config.vdm.n_encoder_layers, d_embedding=config.vdm.d_embedding, d_hidden_encoding=config.vdm.d_hidden_encoding, timesteps=config.vdm.timesteps, d_feature=config.data.n_features, score=config.score.score, score_dict=score_dict, embed_context=config.vdm.embed_context, n_classes=config.vdm.n_classes, use_encdec=config.vdm.use_encdec)
-
-    batches = create_input_iter(train_ds)
+    vdm = VariationalDiffusionModel(d_feature=config.data.n_features, timesteps=config.vdm.timesteps, noise_schedule=config.vdm.noise_schedule, noise_scale=config.vdm.noise_scale, gamma_min=config.vdm.gamma_min, gamma_max=config.vdm.gamma_max, score=config.score.score, score_dict=score_dict, embed_context=config.vdm.embed_context, n_classes=config.vdm.n_classes, use_encdec=config.encdec.use_encdec, encdec_dict=encdec_dict)
 
     rng = jax.random.PRNGKey(config.seed)
     rng, rng_params = jax.random.split(rng)
