@@ -70,9 +70,10 @@ x_samples.mean().shape  # Mean of decoded Normal distribution -- (24, 100, 4)
 - [X] Add examples for ELBO-based likelihood inference
 - [X] Add continuous-time VLB formulation
 - [X] Make latent diffusion optional
+- [X] Move encoder and decoder specifications to a separate dict
+- [X] Fix encodims dims issues
 - [ ] Improve GNN model
-- [ ] Move encoder and decoder specifications to a separate dict
-- [ ] Fix encodims dims issues
+- [ ] Add eval for jets
 - [ ] Add unconditional dropout and generation
 - [ ] Add SEGNN score model
 - [ ] Revisit loss scale
