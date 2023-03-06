@@ -61,10 +61,6 @@ class MLPEncoder(nn.Module):
     n_layers: int = 3
     d_embedding: int = 8
 
-    # Allow for additional kwargs, so that the encdec dict can be used for both encoder and decoder
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-
     @nn.compact
     def __call__(self, x, cond=None, mask=None):
         x = nn.Dense(self.d_embedding)(x)  # Project to embedding size
@@ -75,15 +71,10 @@ class MLPEncoder(nn.Module):
 class MLPDecoder(nn.Module):
     """An element-wise decoder."""
 
-    d_hidden: int = 32
-    n_layers: int = 3
-    d_embedding: int = 8
     d_output: int = 3
     noise_scale: float = 1.0e-3
-
-    # Allow for additional kwargs, so that the encdec dict can be used for both encoder and decoder
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
+    d_hidden: int = 32
+    n_layers: int = 3
 
     @nn.compact
     def __call__(self, z, cond=None, mask=None):

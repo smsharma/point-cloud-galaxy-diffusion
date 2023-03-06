@@ -1,3 +1,4 @@
+import dataclasses
 import ml_collections
 
 
@@ -22,14 +23,19 @@ def get_config():
     vdm.noise_scale = 1e-3
     vdm.timesteps = 0  # 0 for continuous-time VLB
     vdm.embed_context = False
+    vdm.d_context_embedding = 32
     vdm.n_classes = 0
+    vdm.use_encdec = False
 
     # Encoder and decoder specification
-    config.encdec = encdec = ml_collections.ConfigDict()
-    encdec.use_encdec = False
-    encdec.d_hidden = 256
-    encdec.n_layers = 4
-    encdec.d_embedding = 12
+    config.encoder = encoder = ml_collections.ConfigDict()
+    encoder.d_hidden = 256
+    encoder.n_layers = 4
+    encoder.d_embedding = 12
+
+    config.decoder = decoder = ml_collections.ConfigDict()
+    decoder.d_hidden = 256
+    decoder.n_layers = 4
 
     # # Transformer score model
     # config.score = score = ml_collections.ConfigDict()
@@ -45,17 +51,19 @@ def get_config():
     # config.score = score = ml_collections.ConfigDict()
     # score.score = "graph"
     # score.k = 20
+    # score.n_pos_features = 3
     # score.num_mlp_layers = 4
     # score.latent_size = 64
     # score.skip_connections = True
     # score.message_passing_steps = 4
-    # score.n_pos_features = 3
 
     # Equivariant score model
     config.score = score = ml_collections.ConfigDict()
     score.score = "equivariant"
     score.k = 20
     score.n_pos_features = 3
+    score.d_hidden = 16
+    score.n_layers = 2
 
     # Training
     config.training = training = ml_collections.ConfigDict()

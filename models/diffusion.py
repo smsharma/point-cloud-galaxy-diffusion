@@ -44,9 +44,11 @@ class VariationalDiffusionModel(nn.Module):
     d_t_embedding: int = 32
     score: str = "transformer"  # "transformer", "graph", "equivariant"
     score_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
-    encdec_dict: dict = dataclasses.field(default_factory=lambda: {"d_embedding": 12, "d_hidden": 256, "n_layers": 4})
+    encoder_dict: dict = dataclasses.field(default_factory=lambda: {"d_embedding": 12, "d_hidden": 256, "n_layers": 4})
+    decoder_dict: dict = dataclasses.field(default_factory=lambda: {"d_hidden": 256, "n_layers": 4})
     n_classes: int = 0
     embed_context: bool = False
+    d_context_embedding: int = 32
     use_encdec: bool = True
 
     def setup(self):
@@ -66,13 +68,13 @@ class VariationalDiffusionModel(nn.Module):
             self.score_model = EquivariantTransformereNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict)
 
         # Optional encoder/decoder for latent diffusion
-        self.encoder = MLPEncoder(**self.encdec_dict)
-        self.decoder = MLPDecoder(d_output=self.d_feature, noise_scale=self.noise_scale, **self.encdec_dict)
+        self.encoder = MLPEncoder(**self.encoder_dict)
+        self.decoder = MLPDecoder(d_output=self.d_feature, noise_scale=self.noise_scale, **self.decoder_dict)
 
         # Embedding for class and context
         if self.n_classes > 0:
-            self.embedding_class = nn.Embed(self.n_classes, self.d_hidden_encoding)
-        self.embedding_context = nn.Dense(self.d_hidden_encoding)
+            self.embedding_class = nn.Embed(self.n_classes, self.d_context_embedding)
+        self.embedding_context = nn.Dense(self.d_context_embedding)
 
     def gammat(self, t):
         return self.gamma(t)

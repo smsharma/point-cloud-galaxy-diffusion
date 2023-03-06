@@ -80,6 +80,7 @@ class GraphScoreNet(nn.Module):
         score_dict = dict(self.score_dict)
         score_dict.pop("k")
         score_dict.pop("score")
+        score_dict.pop("n_pos_features")
 
         h = jax.vmap(GraphConvNet(**score_dict))(graph)
         h = h.nodes
@@ -118,6 +119,8 @@ class EquivariantTransformereNet(nn.Module):
         pos, vel, mass = z[..., :n_pos_features], z[..., n_pos_features : 2 * n_pos_features], z[..., 2 * n_pos_features :]
         sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., :n_pos_features], k)
 
+        feat = np.concatenate([vel, mass], -1)
+
         # Position and feature irreps arrays. Add the mass to the conditioning vectors.
         pos = e3nn.IrrepsArray("1o", pos)
         feat = e3nn.IrrepsArray(f"1o + {d_cond}x0e", np.concatenate([vel, mass + cond[:, None, :]], -1))
@@ -126,8 +129,10 @@ class EquivariantTransformereNet(nn.Module):
         score_dict = dict(self.score_dict)
         score_dict.pop("k")
         score_dict.pop("score")
+        score_dict.pop("n_pos_features")
 
-        pos_update, feat_update = jax.vmap(EquivariantTransformer(irreps_out="1o + 0e"))(pos, feat, sources, targets)
-        h = np.concatenate([pos_update.array, feat_update.array], -1)
+        pos, feat = jax.vmap(EquivariantTransformer(irreps_out="1o + 0e", **score_dict))(pos, feat, sources, targets)
+
+        h = np.concatenate([pos.array, feat.array], -1)
 
         return z + h

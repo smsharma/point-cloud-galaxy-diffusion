@@ -65,10 +65,11 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
 
     # Score and (optional) encoder model configs
     score_dict = FrozenDict(config.score)
-    encdec_dict = FrozenDict(config.encdec)
+    encoder_dict = FrozenDict(config.encoder)
+    decoder_dict = FrozenDict(config.decoder)
 
     # Diffusion model
-    vdm = VariationalDiffusionModel(d_feature=config.data.n_features, timesteps=config.vdm.timesteps, noise_schedule=config.vdm.noise_schedule, noise_scale=config.vdm.noise_scale, gamma_min=config.vdm.gamma_min, gamma_max=config.vdm.gamma_max, score=config.score.score, score_dict=score_dict, embed_context=config.vdm.embed_context, n_classes=config.vdm.n_classes, use_encdec=config.encdec.use_encdec, encdec_dict=encdec_dict)
+    vdm = VariationalDiffusionModel(d_feature=config.data.n_features, timesteps=config.vdm.timesteps, noise_schedule=config.vdm.noise_schedule, noise_scale=config.vdm.noise_scale, gamma_min=config.vdm.gamma_min, gamma_max=config.vdm.gamma_max, score=config.score.score, score_dict=score_dict, embed_context=config.vdm.embed_context, d_context_embedding=config.vdm.d_context_embedding, n_classes=config.vdm.n_classes, use_encdec=config.vdm.use_encdec, encoder_dict=encoder_dict, decoder_dict=decoder_dict)
 
     rng = jax.random.PRNGKey(config.seed)
     rng, rng_params = jax.random.split(rng)

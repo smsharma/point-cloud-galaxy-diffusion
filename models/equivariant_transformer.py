@@ -63,7 +63,8 @@ class EquivariantTransformerBlock(nn.Module):
 
 class EquivariantTransformer(nn.Module):
     irreps_out: e3nn.Irreps
-    list_neurons: List[int] = dataclasses.field(default_factory=lambda: [16, 16])
+    d_hidden: int = 64
+    n_layers: int = 2
     act: str = "gelu"
 
     @nn.compact
@@ -88,6 +89,8 @@ class EquivariantTransformer(nn.Module):
             e3nn.IrrepsArray: output features of the nodes
         """
 
+        list_neurons = self.n_layers * (self.d_hidden,)
+
         vectors = positions[senders] - positions[receivers]
         dist = np.linalg.norm(vectors.array, axis=1) / cutoff
 
@@ -96,11 +99,15 @@ class EquivariantTransformer(nn.Module):
 
         features = EquivariantTransformerBlock(
             irreps_node_output=e3nn.Irreps("1o") + self.irreps_out,
-            list_neurons=self.list_neurons,
+            list_neurons=list_neurons,
             act=getattr(jax.nn, self.act),
             num_heads=1,
         )(senders, receivers, edge_weight_cutoff, edge_attr, features)
 
         displacements, features = features.slice_by_mul[:1], features.slice_by_mul[1:]
-        positions = positions + displacements
+
+        # Normalize
+        positions = positions + e3nn.IrrepsArray("1o", nn.LayerNorm()(displacements.array))
+        features = e3nn.IrrepsArray(self.irreps_out, nn.LayerNorm()(features.array))
+
         return positions, features
