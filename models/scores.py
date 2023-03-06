@@ -9,6 +9,7 @@ import e3nn_jax as e3nn
 from models.transformer import Transformer
 from models.gnn import GraphConvNet
 from models.equivariant_transformer import EquivariantTransformer
+from models.mlp import MLP
 
 from models.graph_utils import nearest_neighbors
 from models.diffusion_utils import get_timestep_embedding
@@ -17,7 +18,6 @@ from models.diffusion_utils import get_timestep_embedding
 class TransformerScoreNet(nn.Module):
     """Transformer score network."""
 
-    d_embedding: int = 8
     d_t_embedding: int = 32
     score_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
 
@@ -34,12 +34,12 @@ class TransformerScoreNet(nn.Module):
         else:
             cond = t_embedding
 
-        # Pass context through a small MLP before passing into transformer
-        cond = nn.gelu(nn.Dense(features=self.d_embedding * 4)(cond))
-        cond = nn.gelu(nn.Dense(features=self.d_embedding * 4)(cond))
-        cond = nn.Dense(self.d_embedding)(cond)
+        # Pass context through a 2-layer MLP before passing into transformer
+        # I'm not sure this is really necessary
+        d_cond = cond.shape[-1]  # Dimension of conditioning context
+        cond = MLP([d_cond * 4, d_cond * 4, d_cond])(cond)
 
-        h = Transformer(n_input=self.d_embedding, **self.score_dict)(z, cond, mask)
+        h = Transformer(n_input=z.shape[-1], **self.score_dict)(z, cond, mask)
 
         return z + h
 
@@ -47,7 +47,6 @@ class TransformerScoreNet(nn.Module):
 class GraphScoreNet(nn.Module):
     """Graph-convolutional score network."""
 
-    d_embedding: int = 8
     d_t_embedding: int = 32
     score_dict: dict = dataclasses.field(default_factory=lambda: {"k": 20, "num_mlp_layers": 4, "latent_size": 128, "skip_connections": True, "message_passing_steps": 4})
     pos_features: int = 3  # TODO: Generalize data structure. Breaks previous transformer models.
@@ -65,10 +64,10 @@ class GraphScoreNet(nn.Module):
         else:
             cond = t_embedding
 
-        # Pass context through a small MLP before passing into transformer
-        cond = nn.gelu(nn.Dense(features=self.d_embedding * 4)(cond))
-        cond = nn.gelu(nn.Dense(features=self.d_embedding * 4)(cond))
-        cond = nn.Dense(self.d_embedding)(cond)
+        # Pass context through a 2-layer MLP before passing into transformer
+        # I'm not sure this is really necessary
+        d_cond = cond.shape[-1]  # Dimension of conditioning context
+        cond = MLP([d_cond * 4, d_cond * 4, d_cond])(cond)
 
         k = self.score_dict["k"]
 
@@ -91,7 +90,6 @@ class GraphScoreNet(nn.Module):
 class EquivariantTransformereNet(nn.Module):
     """Equivariant transformer score network. NOTE: Does not currently support masking."""
 
-    d_embedding: int = 8
     d_t_embedding: int = 32
     score_dict: dict = dataclasses.field(default_factory=lambda: {"k": 20})
     pos_features: int = 3  # TODO: Generalize data structure. Breaks previous transformer models.
@@ -109,10 +107,10 @@ class EquivariantTransformereNet(nn.Module):
         else:
             cond = t_embedding
 
-        # Pass context through a small MLP before passing into transformer
-        cond = nn.gelu(nn.Dense(features=self.d_embedding * 4)(cond))
-        cond = nn.gelu(nn.Dense(features=self.d_embedding * 4)(cond))
-        cond = nn.Dense(self.d_embedding)(cond)
+        # Pass context through a 2-layer MLP before passing into transformer
+        # I'm not sure this is really necessary
+        d_cond = cond.shape[-1]  # Dimension of conditioning context
+        cond = MLP([d_cond * 4, d_cond * 4, d_cond])(cond)
 
         k = self.score_dict["k"]
 
@@ -122,7 +120,7 @@ class EquivariantTransformereNet(nn.Module):
 
         # Position and feature irreps arrays. Add the mass to the conditioning vectors.
         pos = e3nn.IrrepsArray("1o", pos)
-        feat = e3nn.IrrepsArray(f"1o + {self.d_embedding}x0e", np.concatenate([vel, mass + cond[:, None, :]], -1))
+        feat = e3nn.IrrepsArray(f"1o + {d_cond}x0e", np.concatenate([vel, mass + cond[:, None, :]], -1))
 
         # Make copy of score dict since original cannot be in-place modified; remove `k` argument before passing to Net
         score_dict = dict(self.score_dict)
