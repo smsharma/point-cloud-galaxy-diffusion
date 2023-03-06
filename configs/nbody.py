@@ -49,11 +49,13 @@ def get_config():
     # score.latent_size = 64
     # score.skip_connections = True
     # score.message_passing_steps = 4
+    # score.n_pos_features = 3
 
     # Equivariant score model
     config.score = score = ml_collections.ConfigDict()
     score.score = "equivariant"
     score.k = 20
+    score.n_pos_features = 3
 
     # Training
     config.training = training = ml_collections.ConfigDict()
@@ -62,7 +64,7 @@ def get_config():
     training.n_train_steps = 301_000
     training.warmup_steps = 5_000
     training.log_every_steps = 100
-    training.eval_every_steps = 2
+    training.eval_every_steps = 1000
     training.save_every_steps = 20_000
 
     # Data
@@ -70,6 +72,7 @@ def get_config():
     data.dataset = "nbody"
     data.n_particles = 5000  # Select the first n_particles particles
     data.n_features = 7  # Select the first n_features features
+    data.n_pos_features = 3  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
     data.kwargs = {}
 
     # Optimizer (AdamW)

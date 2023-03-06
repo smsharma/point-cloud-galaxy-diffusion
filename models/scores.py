@@ -49,7 +49,6 @@ class GraphScoreNet(nn.Module):
 
     d_t_embedding: int = 32
     score_dict: dict = dataclasses.field(default_factory=lambda: {"k": 20, "num_mlp_layers": 4, "latent_size": 128, "skip_connections": True, "message_passing_steps": 4})
-    pos_features: int = 3  # TODO: Generalize data structure. Breaks previous transformer models.
 
     @nn.compact
     def __call__(self, z, t, conditioning, mask):
@@ -70,8 +69,9 @@ class GraphScoreNet(nn.Module):
         cond = MLP([d_cond * 4, d_cond * 4, d_cond])(cond)
 
         k = self.score_dict["k"]
+        n_pos_features = self.score_dict["n_pos_features"]
 
-        sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., : self.pos_features], k, mask=mask)
+        sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., :n_pos_features], k, mask=mask)
 
         n_batch = z.shape[0]
         graph = jraph.GraphsTuple(n_node=mask.sum(-1)[:, None], n_edge=np.array(n_batch * [[k]]), nodes=z, edges=None, globals=cond, senders=sources, receivers=targets)
@@ -92,7 +92,6 @@ class EquivariantTransformereNet(nn.Module):
 
     d_t_embedding: int = 32
     score_dict: dict = dataclasses.field(default_factory=lambda: {"k": 20})
-    pos_features: int = 3  # TODO: Generalize data structure. Breaks previous transformer models.
 
     @nn.compact
     def __call__(self, z, t, conditioning, mask):
@@ -113,10 +112,11 @@ class EquivariantTransformereNet(nn.Module):
         cond = MLP([d_cond * 4, d_cond * 4, d_cond])(cond)
 
         k = self.score_dict["k"]
+        n_pos_features = self.score_dict["n_pos_features"]
 
         # Isolate positions, velocities, and masses; get nearest neighbor edges.
-        pos, vel, mass = z[..., : self.pos_features], z[..., self.pos_features : 2 * self.pos_features], z[..., 2 * self.pos_features :]
-        sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., : self.pos_features], k)
+        pos, vel, mass = z[..., :n_pos_features], z[..., n_pos_features : 2 * n_pos_features], z[..., 2 * n_pos_features :]
+        sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., :n_pos_features], k)
 
         # Position and feature irreps arrays. Add the mass to the conditioning vectors.
         pos = e3nn.IrrepsArray("1o", pos)
