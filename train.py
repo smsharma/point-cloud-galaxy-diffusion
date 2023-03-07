@@ -57,7 +57,7 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
     writer = metric_writers.create_default_writer(logdir=workdir, just_logging=jax.process_index() != 0)
 
     # Load the dataset
-    train_ds = load_data(config.data.dataset, config.data.n_features, config.data.n_particles, config.training.batch_size, config.seed, **config.data.kwargs)
+    train_ds, norm_dict = load_data(config.data.dataset, config.data.n_features, config.data.n_particles, config.training.batch_size, config.seed, **config.data.kwargs)
 
     batches = create_input_iter(train_ds)
 
@@ -123,8 +123,10 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
                     rng=rng,
                     n_samples=config.training.batch_size,
                     n_particles=config.data.n_particles,
+                    true_samples=x_batch.reshape((-1, *x_batch.shape[2:])),
                     conditioning=conditioning_batch.reshape((-1, *conditioning_batch.shape[2:])),
                     mask=mask_batch.reshape((-1, *mask_batch.shape[2:])),
+                    norm_dict=norm_dict,
                 )
 
             # Save checkpoints periodically
