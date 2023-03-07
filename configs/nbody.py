@@ -37,15 +37,15 @@ def get_config():
     decoder.d_hidden = 256
     decoder.n_layers = 4
 
-    # # Transformer score model
-    # config.score = score = ml_collections.ConfigDict()
-    # score.score = "transformer"
-    # score.induced_attention = False
-    # score.n_inducing_points = 200
-    # score.d_model = 128
-    # score.d_mlp = 512
-    # score.n_layers = 5
-    # score.n_heads = 2
+    # Transformer score model
+    config.score = score = ml_collections.ConfigDict()
+    score.score = "transformer"
+    score.induced_attention = False
+    score.n_inducing_points = 200
+    score.d_model = 256
+    score.d_mlp = 512
+    score.n_layers = 4
+    score.n_heads = 4
 
     # # Graph score model
     # config.score = score = ml_collections.ConfigDict()
@@ -57,13 +57,13 @@ def get_config():
     # score.skip_connections = True
     # score.message_passing_steps = 4
 
-    # Equivariant score model
-    config.score = score = ml_collections.ConfigDict()
-    score.score = "equivariant"
-    score.k = 20
-    score.n_pos_features = 3
-    score.d_hidden = 32
-    score.n_layers = 2
+    # # Equivariant score model
+    # config.score = score = ml_collections.ConfigDict()
+    # score.score = "equivariant"
+    # score.k = 20
+    # score.n_pos_features = 3
+    # score.d_hidden = 32
+    # score.n_layers = 2
 
     # Training
     config.training = training = ml_collections.ConfigDict()
@@ -72,7 +72,7 @@ def get_config():
     training.n_train_steps = 501_000
     training.warmup_steps = 5_000
     training.log_every_steps = 100
-    training.eval_every_steps = 1000
+    training.eval_every_steps = training.n_train_steps + 1  # Turn off eval for now
     training.save_every_steps = 20_000
 
     # Data

@@ -41,7 +41,7 @@ class TransformerScoreNet(nn.Module):
 
         # Make copy of score dict since original cannot be in-place modified; remove `score` argument before passing to Net
         score_dict = dict(self.score_dict)
-        score_dict.pop("score")
+        score_dict.pop("score", None)
 
         h = Transformer(n_input=z.shape[-1], **score_dict)(z, cond, mask)
 
@@ -82,9 +82,9 @@ class GraphScoreNet(nn.Module):
 
         # Make copy of score dict since original cannot be in-place modified; remove `k` argument before passing to Net
         score_dict = dict(self.score_dict)
-        score_dict.pop("k")
-        score_dict.pop("score")
-        score_dict.pop("n_pos_features")
+        score_dict.pop("k", None)
+        score_dict.pop("score", None)
+        score_dict.pop("n_pos_features", None)
 
         h = jax.vmap(GraphConvNet(**score_dict))(graph)
         h = h.nodes
@@ -131,9 +131,9 @@ class EquivariantTransformereNet(nn.Module):
 
         # Make copy of score dict since original cannot be in-place modified; remove `k` argument before passing to Net
         score_dict = dict(self.score_dict)
-        score_dict.pop("k")
-        score_dict.pop("score")
-        score_dict.pop("n_pos_features")
+        score_dict.pop("k", None)
+        score_dict.pop("score", None)
+        score_dict.pop("n_pos_features", None)
 
         pos, feat = jax.vmap(EquivariantTransformer(irreps_out="1o + 0e", **score_dict))(pos, feat, sources, targets)
 

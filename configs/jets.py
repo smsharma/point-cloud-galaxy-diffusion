@@ -22,24 +22,29 @@ def get_config():
     vdm.noise_scale = 1e-3
     vdm.timesteps = 0  # 0 for continuous-time VLB
     vdm.embed_context = True
+    vdm.d_context_embedding = 32
     vdm.n_classes = 3
+    vdm.use_encdec = False
 
     # Encoder and decoder specification
-    config.encdec = encdec = ml_collections.ConfigDict()
-    encdec.use_encdec = False
-    encdec.d_hidden = 256
-    encdec.n_layers = 4
-    encdec.d_embedding = 12
+    config.encoder = encoder = ml_collections.ConfigDict()
+    encoder.d_hidden = 256
+    encoder.n_layers = 4
+    encoder.d_embedding = 12
+
+    config.decoder = decoder = ml_collections.ConfigDict()
+    decoder.d_hidden = 256
+    decoder.n_layers = 4
 
     # Transformer score model
     config.score = score = ml_collections.ConfigDict()
     score.score = "transformer"
     score.induced_attention = False
     score.n_inducing_points = 200
-    score.d_model = 256
-    score.d_mlp = 1024
-    score.n_layers = 6
-    score.n_heads = 4
+    score.d_model = 128
+    score.d_mlp = 512
+    score.n_layers = 4
+    score.n_heads = 2
 
     # Training
     config.training = training = ml_collections.ConfigDict()

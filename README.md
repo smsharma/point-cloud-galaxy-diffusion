@@ -27,17 +27,15 @@ from flax.core import FrozenDict
 from models.diffusion import VariationalDiffusionModel
 from models.diffusion_utils import generate, loss_vdm
 
-# Transformer args
-transformer_dict = FrozenDict({"d_model":256, "d_mlp":512, "n_layers":5, "n_heads":4, "induced_attention":False, "n_inducing_points":32})
+# Transformer (score model) args
+score_dict = FrozenDict({"d_model":256, "d_mlp":512, "n_layers":5, "n_heads":4, "induced_attention":False, "n_inducing_points":32})
 
 # Instantiate model
 vdm = VariationalDiffusionModel(gamma_min=-6.0, gamma_max=6.0,  # Min and max initial log-SNR in the noise schedule
           d_feature=4,  # Number of features per set element
-          transformer_dict=transformer_dict,  # Score-prediction transformer parameters
+          score="transformer",
+          score_dict=score_dict,  # Score-prediction transformer parameters
           noise_schedule="learned_linear",  # Noise schedule; "learned_linear" or "scalar"
-          n_layers=3,  # Layers in encoder/decoder element-wise ResNets
-          d_embedding=8,  # Dim to encode the per-element features to
-          d_hidden_encoding=64,  # Hidden dim used in encoder/decoder and for projecting context, optinally
           embed_context=False,  # Whether to embed context vector. Must be true for class-conditioning i.e., if n_classes > 0.
           timesteps=300,  # Number of diffusion steps; set 0 for continuous-time version of variational lower bound
           d_t_embedding=16,  # Timestep embedding dimension

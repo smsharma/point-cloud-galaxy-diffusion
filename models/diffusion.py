@@ -68,8 +68,9 @@ class VariationalDiffusionModel(nn.Module):
             self.score_model = EquivariantTransformereNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict)
 
         # Optional encoder/decoder for latent diffusion
-        self.encoder = MLPEncoder(**self.encoder_dict)
-        self.decoder = MLPDecoder(d_output=self.d_feature, noise_scale=self.noise_scale, **self.decoder_dict)
+        if self.use_encdec:
+            self.encoder = MLPEncoder(**self.encoder_dict)
+            self.decoder = MLPDecoder(d_output=self.d_feature, noise_scale=self.noise_scale, **self.decoder_dict)
 
         # Embedding for class and context
         if self.n_classes > 0:

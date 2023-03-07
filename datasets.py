@@ -57,13 +57,13 @@ def jetnet_dataset(n_features, n_particles, batch_size, seed, jet_type=["q", "g"
 
     particle_data, jet_data = JetNet.getData(jet_type=jet_type, data_dir="./data/", num_particles=n_particles)
 
-    # Normalize everything BUT the class (first element of `jet_data`
+    # Normalize everything BUT the class (first element of `jet_data`)
     jet_data_mean = jet_data[:, 1:].mean(axis=(0,))
     jet_data_std = jet_data[:, 1:].std(axis=(0,))
     jet_data[:, 1:] = (jet_data[:, 1:] - jet_data_mean + EPS) / (jet_data_std + EPS)
 
-    # Remove cardinality (last element); keep pT, eta, mass as jet features for conditioning on
-    conditioning = jet_data[:, :-1]
+    # Only keep jet class as conditioning feature
+    conditioning = jet_data[:, :1]
 
     # Get mask (to specify varying cardinality) and particle features to be modeled (eta, phi, pT)
     mask = particle_data[:, :, -1]
