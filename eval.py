@@ -248,7 +248,7 @@ def plot_2pcf(generated_samples: np.array, true_samples: np.array, boxsize: floa
         linestyle='dashed',
     )
 
-    # fill_between somehow doesnt work with wandb
+    # fill_between somehow doesnt work with wandb :(
     #plt.fill_between(
     #    r, 
     #    (onp.mean(true_2pcfs, axis=0) - onp.std(true_2pcfs,axis=0)), 
