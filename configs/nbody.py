@@ -13,7 +13,7 @@ def get_config():
     wandb.group = "cosmology"
     wandb.job_type = "training"
     wandb.name = None
-    wandb.log_train = False
+    wandb.log_train = True
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
@@ -23,7 +23,7 @@ def get_config():
     vdm.noise_scale = 1e-3
     vdm.timesteps = 0  # 0 for continuous-time VLB
     vdm.embed_context = False
-    vdm.d_context_embedding = 32
+    vdm.d_context_embedding = 16
     vdm.n_classes = 0
     vdm.use_encdec = False
 
@@ -42,15 +42,15 @@ def get_config():
     score.score = "transformer"
     score.induced_attention = False
     score.n_inducing_points = 200
-    score.d_model = 256
+    score.d_model = 128
     score.d_mlp = 512
     score.n_layers = 4
-    score.n_heads = 4
+    score.n_heads = 2
 
     # # Graph score model
     # config.score = score = ml_collections.ConfigDict()
     # score.score = "graph"
-    # score.k = 20
+    # score.k = 50
     # score.n_pos_features = 3
     # score.num_mlp_layers = 4
     # score.latent_size = 64
