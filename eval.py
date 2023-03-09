@@ -293,7 +293,7 @@ def eval_generation(
     conditioning: np.array,
     mask: np.array,
     norm_dict: Dict,
-    steps: int =100,
+    steps: int =1000,
     boxsize: float =1000.0,
 ):
     """ Evaluate the model on a small subset and log figures and log figures and log figures and log figures

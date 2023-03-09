@@ -45,12 +45,12 @@ def get_config():
     #score.d_model = 256
     #score.d_mlp = 512
     #score.n_layers = 4
-    #score.n_heads = 4
+    #score.n_heads = 2
 
     # # Graph score model
     config.score = score = ml_collections.ConfigDict()
     score.score = "graph"
-    score.k = 20
+    score.k = 50
     score.n_pos_features = 3
     score.num_mlp_layers = 4
     score.latent_size = 64
