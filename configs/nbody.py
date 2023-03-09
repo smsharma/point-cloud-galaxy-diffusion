@@ -13,7 +13,7 @@ def get_config():
     wandb.group = "cosmology"
     wandb.job_type = "training"
     wandb.name = None
-    wandb.log_train = True 
+    wandb.log_train = True
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
@@ -23,7 +23,7 @@ def get_config():
     vdm.noise_scale = 1e-3
     vdm.timesteps = 0  # 0 for continuous-time VLB
     vdm.embed_context = False
-    vdm.d_context_embedding = 32
+    vdm.d_context_embedding = 16
     vdm.n_classes = 0
     vdm.use_encdec = False
 
@@ -72,7 +72,7 @@ def get_config():
     training.n_train_steps = 501_000
     training.warmup_steps = 5_000
     training.log_every_steps = 100
-    training.eval_every_steps = 2_000 #training.n_train_steps + 1  # Turn off eval for now
+    training.eval_every_steps = 2_000  # training.n_train_steps + 1  # Turn off eval for now
     training.save_every_steps = 20_000
 
     # Data
