@@ -77,6 +77,7 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
     rng, rng_params = jax.random.split(rng)
 
     # Pass a test batch through to initialize model
+    # TODO: Make so we don't have to pass an entire batch (slow)
     x_batch, conditioning_batch, mask_batch = next(batches)
     _, params = vdm.init_with_output({"sample": rng, "params": rng_params}, x_batch[0], conditioning_batch[0], mask_batch[0])
 
@@ -116,6 +117,7 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
                 if config.wandb.log_train:
                     wandb.log({"train/step": step, **summary})
 
+            # Eval periodically
             if (step % config.training.eval_every_steps == 0) and (step != 0) and (jax.process_index() == 0) and (config.wandb.log_train):
                 eval_generation(
                     vdm=vdm,
