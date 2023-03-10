@@ -77,13 +77,17 @@ x_samples.mean().shape  # Mean of decoded Normal distribution -- (24, 100, 4)
 - [X] Make latent diffusion optional
 - [X] Move encoder and decoder specifications to a separate dict
 - [X] Fix encodims dims issues
+- [ ] Fix memory issues with SVI and reverse-mode autodiff
+- [ ] Move likelihood/elbo to script
+- [ ] [Chroma](https://generatebiomedicines.com/chroma). Random graphs?
+- [ ] Add 16-bit training
 - [ ] Log a likelihood profile?
 - [ ] Make it so we don't have to pass a whole batch through to init (slow)
 - [ ] Improve GNN model
 - [ ] Add eval for jets
-- [ ] Add unconditional dropout and generation
+- [ ] Add unconditional dropout and generation?
+- [ ] Add guidance?
+- [ ] Try different conditioning strategies
 - [ ] Add SEGNN score model
-- [ ] Revisit loss scale
 - [ ] Refactor dataset class
-- [ ] Experiment with including self-attention in addition to cross-attention in ISAB (see [repo](https://github.com/lucidrains/isab-pytorch))
 - [ ] Add ability to restart runs
