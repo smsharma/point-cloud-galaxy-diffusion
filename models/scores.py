@@ -71,14 +71,22 @@ class GraphScoreNet(nn.Module):
         # I'm not sure this is really necessary
         d_cond = cond.shape[-1]  # Dimension of conditioning context
         cond = MLP([d_cond * 4, d_cond * 4, d_cond])(cond)
+        print('cond = ', cond.shape)
 
         k = self.score_dict["k"]
         n_pos_features = self.score_dict["n_pos_features"]
 
         sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., :n_pos_features], k, mask=mask)
-
         n_batch = z.shape[0]
-        graph = jraph.GraphsTuple(n_node=mask.sum(-1)[:, None], n_edge=np.array(n_batch * [[k]]), nodes=z, edges=None, globals=cond, senders=sources, receivers=targets)
+        graph = jraph.GraphsTuple(
+            n_node=mask.sum(-1)[:, None], 
+            n_edge=np.array(n_batch * [[k]]), 
+            nodes=z, 
+            edges=None, 
+            globals=cond, 
+            senders=sources, 
+            receivers=targets,
+        )
 
         # Make copy of score dict since original cannot be in-place modified; remove `k` argument before passing to Net
         score_dict = dict(self.score_dict)
