@@ -16,6 +16,13 @@ Jax implementation of a transformer-guided variational diffusion model for class
 
 The [`notebooks`](notebooks/) directory contains usage example, including a simple [MNIST point cloud example](notebooks/example-mnist.ipynb) showing class-conditional generation, as well as a [particle physics example](notebooks/example-jets-minimal.ipynb). 
 
+## Install
+
+For evaluation of the nbody dataset, Corrfunc is needed:
+```
+python -m pip install git+https://github.com/cosmodesi/pycorr#egg=pycorr[corrfunc]
+```
+
 ## Usage
 
 ``` py
@@ -33,7 +40,7 @@ score_dict = FrozenDict({"d_model":256, "d_mlp":512, "n_layers":5, "n_heads":4, 
 # Instantiate model
 vdm = VariationalDiffusionModel(gamma_min=-6.0, gamma_max=6.0,  # Min and max initial log-SNR in the noise schedule
           d_feature=4,  # Number of features per set element
-          score="transformer",
+          score="transformer",  # Score model; "transformer", "graph", or "equiariant"
           score_dict=score_dict,  # Score-prediction transformer parameters
           noise_schedule="learned_linear",  # Noise schedule; "learned_linear" or "scalar"
           embed_context=False,  # Whether to embed context vector. Must be true for class-conditioning i.e., if n_classes > 0.
@@ -70,11 +77,17 @@ x_samples.mean().shape  # Mean of decoded Normal distribution -- (24, 100, 4)
 - [X] Make latent diffusion optional
 - [X] Move encoder and decoder specifications to a separate dict
 - [X] Fix encodims dims issues
+- [ ] Fix memory issues with SVI and reverse-mode autodiff
+- [ ] Move likelihood/elbo to script
+- [ ] [Chroma](https://generatebiomedicines.com/chroma). Random graphs?
+- [ ] Add 16-bit training
+- [ ] Log a likelihood profile?
+- [ ] Make it so we don't have to pass a whole batch through to init (slow)
 - [ ] Improve GNN model
 - [ ] Add eval for jets
-- [ ] Add unconditional dropout and generation
+- [ ] Add unconditional dropout and generation?
+- [ ] Add guidance?
+- [ ] Try different conditioning strategies
 - [ ] Add SEGNN score model
-- [ ] Revisit loss scale
 - [ ] Refactor dataset class
-- [ ] Experiment with including self-attention in addition to cross-attention in ISAB (see [repo](https://github.com/lucidrains/isab-pytorch))
 - [ ] Add ability to restart runs
