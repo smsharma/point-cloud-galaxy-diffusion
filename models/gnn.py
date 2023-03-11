@@ -6,7 +6,6 @@ import jraph
 from models.graph_utils import add_graphs_tuples
 from models.mlp import MLP
 
-
 def get_node_mlp_updates(mlp_feature_sizes: int) -> Callable:
     """Get a node MLP update  function
 
@@ -87,13 +86,11 @@ def get_edge_mlp_updates(mlp_feature_sizes: int) -> Callable:
                 axis=1,
             )
         return MLP(mlp_feature_sizes)(inputs)
-
     return update_fn
 
 
 class GraphConvNet(nn.Module):
-    """ A simple graph convolutional network
-    """
+    """A simple graph convolutional network"""
 
     latent_size: int
     num_mlp_layers: int
@@ -103,13 +100,13 @@ class GraphConvNet(nn.Module):
 
     @nn.compact
     def __call__(self, graphs: jraph.GraphsTuple) -> jraph.GraphsTuple:
-        """ Do message passing on graph
+        """Do message passing on graph
 
         Args:
-            graphs (jraph.GraphsTuple): graph object 
+            graphs (jraph.GraphsTuple): graph object
 
         Returns:
-            jraph.GraphsTuple: updated graph object 
+            jraph.GraphsTuple: updated graph object
         """
         in_features = graphs.nodes.shape[-1]
 

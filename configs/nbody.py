@@ -13,7 +13,7 @@ def get_config():
     wandb.group = "cosmology"
     wandb.job_type = "training"
     wandb.name = None
-    wandb.log_train = True
+    wandb.log_train = True 
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
@@ -50,7 +50,7 @@ def get_config():
     # # Graph score model
     config.score = score = ml_collections.ConfigDict()
     score.score = "graph"
-    score.k = 50
+    score.k = 20
     score.n_pos_features = 3
     score.num_mlp_layers = 4
     score.latent_size = 64
