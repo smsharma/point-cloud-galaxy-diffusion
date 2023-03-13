@@ -7,85 +7,12 @@ import flax.linen as nn
 import jax.numpy as np
 import tensorflow_probability.substrates.jax as tfp
 
-from models.diffusion_utils import variance_preserving_map, alpha, sigma2, get_timestep_embedding
+from models.diffusion_utils import variance_preserving_map, alpha, sigma2
 from models.diffusion_utils import NoiseScheduleScalar, NoiseScheduleFixedLinear
-from models.transformer import Transformer
+from models.scores import TransformerScoreNet, GraphScoreNet, EquivariantTransformereNet
+from models.mlp import MLPEncoder, MLPDecoder
 
 tfd = tfp.distributions
-
-
-class ResNet(nn.Module):
-    d_input: int
-    n_layers: int = 1
-    d_hidden: int = 512
-
-    @nn.compact
-    def __call__(self, x, cond=None):
-        assert x.shape[-1] == self.d_input, "Input size mis-specified."
-        z = x
-        for _ in range(self.n_layers):
-            h = nn.gelu(nn.LayerNorm()(z))
-            h = nn.Dense(self.d_hidden)(h)
-            if cond is not None:
-                h += nn.Dense(self.d_hidden, use_bias=False)(cond[:, None, :])  # Project context to hidden size and add
-            h = nn.gelu(nn.LayerNorm()(h))
-            h = nn.Dense(self.d_input, kernel_init=jax.nn.initializers.zeros)(h)
-            z = z + h  # Residual connection
-        return z
-
-
-class Encoder(nn.Module):
-    d_hidden: int = 32
-    n_layers: int = 3
-    d_embedding: int = 8
-
-    @nn.compact
-    def __call__(self, x, cond=None, mask=None):
-        x = nn.Dense(self.d_embedding)(x)
-        x = ResNet(d_input=self.d_embedding, n_layers=self.n_layers, d_hidden=self.d_hidden)(x, cond=cond)
-        return x
-
-
-class Decoder(nn.Module):
-    d_hidden: int = 32
-    n_layers: int = 3
-    d_output: int = 3
-    d_input: int = 8
-    noise_scale: float = 1.0e-3
-
-    @nn.compact
-    def __call__(self, z, cond=None, mask=None):
-        z = ResNet(d_input=self.d_input, n_layers=self.n_layers, d_hidden=self.d_hidden)(z, cond=cond)
-        z = nn.Dense(self.d_output)(z)
-        return tfd.Normal(loc=z, scale=self.noise_scale)
-
-
-class ScoreNet(nn.Module):
-    d_embedding: int = 8
-    d_t_embedding: int = 32
-    transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
-
-    @nn.compact
-    def __call__(self, z, t, conditioning, mask):
-
-        assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
-        t = t * np.ones(z.shape[0])  # Ensure t is a vector
-
-        t_embedding = get_timestep_embedding(t, self.d_t_embedding)  # Timestep embeddings
-
-        if conditioning is not None:
-            cond = np.concatenate([t_embedding, conditioning], axis=1)  # Concatenate with conditioning context
-        else:
-            cond = t_embedding
-
-        # Pass context through a small MLP before passing into transformer
-        cond = nn.gelu(nn.Dense(features=self.d_embedding * 4)(cond))
-        cond = nn.gelu(nn.Dense(features=self.d_embedding * 4)(cond))
-        cond = nn.Dense(self.d_embedding)(cond)
-
-        h = Transformer(n_input=self.d_embedding, **self.transformer_dict)(z, cond, mask)
-
-        return z + h
 
 
 class VariationalDiffusionModel(nn.Module):
@@ -96,13 +23,12 @@ class VariationalDiffusionModel(nn.Module):
       timesteps: Number of diffusion steps.
       gamma_min: Minimum log-SNR in the noise schedule (init if learned).
       gamma_max: Maximum log-SNR in the noise schedule (init if learned).
-      d_embedding: Dim to encode the per-element features to. Only relevant if use_encdec=True.
-      n_layers: Layers in encoder/decoder element-wise ResNets.
       antithetic_time_sampling: Antithetic time sampling to reduce variance.
       noise_schedule: Noise schedule; "learned_linear" or "scalar".
       noise_scale: Std of Normal noise model.
       d_t_embedding: Dimensions the timesteps are embedded to.
-      transformer_dict: Dict of transformer arguments (see transformer.py docstring).
+      score: Score function; "transformer", "graph", or "equivariant".
+      score_dict: Dict of score arguments (see scores.py docstrings).
       n_classes: Number of classes in data. If >0, the first element of the conditioning vector is assumed to be integer class.
       embed_context: Whether to embed the conditioning context.
       use_encdec: Whether to use an encoder-decoder for latent diffusion.
@@ -112,34 +38,44 @@ class VariationalDiffusionModel(nn.Module):
     timesteps: int = 1000
     gamma_min: float = -8.0
     gamma_max: float = 14.0
-    d_embedding: int = 8
-    d_hidden_encoding: int = 256
-    n_layers: int = 4
     antithetic_time_sampling: bool = True
     noise_schedule: str = "learned_linear"  # "learned_linear" or "scalar"
     noise_scale: float = 1.0e-3
     d_t_embedding: int = 32
-    transformer_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
+    score: str = "transformer"  # "transformer", "graph", "equivariant"
+    score_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
+    encoder_dict: dict = dataclasses.field(default_factory=lambda: {"d_embedding": 12, "d_hidden": 256, "n_layers": 4})
+    decoder_dict: dict = dataclasses.field(default_factory=lambda: {"d_hidden": 256, "n_layers": 4})
     n_classes: int = 0
     embed_context: bool = False
+    d_context_embedding: int = 32
     use_encdec: bool = True
 
     def setup(self):
 
+        # Noise schedule for diffusion
         if self.noise_schedule == "learned_linear":
             self.gamma = NoiseScheduleFixedLinear(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
         elif self.noise_schedule == "scalar":
             self.gamma = NoiseScheduleScalar(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
 
-        self.score_model = ScoreNet(d_t_embedding=self.d_t_embedding, d_embedding=self.d_embedding if self.use_encdec else self.d_feature, transformer_dict=self.transformer_dict)
+        # Score model specification
+        if self.score == "transformer":
+            self.score_model = TransformerScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict)
+        elif self.score == "graph":
+            self.score_model = GraphScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict)
+        elif self.score == "equivariant":
+            self.score_model = EquivariantTransformereNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict)
 
-        self.encoder = Encoder(d_hidden=self.d_hidden_encoding, n_layers=self.n_layers, d_embedding=self.d_embedding)
-        self.decoder = Decoder(d_input=self.d_embedding, d_hidden=self.d_hidden_encoding, n_layers=self.n_layers, d_output=self.d_feature, noise_scale=self.noise_scale)
+        # Optional encoder/decoder for latent diffusion
+        if self.use_encdec:
+            self.encoder = MLPEncoder(**self.encoder_dict)
+            self.decoder = MLPDecoder(d_output=self.d_feature, noise_scale=self.noise_scale, **self.decoder_dict)
 
         # Embedding for class and context
         if self.n_classes > 0:
-            self.embedding_class = nn.Embed(self.n_classes, self.d_hidden_encoding)
-        self.embedding_context = nn.Dense(self.d_hidden_encoding)
+            self.embedding_class = nn.Embed(self.n_classes, self.d_context_embedding)
+        self.embedding_context = nn.Dense(self.d_context_embedding)
 
     def gammat(self, t):
         return self.gamma(t)
@@ -180,8 +116,8 @@ class VariationalDiffusionModel(nn.Module):
 
         T = self.timesteps
 
-        # Note: retain dimension here so that mask can be applied later (hence dummy dims)
-        # Note 2: opposite sign convention to official VDM repo!
+        # NOTE: retain dimension here so that mask can be applied later (hence dummy dims)
+        # NOTE: opposite sign convention to official VDM repo!
         if T == 0:
             # Loss for infinite depth T, i.e. continuous time
             _, g_t_grad = jax.jvp(self.gamma, (t,), (np.ones_like(t),))

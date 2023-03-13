@@ -20,12 +20,14 @@ import optax
 import flax
 from flax.core import FrozenDict
 from flax.training import checkpoints, common_utils, train_state
+from jax.config import config
 
 import tensorflow as tf
 
+from eval import eval_generation
 from models.diffusion import VariationalDiffusionModel
 from models.diffusion_utils import loss_vdm
-from models.train_utils import create_input_iter, param_count, StateStore, train_step, to_wandb_config
+from models.train_utils import create_input_iter, param_count, train_step, to_wandb_config
 
 from datasets import load_data
 
@@ -33,6 +35,7 @@ replicate = flax.jax_utils.replicate
 unreplicate = flax.jax_utils.unreplicate
 
 logging.set_verbosity(logging.INFO)
+config.update("jax_enable_x64", True)
 
 
 def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> train_state.TrainState:
@@ -47,31 +50,34 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
         # Recursively create workdir
         os.makedirs(workdir, exist_ok=True)
 
-    # Dump a yaml config file
+    # Dump a yaml config file in the output directory
     with open(os.path.join(workdir, "config.yaml"), "w") as f:
         yaml.dump(config.to_dict(), f)
 
     writer = metric_writers.create_default_writer(logdir=workdir, just_logging=jax.process_index() != 0)
 
     # Load the dataset
-    train_ds = load_data(config.data.dataset, config.data.n_features, config.data.n_particles, config.training.batch_size, config.seed, **config.data.kwargs)
+    train_ds, norm_dict = load_data(config.data.dataset, config.data.n_features, config.data.n_particles, config.training.batch_size, config.seed, **config.data.kwargs)
+
+    batches = create_input_iter(train_ds)
 
     logging.info("Loaded the %s dataset", config.data.dataset)
 
     ## Model configuration
 
-    # Transformer score model
-    transformer_dict = FrozenDict({"d_model": config.transformer.d_model, "d_mlp": config.transformer.d_mlp, "n_layers": config.transformer.n_transformer_layers, "n_heads": config.transformer.n_heads, "induced_attention": config.transformer.induced_attention, "n_inducing_points": config.transformer.n_inducing_points})
+    # Score and (optional) encoder model configs
+    score_dict = FrozenDict(config.score)
+    encoder_dict = FrozenDict(config.encoder)
+    decoder_dict = FrozenDict(config.decoder)
 
     # Diffusion model
-    vdm = VariationalDiffusionModel(n_layers=config.vdm.n_encoder_layers, d_embedding=config.vdm.d_embedding, d_hidden_encoding=config.vdm.d_hidden_encoding, timesteps=config.vdm.timesteps, d_feature=config.data.n_features, transformer_dict=transformer_dict, embed_context=config.vdm.embed_context, n_classes=config.vdm.n_classes, use_encdec=config.vdm.use_encdec)
-
-    batches = create_input_iter(train_ds)
+    vdm = VariationalDiffusionModel(d_feature=config.data.n_features, timesteps=config.vdm.timesteps, noise_schedule=config.vdm.noise_schedule, noise_scale=config.vdm.noise_scale, gamma_min=config.vdm.gamma_min, gamma_max=config.vdm.gamma_max, score=config.score.score, score_dict=score_dict, embed_context=config.vdm.embed_context, d_context_embedding=config.vdm.d_context_embedding, n_classes=config.vdm.n_classes, use_encdec=config.vdm.use_encdec, encoder_dict=encoder_dict, decoder_dict=decoder_dict)
 
     rng = jax.random.PRNGKey(config.seed)
     rng, rng_params = jax.random.split(rng)
 
     # Pass a test batch through to initialize model
+    # TODO: Make so we don't have to pass an entire batch (slow)
     x_batch, conditioning_batch, mask_batch = next(batches)
     _, params = vdm.init_with_output({"sample": rng, "params": rng_params}, x_batch[0], conditioning_batch[0], mask_batch[0])
 
@@ -110,6 +116,20 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
 
                 if config.wandb.log_train:
                     wandb.log({"train/step": step, **summary})
+
+            # Eval periodically
+            if (step % config.training.eval_every_steps == 0) and (step != 0) and (jax.process_index() == 0) and (config.wandb.log_train):
+                eval_generation(
+                    vdm=vdm,
+                    pstate=unreplicate(pstate),
+                    rng=rng,
+                    n_samples=config.training.batch_size,
+                    n_particles=config.data.n_particles,
+                    true_samples=x_batch.reshape((-1, *x_batch.shape[2:])),
+                    conditioning=conditioning_batch.reshape((-1, *conditioning_batch.shape[2:])),
+                    mask=mask_batch.reshape((-1, *mask_batch.shape[2:])),
+                    norm_dict=norm_dict,
+                )
 
             # Save checkpoints periodically
             if (step % config.training.save_every_steps == 0) and (step != 0) and (jax.process_index() == 0):
