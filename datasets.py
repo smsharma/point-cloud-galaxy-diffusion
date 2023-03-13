@@ -37,13 +37,13 @@ def nbody_dataset(n_features, n_particles, batch_size, seed):
 
     if n_features == 7:
         x = x.at[:, :, -1].set(np.log10(x[:, :, -1]))  # Use log10(mass)
-    
+
     x = x[:, :n_particles, :n_features]
     # Standardize per-feature (over datasets and particles)
     x_mean = x.mean(axis=(0, 1))
     x_std = x.std(axis=(0, 1))
     x = (x - x_mean + EPS) / (x_std + EPS)
-    norm_dict = {'mean': x_mean, 'std': x_std}
+    norm_dict = {"mean": x_mean, "std": x_std}
 
     # Finalize
     mask = np.ones((x.shape[0], n_particles))  # No mask
@@ -54,7 +54,13 @@ def nbody_dataset(n_features, n_particles, batch_size, seed):
     return train_ds, norm_dict
 
 
-def jetnet_dataset(n_features, n_particles, batch_size, seed, jet_type=["q", "g", "t"]):
+def jetnet_dataset(
+    n_features,
+    n_particles,
+    batch_size,
+    seed,
+    jet_type=["q", "g", "t"],
+):
 
     particle_data, jet_data = JetNet.getData(jet_type=jet_type, data_dir="./data/", num_particles=n_particles)
 
@@ -62,7 +68,7 @@ def jetnet_dataset(n_features, n_particles, batch_size, seed, jet_type=["q", "g"
     jet_data_mean = jet_data[:, 1:].mean(axis=(0,))
     jet_data_std = jet_data[:, 1:].std(axis=(0,))
     jet_data[:, 1:] = (jet_data[:, 1:] - jet_data_mean + EPS) / (jet_data_std + EPS)
-    norm_dict = {'mean': jet_data_mean, 'std': jet_data_std}
+    norm_dict = {"mean": jet_data_mean, "std": jet_data_std}
 
     # Only keep jet class as conditioning feature
     conditioning = jet_data[:, :1]
