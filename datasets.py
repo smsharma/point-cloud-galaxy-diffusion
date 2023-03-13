@@ -54,13 +54,7 @@ def nbody_dataset(n_features, n_particles, batch_size, seed):
     return train_ds, norm_dict
 
 
-def jetnet_dataset(
-    n_features,
-    n_particles,
-    batch_size,
-    seed,
-    jet_type=["q", "g", "t"],
-):
+def jetnet_dataset(n_features, n_particles, batch_size, seed, jet_type=["q", "g", "t"], condition_on_jet_features=True):
 
     particle_data, jet_data = JetNet.getData(jet_type=jet_type, data_dir="./data/", num_particles=n_particles)
 
@@ -71,7 +65,8 @@ def jetnet_dataset(
     norm_dict = {"mean": jet_data_mean, "std": jet_data_std}
 
     # Only keep jet class as conditioning feature
-    conditioning = jet_data[:, :1]
+    if not condition_on_jet_features:
+        conditioning = jet_data[:, :1]
 
     # Get mask (to specify varying cardinality) and particle features to be modeled (eta, phi, pT)
     mask = particle_data[:, :, -1]

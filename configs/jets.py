@@ -62,11 +62,11 @@ def get_config():
     data.n_particles = 150  # Select the first n_particles particles
     data.n_features = 3  # Select the first n_features features
     data.n_pos_features = 2  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
-    data.kwargs = {"jet_type": ["q", "g", "t"]}
+    data.kwargs = {"jet_type": ["q", "g"], "condition_on_jet_features": False}
 
     # Optimizer (AdamW)
     config.optim = optim = ml_collections.ConfigDict()
-    optim.learning_rate = 5e-4
+    optim.learning_rate = 6e-4
     optim.weight_decay = 1e-4
 
     config.seed = 42
