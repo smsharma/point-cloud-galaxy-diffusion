@@ -28,7 +28,6 @@ class NEQUIP(nn.Module):
         """
         vectors = e3nn.IrrepsArray("1o", positions[receivers] - positions[senders])
         for l in range(self.n_layers):
-            print(f'Layer {l}')
             layer = NEQUIPLayer(
                 avg_num_neighbors=1.0,
                 target_irreps=self.target_irreps,
@@ -78,8 +77,6 @@ class NEQUIPLayer(nn.Module):
             drop="0e + 0o"
         ).num_irreps * e3nn.Irreps("0e")
 
-        print('irreps = ', irreps)
-
         self_connection = e3nn.flax.Linear(
             irreps,
         )(
@@ -88,7 +85,6 @@ class NEQUIPLayer(nn.Module):
 
         node_feats = e3nn.flax.Linear(node_feats.irreps, name="linear_up")(node_feats)
 
-        print('right before convolution')
         node_feats = MessagePassingConvolution(
             self.avg_num_neighbors,
             irreps,
@@ -98,7 +94,6 @@ class NEQUIPLayer(nn.Module):
             self.n_radial_basis,
             self.sh_lmax,
         )(vectors, node_feats, senders, receivers)
-        print('right after convolution')
 
         node_feats = e3nn.flax.Linear(irreps, name="linear_down")(node_feats)
 
