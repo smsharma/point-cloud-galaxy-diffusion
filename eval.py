@@ -368,24 +368,25 @@ def plot_velocity_histograms(
     fig, _ = plt.subplots(figsize=(15, 5))
     offset = 0
     for i, idx in enumerate(idx_to_plot):
-        bins = plt.hist(
-            offset + true_mod[idx],
-            alpha=0.5,
-            label="N-body" if i == 0 else None,
-            facecolor="none",
-            bins=50,
-            edgecolor=colors[i],
-            histtype="stepfilled",
+        true_hist, bin_edges = np.histogram(
+           true_mod[idx], bins= 50, 
         )
-        plt.hist(
-            offset + generated_mod[idx].reshape(-1),
-            alpha=0.5,
+        generated_hist, bin_edges = np.histogram(
+           generated_mod[idx], bins= bin_edges, 
+        )
+        bin_centres = 0.5*(bin_edges[1:] + bin_edges[:-1])
+        plt.plot(
+            bin_centres + offset,
+            true_hist,
+            label="N-body" if i == 0 else None,
+            color=colors[i],
+        )
+        plt.plot(
+            bin_centres + offset,
+            generated_hist,
             label="Diffusion" if i == 0 else None,
-            facecolor="none",
-            bins=bins[1],
-            edgecolor=colors[i],
-            linestyle="dashed",
-            histtype="stepfilled",
+            linestyle='dashed',
+            color=colors[i],
         )
         offset += onp.max(true_mod)
     plt.legend()
@@ -411,27 +412,27 @@ def plot_hmf(
     """
     fig, _ = plt.subplots()
     for i, idx in enumerate(idx_to_plot):
-        bins = plt.hist(
-            true_masses[idx],
-            alpha=0.5,
+        true_hist, bin_edges = np.histogram(
+           true_masses[idx], bins= 50, 
+        )
+        generated_hist, bin_edges = np.histogram(
+           generated_masses[idx], bins= bin_edges, 
+        )
+        bin_centres = 0.5*(bin_edges[1:] + bin_edges[:-1])
+        plt.semilogy(
+            bin_centres,
+            true_hist,
             label="N-body" if i == 0 else None,
-            facecolor="none",
-            bins=50,
-            log=True,
-            edgecolor=colors[i],
-            histtype="stepfilled",
+            color=colors[i],
         )
-        plt.hist(
-            generated_masses[idx].reshape(-1),
-            alpha=0.5,
+        plt.semilogy(
+            bin_centres,
+            generated_hist,
             label="Diffusion" if i == 0 else None,
-            facecolor="none",
-            bins=bins[1],
-            log=True,
-            edgecolor=colors[i],
-            linestyle="dashed",
-            histtype="stepfilled",
+            color=colors[i],
+            linestyle='dashed',
         )
+
     plt.legend()
     plt.xlabel("log Halo Mass")
     plt.ylabel("PDF")
@@ -494,14 +495,12 @@ def plot_2pcf_rsd(
         ax[i].plot(
             r,
             (onp.mean(true_2pcfs, axis=0) - onp.std(true_2pcfs, axis=0))[i],
-            alpha=0.5,
             color=c[0].get_color(),
             linestyle="dashed",
         )
         ax[i].plot(
             r,
             (onp.mean(true_2pcfs, axis=0) + onp.std(true_2pcfs, axis=0))[i],
-            alpha=0.5,
             color=c[0].get_color(),
             linestyle="dashed",
         )
@@ -510,14 +509,12 @@ def plot_2pcf_rsd(
         ax[i].plot(
             r,
             (onp.mean(generated_2pcfs, axis=0) - onp.std(generated_2pcfs, axis=0))[i],
-            alpha=0.5,
             color=c[0].get_color(),
             linestyle="dashed",
         )
         ax[i].plot(
             r,
             (onp.mean(generated_2pcfs, axis=0) + onp.std(generated_2pcfs, axis=0))[i],
-            alpha=0.5,
             color=c[0].get_color(),
             linestyle="dashed",
         )
@@ -613,11 +610,11 @@ def eval_generation(
         )
         wandb.log({"eval/vels": fig})
         fig = plot_2pcf_rsd(
-            generated_positions=generated_positions,
-            true_positions=true_positions,
-            generated_velocities=generated_velocities,
-            true_velocities=true_velocities,
-            conditioning=conditioning,
+            generated_positions=onp.array(generated_positions),
+            true_positions=onp.array(true_positions),
+            generated_velocities=onp.array(generated_velocities),
+            true_velocities=onp.array(true_velocities),
+            conditioning=onp.array(conditioning),
             boxsize=boxsize,
         )
         wandb.log({"eval/2pcf_rsd": fig})
@@ -628,4 +625,4 @@ def eval_generation(
             true_masses=true_masses,
             idx_to_plot=[0, 1, 2],
         )
-        wandb.log({"eval/vels": fig})
+        wandb.log({"eval/mass": fig})

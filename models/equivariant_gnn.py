@@ -26,7 +26,8 @@ class NEQUIP(nn.Module):
         Returns:
             jnp.array: new positions and node features 
         """
-        vectors = e3nn.IrrepsArray("1o", positions[receivers] - positions[senders])
+        vectors = positions[receivers] - positions[senders]
+        #vectors = e3nn.IrrepsArray("1o", positions[receivers] - positions[senders])
         for l in range(self.n_layers):
             layer = NEQUIPLayer(
                 avg_num_neighbors=1.0,
@@ -38,11 +39,18 @@ class NEQUIP(nn.Module):
                 senders=senders,
                 receivers=receivers,
             )
-        displacements, node_features = (
-            node_features.slice_by_mul[:1],
-            node_features.slice_by_mul[1:],
-        )
-        return positions + displacements, node_features
+        print(node_features.shape)
+        print(node_features)
+        vectors, masses = node_features[:, "1o"], node_features[:, "0e"]
+        displacement, vel = vectors.slice_by_mul[:1], vectors.slice_by_mul[1:]
+        positions = positions + displacement 
+        return displacement 
+        #print('node features')
+        #print(node_features)
+        #displacements = node_features[:, "0e"] 
+        #return positions + displacements
+        #displacements, node_features = node_features[:, "1o"], node_features[:, "1o + 0e"]
+        #return positions + displacements, node_features
 
 
 class NEQUIPLayer(nn.Module):
@@ -107,7 +115,7 @@ class NEQUIPLayer(nn.Module):
             odd_gate_act=self.odd_activation,
         )
 
-        assert node_feats.irreps == target_irreps
+        assert node_feats.irreps == target_irreps.regroup()
         assert node_feats.shape == (n_node, target_irreps.dim)
         return node_feats
 
