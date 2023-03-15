@@ -24,7 +24,7 @@ def get_config():
     vdm.embed_context = True
     vdm.d_context_embedding = 32
     vdm.n_classes = 3
-    vdm.use_encdec = False
+    vdm.use_encdec = True
 
     # Encoder and decoder specification
     config.encoder = encoder = ml_collections.ConfigDict()
@@ -41,10 +41,10 @@ def get_config():
     score.score = "transformer"
     score.induced_attention = False
     score.n_inducing_points = 200
-    score.d_model = 128
-    score.d_mlp = 512
+    score.d_model = 256
+    score.d_mlp = 1024
     score.n_layers = 4
-    score.n_heads = 2
+    score.n_heads = 4
 
     # Training
     config.training = training = ml_collections.ConfigDict()
@@ -62,7 +62,7 @@ def get_config():
     data.n_particles = 150  # Select the first n_particles particles
     data.n_features = 3  # Select the first n_features features
     data.n_pos_features = 2  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
-    data.kwargs = {"jet_type": ["q", "g"], "condition_on_jet_features": False}
+    data.kwargs = {"jet_type": ["t"], "condition_on_jet_features": False}
 
     # Optimizer (AdamW)
     config.optim = optim = ml_collections.ConfigDict()
