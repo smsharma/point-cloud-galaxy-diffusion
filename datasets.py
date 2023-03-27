@@ -30,8 +30,7 @@ def make_dataloader(x, conditioning, mask, batch_size, seed):
     return train_ds
 
 
-def nbody_dataset(n_features, n_particles, batch_size, seed):
-
+def get_nbody_data(n_features, n_particles,):
     x = np.load("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/halos.npy")
     conditioning = np.array(pd.read_csv("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/cosmology.csv").values)
 
@@ -48,9 +47,13 @@ def nbody_dataset(n_features, n_particles, batch_size, seed):
     # Finalize
     mask = np.ones((x.shape[0], n_particles))  # No mask
     conditioning = conditioning[:, [0, -1]]  # Select only omega_m and sigma_8
+    return x, mask, conditioning, norm_dict
 
+
+
+def nbody_dataset(n_features, n_particles, batch_size, seed):
+    x, mask, conditioning, norm_dict = get_nbody_data(n_features, n_particles)
     train_ds = make_dataloader(x, conditioning, mask, batch_size, seed)
-
     return train_ds, norm_dict
 
 
