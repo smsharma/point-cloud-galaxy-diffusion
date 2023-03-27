@@ -1,4 +1,5 @@
 import sys
+
 sys.path.append("../")
 from functools import partial
 import jax
@@ -13,7 +14,7 @@ import optax
 import numpyro
 import numpyro.distributions as dist
 from numpyro import optim
-from numpyro.infer import  SVI, Trace_ELBO, autoguide
+from numpyro.infer import SVI, Trace_ELBO, autoguide
 
 from datasets import load_data, get_nbody_data
 from models.diffusion import VariationalDiffusionModel
@@ -84,11 +85,18 @@ def log_prior(theta):
     return -np.inf
 
 
-@partial(jax.jit, static_argnums=(0,1,2,))
+@partial(
+    jax.jit,
+    static_argnums=(
+        0,
+        1,
+        2,
+    ),
+)
 def likelihood(vdm, rng, restored_state, x_test, params, n_samples=2):
     x_test = np.repeat(np.array([x_test]), n_samples, 0)
     theta_test = np.repeat(np.array([params]), n_samples, 0)
-    print('got to elbo')
+    print("got to elbo")
     return -elbo(
         vdm,
         restored_state.params,
@@ -99,20 +107,35 @@ def likelihood(vdm, rng, restored_state, x_test, params, n_samples=2):
     ).mean()
 
 
-def get_model(vdm, restored_state, rng,):
+def get_model(
+    vdm,
+    restored_state,
+    rng,
+):
     def model(x_test, n_samples=2):
         # Omega_m and sigma_8 prior distributions
         params = numpyro.sample(
             "params", dist.Uniform(np.array([0.1, 0.6]), np.array([0.5, 1.0]))
         )
-        log_like = likelihood(vdm=vdm, rng=rng, restored_state=restored_state, x_test=x_test, params=params, n_samples=n_samples)
+        log_like = likelihood(
+            vdm=vdm,
+            rng=rng,
+            restored_state=restored_state,
+            x_test=x_test,
+            params=params,
+            n_samples=n_samples,
+        )
         return numpyro.factor("log_like", log_like)
+
     return model
 
-def load_data_for_inference(config,):
-    x, _, _ , _ = get_nbody_data(
+
+def load_data_for_inference(
+    config,
+):
+    x, _, _, _ = get_nbody_data(
         n_features=config.data.n_features,
-        n_particles = config.data.n_particles,
+        n_particles=config.data.n_particles,
     )
     return x
 
@@ -194,16 +217,27 @@ if __name__ == "__main__":
     x = load_data_for_inference(config)
     x_test = x[fit_idx]
     vdm, restored_state, rng = load_diffusion_model(config)
-    model = get_model(vdm=vdm, restored_state=restored_state, rng=rng,)
+    model = get_model(
+        vdm=vdm,
+        restored_state=restored_state,
+        rng=rng,
+    )
     guide = autoguide.AutoMultivariateNormal(model)
     optimizer = optim.optax_to_numpyro(optax.sgd(lr))
-    svi = SVI(model, guide, optimizer, Trace_ELBO(num_particles=1),)
+    svi = SVI(
+        model,
+        guide,
+        optimizer,
+        Trace_ELBO(num_particles=1),
+    )
     svi_results = svi.run(rng, n_steps, x_test)
 
     num_samples = 10_000
 
     rng, _ = jax.random.split(rng)
-    posterior_dict = guide.sample_posterior(rng_key=rng, params=svi_results.params, sample_shape=(num_samples,))
+    posterior_dict = guide.sample_posterior(
+        rng_key=rng, params=svi_results.params, sample_shape=(num_samples,)
+    )
 
     print(posterior_dict)
-    post = vnp.array(posterior_dict['params'])
+    post = vnp.array(posterior_dict["params"])
