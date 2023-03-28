@@ -85,18 +85,17 @@ def log_prior(theta):
     return -np.inf
 
 
-@partial(
-    jax.jit,
-    static_argnums=(
-        0,
-        1,
-        2,
-    ),
-)
+#@partial(
+#    jax.jit,
+#    static_argnums=(
+#        0,
+#        1,
+#        2,
+#    ),
+#)
 def likelihood(vdm, rng, restored_state, x_test, params, n_samples=2):
     x_test = np.repeat(np.array([x_test]), n_samples, 0)
     theta_test = np.repeat(np.array([params]), n_samples, 0)
-    print("got to elbo")
     return -elbo(
         vdm,
         restored_state.params,
@@ -238,6 +237,12 @@ if __name__ == "__main__":
     posterior_dict = guide.sample_posterior(
         rng_key=rng, params=svi_results.params, sample_shape=(num_samples,)
     )
-
+    print('Got posterior!')
     print(posterior_dict)
     post = vnp.array(posterior_dict["params"])
+    print('post array')
+    print(post)
+    
+
+
+
