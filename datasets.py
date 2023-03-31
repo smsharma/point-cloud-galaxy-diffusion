@@ -30,7 +30,10 @@ def make_dataloader(x, conditioning, mask, batch_size, seed):
     return train_ds
 
 
-def get_nbody_data(n_features, n_particles,):
+def get_nbody_data(
+    n_features,
+    n_particles,
+):
     x = np.load("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/halos.npy")
     conditioning = np.array(pd.read_csv("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/cosmology.csv").values)
 
@@ -50,7 +53,6 @@ def get_nbody_data(n_features, n_particles,):
     return x, mask, conditioning, norm_dict
 
 
-
 def nbody_dataset(n_features, n_particles, batch_size, seed):
     x, mask, conditioning, norm_dict = get_nbody_data(n_features, n_particles)
     train_ds = make_dataloader(x, conditioning, mask, batch_size, seed)
@@ -58,18 +60,35 @@ def nbody_dataset(n_features, n_particles, batch_size, seed):
 
 
 def jetnet_dataset(n_features, n_particles, batch_size, seed, jet_type=["q", "g", "t"], condition_on_jet_features=True):
+    """Return training iterator for the JetNet dataset
+
+    Args:
+        n_features (int): Take first `n_features` features from the dataset
+        n_particles (int): How many particles (typically 30 or 150)
+        batch_size (int): Training batch size
+        seed (int): PRNGKey seed
+        jet_type (list, optional): List of particle types. Defaults to ["q", "g", "t"].
+        condition_on_jet_features (bool, optional): Whether to condition on jet features. Defaults to True. If false, will only condition on jet class.
+
+    Returns:
+        train_ds, norm_dict: Training iterator and normalization dictionary (mean, std keys)
+    """
 
     particle_data, jet_data = JetNet.getData(jet_type=jet_type, data_dir="./data/", num_particles=n_particles)
 
-    # Normalize everything BUT the class (first element of `jet_data`)
-    jet_data_mean = jet_data[:, 1:].mean(axis=(0,))
-    jet_data_std = jet_data[:, 1:].std(axis=(0,))
+    # Normalize everything BUT the jet class and number of particles (first and last elements of `jet_data`)
+    # TODO: properly normalize particle features
+    jet_data_mean = jet_data[:, 1:-1].mean(axis=(0,))
+    jet_data_std = jet_data[:, 1:-1].std(axis=(0,))
     jet_data[:, 1:] = (jet_data[:, 1:] - jet_data_mean + EPS) / (jet_data_std + EPS)
-    norm_dict = {"mean": jet_data_mean, "std": jet_data_std}
 
-    # Only keep jet class as conditioning feature
+    # Store normalization dictionary
+    norm_dict = {"mean_jet": jet_data_mean, "std_jet": jet_data_std, "mean_particle": None, "std_particle": None}
+
     if not condition_on_jet_features:
-        conditioning = jet_data[:, :1]
+        conditioning = jet_data[:, :1]  # Only keep jet class as conditioning feature
+    else:
+        conditioning = jet_data[:, :-1]  # Keep everything except number of particles
 
     # Get mask (to specify varying cardinality) and particle features to be modeled (eta, phi, pT)
     mask = particle_data[:, :, -1]

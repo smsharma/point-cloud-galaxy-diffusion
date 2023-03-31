@@ -22,7 +22,7 @@ def get_config():
     vdm.noise_scale = 1e-3
     vdm.timesteps = 0  # 0 for continuous-time VLB
     vdm.embed_context = True
-    vdm.d_context_embedding = 32
+    vdm.d_context_embedding = 64
     vdm.n_classes = 3
     vdm.use_encdec = True
 
@@ -43,13 +43,13 @@ def get_config():
     score.n_inducing_points = 200
     score.d_model = 256
     score.d_mlp = 1024
-    score.n_layers = 4
+    score.n_layers = 5
     score.n_heads = 4
 
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
-    training.batch_size = 128  # Must be divisible by number of devices; this is the total batch size, not per-device
+    training.batch_size = 256  # Must be divisible by number of devices; this is the total batch size, not per-device
     training.n_train_steps = 3_000_001
     training.warmup_steps = 10_000
     training.log_every_steps = 100
@@ -62,7 +62,7 @@ def get_config():
     data.n_particles = 150  # Select the first n_particles particles
     data.n_features = 3  # Select the first n_features features
     data.n_pos_features = 2  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
-    data.kwargs = {"jet_type": ["t"], "condition_on_jet_features": False}
+    data.kwargs = {"jet_type": ["t", "q", "g"], "condition_on_jet_features": True}
 
     # Optimizer (AdamW)
     config.optim = optim = ml_collections.ConfigDict()
