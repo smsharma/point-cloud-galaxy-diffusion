@@ -10,6 +10,7 @@ from models.transformer import Transformer
 from models.gnn import GraphConvNet
 from models.equivariant_transformer import EquivariantTransformer
 from models.equivariant_gnn import NEQUIP
+from models.egnn import EGNN
 from models.mlp import MLP
 
 from models.graph_utils import nearest_neighbors
@@ -108,6 +109,64 @@ class GraphScoreNet(nn.Module):
         score_dict.pop("n_pos_features", None)
 
         h = jax.vmap(GraphConvNet(**score_dict))(graph)
+        h = h.nodes
+
+        return z + h
+
+
+class EGNNScoreNet(nn.Module):
+    """Graph-convolutional score network."""
+
+    d_t_embedding: int = 32
+    score_dict: dict = dataclasses.field(
+        default_factory=lambda: {
+            "k": 20,
+            "message_passing_steps": 4,
+            "skip_connections": False,
+            "norm_layer": True,
+            "d_hidden": 64,
+            "n_layers": 3,
+        }
+    )
+
+    @nn.compact
+    def __call__(self, z, t, conditioning, mask):
+        assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
+        t = t * np.ones(z.shape[0])  # Ensure t is a vector
+
+        t_embedding = get_timestep_embedding(t, self.d_t_embedding)  # Timestep embeddings
+
+        if conditioning is not None:
+            cond = np.concatenate([t_embedding, conditioning], axis=1)  # Concatenate with conditioning context
+        else:
+            cond = t_embedding
+
+        # Pass context through a 2-layer MLP before passing into transformer
+        # I'm not sure this is really necessary
+        d_cond = cond.shape[-1]  # Dimension of conditioning context
+        cond = MLP([d_cond * 4, d_cond * 4, d_cond])(cond)
+        k = self.score_dict["k"]
+        n_pos_features = self.score_dict["n_pos_features"]
+
+        sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., :n_pos_features], k, mask=mask)
+        n_batch = z.shape[0]
+        graph = jraph.GraphsTuple(
+            n_node=(mask.sum(-1)[:, None]).astype(np.int32),
+            n_edge=np.array(n_batch * [[k]]),
+            nodes=z,
+            edges=None,
+            globals=cond,
+            senders=sources,
+            receivers=targets,
+        )
+
+        # Make copy of score dict since original cannot be in-place modified; remove `k` argument before passing to Net
+        score_dict = dict(self.score_dict)
+        score_dict.pop("k", None)
+        score_dict.pop("score", None)
+        score_dict.pop("n_pos_features", None)
+
+        h = jax.vmap(EGNN(**score_dict))(graph)
         h = h.nodes
 
         return z + h
