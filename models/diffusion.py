@@ -9,7 +9,7 @@ import tensorflow_probability.substrates.jax as tfp
 
 from models.diffusion_utils import variance_preserving_map, alpha, sigma2
 from models.diffusion_utils import NoiseScheduleScalar, NoiseScheduleFixedLinear
-from models.scores import TransformerScoreNet, GraphScoreNet, EquivariantTransformereNet
+from models.scores import TransformerScoreNet, GraphScoreNet, EquivariantTransformerNet
 from models.mlp import MLPEncoder, MLPDecoder
 
 tfd = tfp.distributions
@@ -65,7 +65,7 @@ class VariationalDiffusionModel(nn.Module):
         elif self.score == "graph":
             self.score_model = GraphScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict)
         elif self.score == "equivariant":
-            self.score_model = EquivariantTransformereNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict)
+            self.score_model = EquivariantTransformerNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict)
 
         # Optional encoder/decoder for latent diffusion
         if self.use_encdec:

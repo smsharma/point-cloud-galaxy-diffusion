@@ -34,9 +34,10 @@ def get_node_mlp_updates(mlp_feature_sizes: int) -> Callable:
         Returns:
             jnp.ndarray: updated node features
         """
-        if received_attributes is not None:  # If lone node
+        print(received_attributes.shape)
+        if received_attributes is not None:
             inputs = jnp.concatenate([nodes, received_attributes, globals], axis=1)
-        else:
+        else:  # If lone node
             inputs = jnp.concatenate([nodes, globals], axis=1)
         return MLP(mlp_feature_sizes)(inputs)
 

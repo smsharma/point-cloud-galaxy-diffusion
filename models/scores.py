@@ -9,7 +9,7 @@ import e3nn_jax as e3nn
 from models.transformer import Transformer
 from models.gnn import GraphConvNet
 from models.equivariant_transformer import EquivariantTransformer
-from models.equivariant_gnn import NEQUIP 
+from models.equivariant_gnn import NEQUIP
 from models.mlp import MLP
 
 from models.graph_utils import nearest_neighbors
@@ -34,14 +34,10 @@ class TransformerScoreNet(nn.Module):
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
         t = t * np.ones(z.shape[0])  # Ensure t is a vector
 
-        t_embedding = get_timestep_embedding(
-            t, self.d_t_embedding
-        )  # Timestep embeddings
+        t_embedding = get_timestep_embedding(t, self.d_t_embedding)  # Timestep embeddings
 
         if conditioning is not None:
-            cond = np.concatenate(
-                [t_embedding, conditioning], axis=1
-            )  # Concatenate with conditioning context
+            cond = np.concatenate([t_embedding, conditioning], axis=1)  # Concatenate with conditioning context
         else:
             cond = t_embedding
 
@@ -70,6 +66,7 @@ class GraphScoreNet(nn.Module):
             "latent_size": 128,
             "skip_connections": True,
             "message_passing_steps": 4,
+            "n_pos_features": 3,
         }
     )
 
@@ -78,14 +75,10 @@ class GraphScoreNet(nn.Module):
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
         t = t * np.ones(z.shape[0])  # Ensure t is a vector
 
-        t_embedding = get_timestep_embedding(
-            t, self.d_t_embedding
-        )  # Timestep embeddings
+        t_embedding = get_timestep_embedding(t, self.d_t_embedding)  # Timestep embeddings
 
         if conditioning is not None:
-            cond = np.concatenate(
-                [t_embedding, conditioning], axis=1
-            )  # Concatenate with conditioning context
+            cond = np.concatenate([t_embedding, conditioning], axis=1)  # Concatenate with conditioning context
         else:
             cond = t_embedding
 
@@ -96,9 +89,7 @@ class GraphScoreNet(nn.Module):
         k = self.score_dict["k"]
         n_pos_features = self.score_dict["n_pos_features"]
 
-        sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(
-            z[..., :n_pos_features], k, mask=mask
-        )
+        sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., :n_pos_features], k, mask=mask)
         n_batch = z.shape[0]
         graph = jraph.GraphsTuple(
             n_node=(mask.sum(-1)[:, None]).astype(np.int32),
@@ -122,7 +113,7 @@ class GraphScoreNet(nn.Module):
         return z + h
 
 
-class EquivariantTransformereNet(nn.Module):
+class EquivariantTransformerNet(nn.Module):
     """Equivariant transformer score network. NOTE: Does not currently support masking."""
 
     d_t_embedding: int = 32
@@ -133,14 +124,10 @@ class EquivariantTransformereNet(nn.Module):
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
         t = t * np.ones(z.shape[0])  # Ensure t is a vector
 
-        t_embedding = get_timestep_embedding(
-            t, self.d_t_embedding
-        )  # Timestep embeddings
+        t_embedding = get_timestep_embedding(t, self.d_t_embedding)  # Timestep embeddings
 
         if conditioning is not None:
-            cond = np.concatenate(
-                [t_embedding, conditioning], axis=1
-            )  # Concatenate with conditioning context
+            cond = np.concatenate([t_embedding, conditioning], axis=1)  # Concatenate with conditioning context
         else:
             cond = t_embedding
 
@@ -158,17 +145,13 @@ class EquivariantTransformereNet(nn.Module):
             z[..., n_pos_features : 2 * n_pos_features],
             z[..., 2 * n_pos_features :],
         )
-        sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(
-            z[..., :n_pos_features], k
-        )
+        sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., :n_pos_features], k)
 
         feat = np.concatenate([vel, mass], -1)
 
         # Position and feature irreps arrays. Add the mass to the conditioning vectors.
         pos = e3nn.IrrepsArray("1o", pos)
-        feat = e3nn.IrrepsArray(
-            f"1o + {d_cond}x0e", np.concatenate([vel, mass + cond[:, None, :]], -1)
-        )
+        feat = e3nn.IrrepsArray(f"1o + {d_cond}x0e", np.concatenate([vel, mass + cond[:, None, :]], -1))
 
         # Make copy of score dict since original cannot be in-place modified; remove `k` argument before passing to Net
         score_dict = dict(self.score_dict)
@@ -176,9 +159,7 @@ class EquivariantTransformereNet(nn.Module):
         score_dict.pop("score", None)
         score_dict.pop("n_pos_features", None)
 
-        pos, feat = jax.vmap(
-            EquivariantTransformer(irreps_out="1o + 0e", **score_dict)
-        )(pos, feat, sources, targets)
+        pos, feat = jax.vmap(EquivariantTransformer(irreps_out="1o + 0e", **score_dict))(pos, feat, sources, targets)
 
         h = np.concatenate([pos.array, feat.array], -1)
 
@@ -189,27 +170,21 @@ class EquivariantGNNNet(nn.Module):
     """Equivariant GNN network. NOTE: Does not currently support masking."""
 
     d_t_embedding: int = 32
-    score_dict: dict = dataclasses.field(
-        default_factory=lambda: {"k": 20, "sh_lmax": 3}
-    )
+    score_dict: dict = dataclasses.field(default_factory=lambda: {"k": 20, "sh_lmax": 3})
 
     @nn.compact
     def __call__(self, z, t, conditioning, mask):
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
         t = t * np.ones(z.shape[0])  # Ensure t is a vector
 
-        t_embedding = get_timestep_embedding(
-            t, self.d_t_embedding
-        )  # Timestep embeddings
+        t_embedding = get_timestep_embedding(t, self.d_t_embedding)  # Timestep embeddings
 
         if conditioning is not None:
-            cond = np.concatenate(
-                [t_embedding, conditioning], axis=1
-            )  # Concatenate with conditioning context
+            cond = np.concatenate([t_embedding, conditioning], axis=1)  # Concatenate with conditioning context
         else:
             cond = t_embedding
 
-        d_cond = cond.shape[-1]  
+        d_cond = cond.shape[-1]
         cond = MLP([d_cond * 4, d_cond * 4, d_cond])(cond)
         k = self.score_dict["k"]
         n_pos_features = self.score_dict["n_pos_features"]
@@ -220,18 +195,14 @@ class EquivariantGNNNet(nn.Module):
             z[..., n_pos_features : 2 * n_pos_features],
             z[..., 2 * n_pos_features :],
         )
-        sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(
-            z[..., :n_pos_features], k
-        )
+        sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., :n_pos_features], k)
 
         feat = np.concatenate([vel, mass], -1)
 
         # Position and feature irreps arrays. Add the mass to the conditioning vectors.
         # TODO: Change how conditioning is introduced
         pos = e3nn.IrrepsArray("1o", pos)
-        feat = e3nn.IrrepsArray(
-            f"1o + {d_cond}x0e", np.concatenate([vel, mass + cond[:, None, :]], -1)
-        )
+        feat = e3nn.IrrepsArray(f"1o + {d_cond}x0e", np.concatenate([vel, mass + cond[:, None, :]], -1))
 
         # Make copy of score dict since original cannot be in-place modified; remove `k` argument before passing to Net
         score_dict = dict(self.score_dict)
@@ -239,9 +210,7 @@ class EquivariantGNNNet(nn.Module):
         score_dict.pop("score", None)
         score_dict.pop("n_pos_features", None)
 
-        pos, feat = jax.vmap(NEQUIP(target_irreps="1o + 0e", **score_dict))(
-            pos, feat, sources, targets
-        )
+        pos, feat = jax.vmap(NEQUIP(target_irreps="1o + 0e", **score_dict))(pos, feat, sources, targets)
 
         h = np.concatenate([pos.array, feat.array], -1)
 
