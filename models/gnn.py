@@ -100,20 +100,28 @@ class GraphConvNet(nn.Module):
         # We will first linearly project the original node features as 'embeddings'.
         embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.latent_size))
         processed_graphs = embedder(graphs)
-        processed_graphs = processed_graphs._replace(globals=processed_graphs.globals.reshape(1, -1))
+        processed_graphs = processed_graphs._replace(
+            globals=processed_graphs.globals.reshape(1, -1)
+        )
         mlp_feature_sizes = [self.latent_size] * self.num_mlp_layers
         update_node_fn = get_node_mlp_updates(mlp_feature_sizes)
         update_edge_fn = get_edge_mlp_updates(mlp_feature_sizes)
 
         # Now, we will apply the GCN once for each message-passing round.
+        graph_net = jraph.GraphNetwork(
+            update_node_fn=update_node_fn, update_edge_fn=update_edge_fn
+        )
         for _ in range(self.message_passing_steps):
-            graph_net = jraph.GraphNetwork(update_node_fn=update_node_fn, update_edge_fn=update_edge_fn)
             if self.skip_connections:
-                processed_graphs = add_graphs_tuples(graph_net(processed_graphs), processed_graphs)
+                processed_graphs = add_graphs_tuples(
+                    graph_net(processed_graphs), processed_graphs
+                )
             else:
                 processed_graphs = graph_net(processed_graphs)
 
             if self.layer_norm:
-                processed_graphs = processed_graphs._replace(nodes=nn.LayerNorm()(processed_graphs.nodes))
+                processed_graphs = processed_graphs._replace(
+                    nodes=nn.LayerNorm()(processed_graphs.nodes)
+                )
         decoder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(in_features))
         return decoder(processed_graphs)
