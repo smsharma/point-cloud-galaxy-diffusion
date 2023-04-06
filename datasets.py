@@ -2,6 +2,7 @@ import tensorflow as tf
 import jax
 import jax.numpy as np
 import numpy as vnp
+from pathlib import Path
 import pandas as pd
 from absl import logging
 
@@ -33,20 +34,23 @@ def make_dataloader(x, conditioning, mask, batch_size, seed):
 def get_nbody_data(
     n_features,
     n_particles,
+    split: str='train',
 ):
-    x = np.load("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/halos.npy")
-    conditioning = np.array(pd.read_csv("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/cosmology.csv").values)
-
+    DATA_DIR = Path('/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/')
+    x = np.load(DATA_DIR / f"{split}_halos.npy")
+    conditioning = np.array(pd.read_csv(DATA_DIR / f"{split}_cosmology.csv").values)
     if n_features == 7:
         x = x.at[:, :, -1].set(np.log10(x[:, :, -1]))  # Use log10(mass)
-
     x = x[:, :n_particles, :n_features]
+    if split == 'train':
+        x_train = x
+    else:
+        x_train = np.load(DATA_DIR / f"train_halos.npy")
     # Standardize per-feature (over datasets and particles)
-    x_mean = x.mean(axis=(0, 1))
-    x_std = x.std(axis=(0, 1))
+    x_mean = x_train.mean(axis=(0, 1))
+    x_std = x_train.std(axis=(0, 1))
     x = (x - x_mean + EPS) / (x_std + EPS)
     norm_dict = {"mean": x_mean, "std": x_std}
-
     # Finalize
     mask = np.ones((x.shape[0], n_particles))  # No mask
     conditioning = conditioning[:, [0, -1]]  # Select only omega_m and sigma_8

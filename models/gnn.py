@@ -83,11 +83,6 @@ def attention_logit_fn(senders, receivers, edges):
     feat = jnp.concatenate((senders, receivers), axis=-1)
     return jax.nn.leaky_relu(MLP(1)(feat))
 
-def get_attention_fn(embedding_size: int) -> Tuple[Callable, Callable]:
-    def attention_query_fn(node_features,):
-        return MLP(embedding_size)(node_features)
-    return attention_query_fn
-
 class GraphConvNet(nn.Module):
     """A simple graph convolutional network"""
 
@@ -125,7 +120,6 @@ class GraphConvNet(nn.Module):
         graph_net = jraph.GraphNetwork(
             update_node_fn=update_node_fn, 
             update_edge_fn=update_edge_fn,
-            attention_query_fn = get_attention_fn(embedding_size=self.latent_size) if self.attention else None,
             attention_logit_fn = attention_logit_fn if self.attention else None,
         )
         for _ in range(self.message_passing_steps):

@@ -553,20 +553,17 @@ def eval_generation(
         steps (int, optional): number of steps to sample in diffusion. Defaults to 100.
         boxsize (float, optional): size of the simulation box. Defaults to 1000.0.
     """
-    generated_samples = generate(
-        vdm,
-        pstate.params,
-        rng,
-        (n_samples, n_particles),
+    generated_samples = generate_samples(
+        vdm=vdm,
+        pstate=pstate, 
+        rng=rng,
+        n_samples=n_samples,
+        n_particles=n_particles,
         conditioning=conditioning,
         mask=mask,
         steps=steps,
-    )
-    generated_samples = generated_samples.mean()
-    generated_samples = generated_samples * norm_dict["std"] + norm_dict["mean"]
-    # make sure generated samples are inside boxsize
-    generated_samples = generated_samples.at[..., :3].set(
-        generated_samples[..., :3] % boxsize
+        norm_dict=norm_dict,
+        boxsize=boxsize,
     )
     true_samples = true_samples * norm_dict["std"] + norm_dict["mean"]
     true_positions = true_samples[..., :3]
@@ -630,3 +627,28 @@ def eval_generation(
             idx_to_plot=[0, 1, 2],
         )
         wandb.log({"eval/mass": fig})
+
+def generate_samples(
+    vdm, pstate, rng, n_samples, n_particles, conditioning, mask, steps, norm_dict, boxsize,
+):
+    generated_samples = generate(
+        vdm,
+        pstate.params,
+        rng,
+        (n_samples, n_particles),
+        conditioning=conditioning,
+        mask=mask,
+        steps=steps,
+    )
+    generated_samples = generated_samples.mean()
+    generated_samples = generated_samples * norm_dict["std"] + norm_dict["mean"]
+    # make sure generated samples are inside boxsize
+    generated_samples = generated_samples.at[..., :3].set(
+        generated_samples[..., :3] % boxsize
+    )
+    return generated_samples
+
+
+def test_samples(generated_samples, true_samples):
+
+    return
