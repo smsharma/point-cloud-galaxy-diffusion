@@ -27,7 +27,6 @@ def make_dataloader(x, conditioning, mask, batch_size, seed):
         train_ds = train_ds.batch(_batch_size, drop_remainder=False)
 
     train_ds = train_ds.shuffle(n_train, seed=seed)
-
     return train_ds
 
 

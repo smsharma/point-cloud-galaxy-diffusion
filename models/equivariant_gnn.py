@@ -16,7 +16,7 @@ from models.equivariant_batchnorm import EquivariantBatchNorm
 
 class NEQUIP(nn.Module):
     use_node_features: bool = True
-    target_irreps: e3nn.Irreps = e3nn.Irreps("2x1o + 0e")
+    target_irreps: e3nn.Irreps = e3nn.Irreps("2x1o") # + 0e")
     input_node_irreps: e3nn.Irreps = e3nn.Irreps(
         "1o"
     )  # + 0e") #TODO: masses currently not working due to batch norm
