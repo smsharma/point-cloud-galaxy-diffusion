@@ -197,15 +197,12 @@ class MessagePassingConvolution(nn.Module):
             e3nn.bessel(lengths[:, 0], self.n_radial_basis)
             * e3nn.poly_envelope(5, 2)(lengths),
         )
-        print("lenghts in basis = ", lengths_in_basis.shape)
         sum_n_edge = senders.shape[0]
         global_edge_attributes = tree.tree_map(
             lambda g: jnp.repeat(g, n_edge, axis=0, total_repeat_length=sum_n_edge),
-            globals,
+            globals.reshape(1,-1),
         )
-        print("global edge attributes = ", global_edge_attributes.shape)
         input_mlp = jnp.concatenate([lengths_in_basis, global_edge_attributes], axis=-1)
-        print("input mlp = ", input_mlp.shape)
         mix = e3nn.flax.MultiLayerPerceptron(
             self.mlp_n_layers * (self.mlp_n_hidden,) + (messages.irreps.num_irreps,),
             self.activation,
