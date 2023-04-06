@@ -308,4 +308,6 @@ class NEQUIPScoreNet(nn.Module):
         score_dict.pop("n_pos_features", None)
 
         h = jax.vmap(NEQUIP(**score_dict))(graph)
-        return h.nodes
+        h = h.nodes
+
+        return z + h

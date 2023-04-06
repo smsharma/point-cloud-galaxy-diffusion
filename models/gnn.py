@@ -1,8 +1,8 @@
-from typing import Callable
+from typing import Callable, Tuple
+import jax
 import flax.linen as nn
 import jax.numpy as jnp
 import jraph
-from jraph._src import graph as gn_graph
 
 from models.graph_utils import add_graphs_tuples
 from models.mlp import MLP
@@ -35,7 +35,6 @@ def get_node_mlp_updates(mlp_feature_sizes: int) -> Callable:
         Returns:
             jnp.ndarray: updated node features
         """
-        print(received_attributes.shape)
         if received_attributes is not None:
             inputs = jnp.concatenate([nodes, received_attributes, globals], axis=1)
         else:  # If lone node
@@ -80,6 +79,14 @@ def get_edge_mlp_updates(mlp_feature_sizes: int) -> Callable:
 
     return update_fn
 
+def attention_logit_fn(senders, receivers, edges):
+    feat = jnp.concatenate((senders, receivers), axis=-1)
+    return jax.nn.leaky_relu(MLP(1)(feat))
+
+def get_attention_fn(embedding_size: int) -> Tuple[Callable, Callable]:
+    def attention_query_fn(node_features,):
+        return MLP(embedding_size)(node_features)
+    return attention_query_fn
 
 class GraphConvNet(nn.Module):
     """A simple graph convolutional network"""
@@ -89,6 +96,7 @@ class GraphConvNet(nn.Module):
     message_passing_steps: int
     skip_connections: bool = True
     layer_norm: bool = True
+    attention: bool = False
 
     @nn.compact
     def __call__(self, graphs: jraph.GraphsTuple) -> jraph.GraphsTuple:
@@ -115,7 +123,10 @@ class GraphConvNet(nn.Module):
 
         # Now, we will apply the GCN once for each message-passing round.
         graph_net = jraph.GraphNetwork(
-            update_node_fn=update_node_fn, update_edge_fn=update_edge_fn
+            update_node_fn=update_node_fn, 
+            update_edge_fn=update_edge_fn,
+            attention_query_fn = get_attention_fn(embedding_size=self.latent_size) if self.attention else None,
+            attention_logit_fn = attention_logit_fn if self.attention else None,
         )
         for _ in range(self.message_passing_steps):
             if self.skip_connections:

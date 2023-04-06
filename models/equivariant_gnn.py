@@ -63,8 +63,7 @@ class NEQUIP(nn.Module):
 
         vectors, h = node_features.filter(keep="1o"), node_features.filter(keep="0e")
         displacement, vel = vectors.slice_by_mul[:1], vectors.slice_by_mul[1:]
-        positions = positions + displacement
-        nodes = jnp.concatenate((positions.array, vel.array, h.array), axis=-1)
+        nodes = jnp.concatenate((displacement.array, vel.array, h.array), axis=-1)
         return gn_graph.GraphsTuple(
             nodes=nodes,
             edges=graphs.edges,
