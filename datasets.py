@@ -1,4 +1,5 @@
 import tensorflow as tf
+import time
 import jax
 import jax.numpy as np
 import numpy as vnp
@@ -15,7 +16,6 @@ EPS = 1e-7
 
 
 def make_dataloader(x, conditioning, mask, batch_size, seed):
-
     n_train = len(x)
 
     train_ds = tf.data.Dataset.from_tensor_slices((x, conditioning, mask))
