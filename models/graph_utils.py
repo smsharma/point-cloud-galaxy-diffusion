@@ -89,3 +89,28 @@ class RadiusSearch:
             self.n_times_reallocated += 1
 
         return nbr_update, nbr
+
+
+def rotation_matrix(angle_deg, axis):
+    """Return the rotation matrix associated with counterclockwise rotation of `angle_deg` degrees around the given axis."""
+    angle_rad = np.radians(angle_deg)
+    axis = axis / np.linalg.norm(axis)
+
+    a = np.cos(angle_rad / 2)
+    b, c, d = -axis * np.sin(angle_rad / 2)
+
+    return np.array([[a * a + b * b - c * c - d * d, 2 * (b * c - a * d), 2 * (b * d + a * c)], [2 * (b * c + a * d), a * a + c * c - b * b - d * d, 2 * (c * d - a * b)], [2 * (b * d - a * c), 2 * (c * d + a * b), a * a + d * d - b * b - c * c]])
+
+
+def rotate_representation(data, angle_deg, axis):
+    """Rotate `data` by `angle_deg` degrees around `axis`."""
+    rot_mat = rotation_matrix(angle_deg, axis)
+
+    positions = data[:, :3]
+    velocities = data[:, 3:6]
+    scalars = data[:, 6:]
+
+    rotated_positions = np.matmul(rot_mat, positions.T).T
+    rotated_velocities = np.matmul(rot_mat, velocities.T).T
+
+    return np.concatenate([rotated_positions, rotated_velocities, scalars], axis=1)

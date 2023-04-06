@@ -2,6 +2,7 @@ from typing import Callable
 import flax.linen as nn
 import jax.numpy as jnp
 import jraph
+from jraph._src import graph as gn_graph
 
 from models.graph_utils import add_graphs_tuples
 from models.mlp import MLP
@@ -34,7 +35,11 @@ def get_node_mlp_updates(mlp_feature_sizes: int) -> Callable:
         Returns:
             jnp.ndarray: updated node features
         """
-        inputs = jnp.concatenate([nodes, received_attributes, globals], axis=1)
+        print(received_attributes.shape)
+        if received_attributes is not None:
+            inputs = jnp.concatenate([nodes, received_attributes, globals], axis=1)
+        else:  # If lone node
+            inputs = jnp.concatenate([nodes, globals], axis=1)
         return MLP(mlp_feature_sizes)(inputs)
 
     return update_fn
@@ -100,8 +105,9 @@ class GraphConvNet(nn.Module):
         # We will first linearly project the original node features as 'embeddings'.
         embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.latent_size))
         processed_graphs = embedder(graphs)
+        # Keep "batch" index of globals, flatten the rest
         processed_graphs = processed_graphs._replace(
-            globals=processed_graphs.globals.reshape(1, -1)
+            globals=processed_graphs.globals.reshape(processed_graphs.globals.shape[0], -1)
         )
         mlp_feature_sizes = [self.latent_size] * self.num_mlp_layers
         update_node_fn = get_node_mlp_updates(mlp_feature_sizes)
