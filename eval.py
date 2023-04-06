@@ -575,7 +575,11 @@ def eval_generation(
         generated_velocities = generated_samples[..., 3:6]
         generated_masses = generated_samples[..., -1]
         true_velocities = true_samples[..., 3:6]
-        true_masses = true_samples[..., -1]
+        if generated_samples.shape[-1] > 6:
+            true_masses = true_samples[..., -1]
+        else:
+            generated_masses = None
+            true_masses = None
     else:
         generated_velocities = None
         generated_masses = None
