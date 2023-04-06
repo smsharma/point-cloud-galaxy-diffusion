@@ -1,18 +1,32 @@
 import sys
+import jax
+from pathlib import Path
+import yaml
 
 sys.path.append("./")
 sys.path.append("../")
 
 from typing import List, Dict
+import optax
+
 from jax import random
 import jax.numpy as np
 import numpy as onp
+from models.diffusion import VariationalDiffusionModel
+
 
 import wandb
+from flax.training import train_state, checkpoints
+from flax.core import FrozenDict
+
 import matplotlib.pyplot as plt
+from ml_collections.config_dict import ConfigDict
 from pycorr import TwoPointCorrelationFunction
 from models.diffusion_utils import generate
+from models.train_utils import create_input_iter
+from datasets import nbody_dataset
 from cosmo_utils.knn import get_CDFkNN
+
 
 colors = [
     "lightseagreen",
@@ -119,7 +133,7 @@ def plot_knns(
     generated_samples: np.array,
     true_samples: np.array,
     conditioning: np.array,
-    boxsize: float = 1000.0,
+    boxsize: float = 500.0,
     idx_to_plot: List[int] = [0, 1, 2],
 ) -> plt.figure:
     """plot nearest neighbour statistics
@@ -536,7 +550,7 @@ def eval_generation(
     mask: np.array,
     norm_dict: Dict,
     steps: int = 1000,
-    boxsize: float = 1000.0,
+    boxsize: float = 500.0,
 ):
     """Evaluate the model on a small subset and log figures and log figures and log figures and log figures
 
@@ -648,7 +662,80 @@ def generate_samples(
     )
     return generated_samples
 
+def generate_test_samples_from_model_folder(
+    path_to_model: Path,
+    steps: int = 1000,
+    batch_size: int = 32,
+):
+    with open(path_to_model / 'config.yaml', 'r') as file:
+        config = yaml.safe_load(file)
+    config = ConfigDict(config)
+    score_dict = FrozenDict(config.score)
+    encoder_dict = FrozenDict(config.encoder)
+    decoder_dict = FrozenDict(config.decoder)
+
+    # get conditioning for test set
+    test_ds, norm_dict = nbody_dataset(
+        n_features=config.data.n_features,
+        n_particles=config.data.n_particles,
+        batch_size=batch_size,
+        seed=config.seed,
+        shuffle=False,
+        split='test',
+    )
+    batches = create_input_iter(test_ds)
+
+    vdm = VariationalDiffusionModel(
+        d_feature=config.data.n_features, 
+        timesteps=config.vdm.timesteps, 
+        noise_schedule=config.vdm.noise_schedule, 
+        noise_scale=config.vdm.noise_scale, 
+        gamma_min=config.vdm.gamma_min, 
+        gamma_max=config.vdm.gamma_max, 
+        score=config.score.score, 
+        score_dict=score_dict, 
+        embed_context=config.vdm.embed_context, 
+        d_context_embedding=config.vdm.d_context_embedding, 
+        n_classes=config.vdm.n_classes, 
+        use_encdec=config.vdm.use_encdec, 
+        encoder_dict=encoder_dict, 
+        decoder_dict=decoder_dict,
+    )
+    x_batch, conditioning_batch, mask_batch = next(batches)
+    print('conditioniing batch = ', conditioning_batch.shape)
+    _, params = vdm.init_with_output({"sample": rng, "params": rng}, x_batch[0], conditioning_batch[0], mask_batch[0])
+    state = train_state.TrainState.create(apply_fn=vdm.apply, params=params, tx=tx)
+    rng = jax.random.PRNGKey(42)
+    # Training config and state
+    schedule = optax.warmup_cosine_decay_schedule(init_value=0.0, peak_value=config.optim.learning_rate, warmup_steps=config.training.warmup_steps, decay_steps=config.training.n_train_steps)
+    tx = optax.adamw(learning_rate=schedule, weight_decay=config.optim.weight_decay)
+
+    restored_state = checkpoints.restore_checkpoint(ckpt_dir=path_to_model, target=state)
+    if state is restored_state:
+        raise FileNotFoundError(f"Did not load checkpoint correctly")
+    return generate_samples(
+        vdm=vdm,
+        pstate=restored_state,
+        rng=rng,
+        n_samples=batch_size,
+        n_particles=5000,
+        conditioning=conditioning_batch,
+        mask=None,
+        steps=steps,
+        norm_dict=norm_dict,
+        boxsize=500.,
+    )
 
 def test_samples(generated_samples, true_samples):
 
     return
+
+if __name__ == '__main__':
+    import time
+
+    t0 = time.time()
+    samples = generate_test_samples_from_model_folder(
+        Path('/n/home11/ccuestalazaro/set-diffuser/logging/cosmology/comic-sky-82/')
+    )
+    print('samples = ', samples.shape)
+    print(f'It takes {time.time() - t0} seconds to generate samples')
