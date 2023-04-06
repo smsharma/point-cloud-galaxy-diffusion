@@ -221,8 +221,6 @@ class EGNN(nn.Module):
                 processed_graphs.globals.shape[0], -1
             )
         )
-        print('proc')
-
         activation = getattr(nn, self.activation)
 
         # Switch for whether to use positions-only version of edge/node updates
@@ -243,25 +241,21 @@ class EGNN(nn.Module):
         update_edge_fn = get_edge_mlp_updates(
             self.d_hidden, self.n_layers, activation, position_only=positions_only
         )
-
         # Apply message-passing rounds
         for _ in range(self.message_passing_steps):
             graph_net = jraph.GraphNetwork(
                 update_node_fn=update_node_fn, update_edge_fn=update_edge_fn
             )
-
             if self.skip_connections:
                 processed_graphs = add_graphs_tuples(
                     graph_net(processed_graphs), processed_graphs
                 )
             else:
                 processed_graphs = graph_net(processed_graphs)
-
             if self.norm_layer:
                 processed_graphs = self.norm(
                     processed_graphs, positions_only=positions_only
                 )
-
         return processed_graphs
 
     def norm(self, graph, positions_only=False):
