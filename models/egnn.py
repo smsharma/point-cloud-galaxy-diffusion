@@ -25,9 +25,7 @@ class CoordNorm(nn.Module):
         return normed_coors * self.scale
 
 
-def get_edge_mlp_updates(
-    d_hidden, n_layers, activation, position_only=False
-) -> Callable:
+def get_edge_mlp_updates(d_hidden, n_layers, activation, position_only=False) -> Callable:
     """Get an edge MLP update function
 
     Args:
@@ -103,25 +101,21 @@ def get_edge_mlp_updates(
         phi_x = MLP([d_hidden] * (n_layers - 1) + [1], activation=activation)
 
         # Get invariants
-        message_scalars = jnp.concatenate(
-            [jnp.linalg.norm(x_i - x_j, axis=1, keepdims=True) ** 2, globals], axis=-1
-        )
-        ''''
+        message_scalars = jnp.concatenate([jnp.linalg.norm(x_i - x_j, axis=1, keepdims=True) ** 2, globals], axis=-1)
+        """'
         if edges is not None:
             # edges[1] = m_ij? -> edges are updated, so after one iteration it won't be None but the message
             message_scalars = jnp.concatenate(
                 [message_scalars, edges[1]], axis=-1
             )  # Add edge features if available
-        '''
+        """
         m_ij = phi_e(message_scalars)
         return (x_i - x_j) * phi_x(m_ij), m_ij
 
     return update_fn if not position_only else update_fn_position_only
 
 
-def get_node_mlp_updates(
-    d_hidden, n_layers, activation, n_edge, position_only=False
-) -> Callable:
+def get_node_mlp_updates(d_hidden, n_layers, activation, n_edge, position_only=False) -> Callable:
     """Get an node MLP update function
 
     Args:
@@ -154,9 +148,7 @@ def get_node_mlp_updates(
 
         # From Eqs. (6) and (7)
         phi_v = MLP([d_hidden] * (n_layers - 1) + [1], activation=activation)
-        phi_h = MLP(
-            [d_hidden] * (n_layers - 1) + [h_i.shape[-1]], activation=activation
-        )
+        phi_h = MLP([d_hidden] * (n_layers - 1) + [h_i.shape[-1]], activation=activation)
 
         # Apply updates
         v_i_p = sum_x_ij / (n_edge - 1) + phi_v(h_i) * v_i
@@ -216,18 +208,12 @@ class EGNN(nn.Module):
         """
         in_features = graphs.nodes.shape[-1]
         processed_graphs = graphs
-        processed_graphs = processed_graphs._replace(
-            globals=processed_graphs.globals.reshape(
-                processed_graphs.globals.shape[0], -1
-            )
-        )
+        processed_graphs = processed_graphs._replace(globals=processed_graphs.globals.reshape(processed_graphs.globals.shape[0], -1))
         activation = getattr(nn, self.activation)
 
         # Switch for whether to use positions-only version of edge/node updates
         if (graphs.nodes.shape[-1] > 3) & (graphs.nodes.shape[-1] < 6):
-            raise NotImplementedError(
-                "Number of features should be either 3 (just positions) or >= 6 (positions, velocities, and scalars)"
-            )
+            raise NotImplementedError("Number of features should be either 3 (just positions) or >= 6 (positions, velocities, and scalars)")
 
         positions_only = True if graphs.nodes.shape[-1] == 3 else False
 
@@ -238,24 +224,16 @@ class EGNN(nn.Module):
             n_edge=processed_graphs.n_edge,
             position_only=positions_only,
         )
-        update_edge_fn = get_edge_mlp_updates(
-            self.d_hidden, self.n_layers, activation, position_only=positions_only
-        )
+        update_edge_fn = get_edge_mlp_updates(self.d_hidden, self.n_layers, activation, position_only=positions_only)
         # Apply message-passing rounds
         for _ in range(self.message_passing_steps):
-            graph_net = jraph.GraphNetwork(
-                update_node_fn=update_node_fn, update_edge_fn=update_edge_fn
-            )
+            graph_net = jraph.GraphNetwork(update_node_fn=update_node_fn, update_edge_fn=update_edge_fn)
             if self.skip_connections:
-                processed_graphs = add_graphs_tuples(
-                    graph_net(processed_graphs), processed_graphs
-                )
+                processed_graphs = add_graphs_tuples(graph_net(processed_graphs), processed_graphs)
             else:
                 processed_graphs = graph_net(processed_graphs)
             if self.norm_layer:
-                processed_graphs = self.norm(
-                    processed_graphs, positions_only=positions_only
-                )
+                processed_graphs = self.norm(processed_graphs, positions_only=positions_only)
         return processed_graphs
 
     def norm(self, graph, positions_only=False):
@@ -264,12 +242,12 @@ class EGNN(nn.Module):
 
             # Only apply LN if scalars have more than one feature
             x, v, h = (
-                CoordNorm()(x),
-                CoordNorm()(v),
+                nn.LayerNorm()(x),
+                nn.LayerNorm()(v),
                 h if h.shape[-1] == 1 else nn.LayerNorm()(h),
             )
             graph = graph._replace(nodes=jnp.concatenate([x, v, h], -1))
         else:
-            x = CoordNorm()(graph.nodes)
+            x = nn.LayerNorm()(graph.nodes)
             graph = graph._replace(nodes=x)
         return graph

@@ -35,7 +35,6 @@ replicate = flax.jax_utils.replicate
 unreplicate = flax.jax_utils.unreplicate
 
 logging.set_verbosity(logging.INFO)
-config.update("jax_enable_x64", True)
 
 
 def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> train_state.TrainState:
