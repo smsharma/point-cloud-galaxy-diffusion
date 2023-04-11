@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import jraph
 from jraph._src import utils
 
-from models.graph_utils import add_graphs_tuples
+from models.graph_utils import add_graphs_tuples, nearest_neighbors
 from models.mlp import MLP
 
 
@@ -97,20 +97,11 @@ def get_edge_mlp_updates(d_hidden, n_layers, activation, position_only=False) ->
         x_i = senders
         x_j = receivers
 
-        print(x_i.shape, x_j.shape)
-
         # Messages from Eqs. (3) and (4)/(7)
         phi_x = MLP([d_hidden] * (n_layers - 1) + [1], activation=activation)
 
         # Get invariants
-        EPS = 1e-5
-        message_scalars = jnp.concatenate([jnp.linalg.norm(x_i - x_j, axis=1, keepdims=True) ** 2 + EPS], axis=-1)
-
-        jax.debug.print("{}, {}, {}, {}, {}, {}", jnp.min(message_scalars), jnp.max(message_scalars), jnp.mean(message_scalars), jnp.std(message_scalars), jnp.sum(jnp.isnan(message_scalars)), jnp.sum(jnp.isinf(message_scalars)))
-
-        jax.debug.print("xi = {}, xj = {}", x_i[:4], x_j[:4])
-
-        jax.debug.print("ms = {}", message_scalars)
+        message_scalars = jnp.concatenate([jnp.sum((x_i - x_j) ** 2, axis=1, keepdims=True), globals], axis=-1)
 
         """
         if edges is not None:
@@ -244,8 +235,14 @@ class EGNN(nn.Module):
                 processed_graphs = graph_net(processed_graphs)
             if self.norm_layer:
                 processed_graphs = self.norm(processed_graphs, positions_only=positions_only)
-
+            processed_graphs = self.recompute_edges(processed_graphs)
         return processed_graphs
+
+    def recompute_edges(self, graph):
+        # TODO: Generalize to arbitrary k
+        sources, targets = nearest_neighbors(graph.nodes[..., :3], 20)
+        graph._replace(senders=sources, receivers=targets)
+        return graph
 
     def norm(self, graph, positions_only=False):
         if not positions_only:

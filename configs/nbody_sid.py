@@ -51,11 +51,12 @@ def get_config():
     score.score = "egnn"
     score.k = 20
     score.n_pos_features = 3
-    score.d_hidden = 16
-    score.n_layers = 3
+    score.d_hidden = 128
+    score.n_layers = 4
     score.norm_layer = False
     score.skip_connections = False
-    score.message_passing_steps = 2
+    score.message_passing_steps = 4
+
     # # Equivariant score model
     # config.score = score = ml_collections.ConfigDict()
     # score.score = "equivariant"
@@ -67,9 +68,9 @@ def get_config():
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
-    training.batch_size = 2  # Must be divisible by number of devices; this is the total batch size, not per-device
-    training.n_train_steps = 3
-    training.warmup_steps = 2
+    training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
+    training.n_train_steps = 301_000
+    training.warmup_steps = 5000
     training.log_every_steps = 100
     training.eval_every_steps = 2_000  # training.n_train_steps + 1  # Turn off eval for now
     training.save_every_steps = 20_000
@@ -84,7 +85,7 @@ def get_config():
 
     # Optimizer (AdamW)
     config.optim = optim = ml_collections.ConfigDict()
-    optim.learning_rate = 6e-4
+    optim.learning_rate = 1e-4
     optim.weight_decay = 1e-4
 
     config.seed = 234
