@@ -52,7 +52,6 @@ class VariationalDiffusionModel(nn.Module):
     use_encdec: bool = True
 
     def setup(self):
-
         # Noise schedule for diffusion
         if self.noise_schedule == "learned_linear":
             self.gamma = NoiseScheduleFixedLinear(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
@@ -114,7 +113,8 @@ class VariationalDiffusionModel(nn.Module):
         eps = jax.random.normal(self.make_rng("sample"), shape=f.shape)
         z_t = variance_preserving_map(f, g_t[:, None], eps)
 
-        eps_hat = self.score_model(z_t, g_t, cond, mask)  # Compute predicted noise
+        # eps_hat = self.score_model(z_t, g_t, cond, mask)  # Compute predicted noise
+        eps_hat = self.score_model(f, g_t, cond, mask)  # Compute predicted noise
         loss_diff_mse = np.square(eps - eps_hat)  # Compute MSE of predicted noise
 
         T = self.timesteps
@@ -134,7 +134,6 @@ class VariationalDiffusionModel(nn.Module):
         return loss_diff
 
     def __call__(self, x, conditioning=None, mask=None):
-
         d_batch = x.shape[0]
 
         # 1. Reconstruction loss

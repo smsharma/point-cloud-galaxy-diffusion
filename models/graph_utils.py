@@ -50,7 +50,6 @@ class RadiusSearch:
     """Jittable radius graph"""
 
     def __init__(self, box_size, cutoff, boundary_cond="free", capacity_multiplier=1.5):
-
         self.box_size = np.array(box_size)
 
         if boundary_cond == "free":
@@ -106,11 +105,14 @@ def rotate_representation(data, angle_deg, axis):
     """Rotate `data` by `angle_deg` degrees around `axis`."""
     rot_mat = rotation_matrix(angle_deg, axis)
 
-    positions = data[:, :3]
-    velocities = data[:, 3:6]
-    scalars = data[:, 6:]
+    if data.shape[-1] == 3:
+        return np.matmul(rot_mat, data.T).T
+    else:
+        positions = data[:, :3]
+        velocities = data[:, 3:6]
+        scalars = data[:, 6:]
 
-    rotated_positions = np.matmul(rot_mat, positions.T).T
-    rotated_velocities = np.matmul(rot_mat, velocities.T).T
+        rotated_positions = np.matmul(rot_mat, positions.T).T
+        rotated_velocities = np.matmul(rot_mat, velocities.T).T
 
-    return np.concatenate([rotated_positions, rotated_velocities, scalars], axis=1)
+        return np.concatenate([rotated_positions, rotated_velocities, scalars], axis=1)

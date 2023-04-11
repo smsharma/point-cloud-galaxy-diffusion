@@ -148,6 +148,9 @@ class EGNNScoreNet(nn.Module):
         k = self.score_dict["k"]
         n_pos_features = self.score_dict["n_pos_features"]
 
+        jax.debug.print("z.shape = {}, mean={}, std={}", z.shape, np.mean(z), np.std(z))
+        jax.debug.print("z = {}", z)
+
         sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., :n_pos_features], k, mask=mask)
         n_batch = z.shape[0]
         graph = jraph.GraphsTuple(
@@ -169,7 +172,7 @@ class EGNNScoreNet(nn.Module):
         h = jax.vmap(EGNN(**score_dict))(graph)
         h = h.nodes
 
-        return z + h
+        return h
 
 
 class EquivariantTransformerNet(nn.Module):

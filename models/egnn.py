@@ -3,6 +3,7 @@ from typing import Callable
 import flax.linen as nn
 import jax.numpy as jnp
 import jraph
+from jraph._src import utils
 
 from models.graph_utils import add_graphs_tuples
 from models.mlp import MLP
@@ -13,11 +14,11 @@ class CoordNorm(nn.Module):
     https://github.com/lucidrains/egnn-pytorch/blob/main/egnn_pytorch/egnn_pytorch.py#LL67C28-L67C28
     """
 
-    eps: float = 1e-8
+    eps: float = 1e-5
     scale_init: float = 1.0
 
     def setup(self):
-        self.scale = self.param("scale", nn.initializers.ones, (1,))
+        self.scale = self.param("scale", nn.initializers.constant(self.scale_init), (1,))
 
     def __call__(self, coors):
         norm = jnp.linalg.norm(coors, axis=-1, keepdims=True)
@@ -96,21 +97,30 @@ def get_edge_mlp_updates(d_hidden, n_layers, activation, position_only=False) ->
         x_i = senders
         x_j = receivers
 
+        print(x_i.shape, x_j.shape)
+
         # Messages from Eqs. (3) and (4)/(7)
-        phi_e = MLP([d_hidden] * (n_layers), activation=activation)
         phi_x = MLP([d_hidden] * (n_layers - 1) + [1], activation=activation)
 
         # Get invariants
-        message_scalars = jnp.concatenate([jnp.linalg.norm(x_i - x_j, axis=1, keepdims=True) ** 2, globals], axis=-1)
-        """'
+        EPS = 1e-5
+        message_scalars = jnp.concatenate([jnp.linalg.norm(x_i - x_j, axis=1, keepdims=True) ** 2 + EPS], axis=-1)
+
+        jax.debug.print("{}, {}, {}, {}, {}, {}", jnp.min(message_scalars), jnp.max(message_scalars), jnp.mean(message_scalars), jnp.std(message_scalars), jnp.sum(jnp.isnan(message_scalars)), jnp.sum(jnp.isinf(message_scalars)))
+
+        jax.debug.print("xi = {}, xj = {}", x_i[:4], x_j[:4])
+
+        jax.debug.print("ms = {}", message_scalars)
+
+        """
         if edges is not None:
             # edges[1] = m_ij? -> edges are updated, so after one iteration it won't be None but the message
             message_scalars = jnp.concatenate(
                 [message_scalars, edges[1]], axis=-1
             )  # Add edge features if available
         """
-        m_ij = phi_e(message_scalars)
-        return (x_i - x_j) * phi_x(m_ij), m_ij
+        m_ij = phi_x(message_scalars)
+        return (x_i - x_j) * m_ij, m_ij
 
     return update_fn if not position_only else update_fn_position_only
 
@@ -179,8 +189,7 @@ def get_node_mlp_updates(d_hidden, n_layers, activation, n_edge, position_only=F
         x_i = nodes
 
         # Apply updates
-        x_i_p = x_i + sum_x_ij
-
+        x_i_p = x_i + sum_x_ij / (n_edge - 1)
         return x_i_p
 
     return update_fn if not position_only else update_fn_position_only
@@ -189,12 +198,12 @@ def get_node_mlp_updates(d_hidden, n_layers, activation, n_edge, position_only=F
 class EGNN(nn.Module):
     """A simple graph convolutional network"""
 
-    message_passing_steps: int = 4
+    message_passing_steps: int = 3
     skip_connections: bool = False
     norm_layer: bool = True
     d_hidden: int = 64
     n_layers: int = 3
-    activation: str = "gelu"
+    activation: str = "swish"
 
     @nn.compact
     def __call__(self, graphs: jraph.GraphsTuple) -> jraph.GraphsTuple:
@@ -225,6 +234,7 @@ class EGNN(nn.Module):
             position_only=positions_only,
         )
         update_edge_fn = get_edge_mlp_updates(self.d_hidden, self.n_layers, activation, position_only=positions_only)
+
         # Apply message-passing rounds
         for _ in range(self.message_passing_steps):
             graph_net = jraph.GraphNetwork(update_node_fn=update_node_fn, update_edge_fn=update_edge_fn)
@@ -234,6 +244,7 @@ class EGNN(nn.Module):
                 processed_graphs = graph_net(processed_graphs)
             if self.norm_layer:
                 processed_graphs = self.norm(processed_graphs, positions_only=positions_only)
+
         return processed_graphs
 
     def norm(self, graph, positions_only=False):
@@ -242,12 +253,12 @@ class EGNN(nn.Module):
 
             # Only apply LN if scalars have more than one feature
             x, v, h = (
-                nn.LayerNorm()(x),
-                nn.LayerNorm()(v),
+                CoordNorm()(x),
+                CoordNorm()(v),
                 h if h.shape[-1] == 1 else nn.LayerNorm()(h),
             )
             graph = graph._replace(nodes=jnp.concatenate([x, v, h], -1))
         else:
-            x = nn.LayerNorm()(graph.nodes)
+            x = CoordNorm()(graph.nodes)
             graph = graph._replace(nodes=x)
         return graph

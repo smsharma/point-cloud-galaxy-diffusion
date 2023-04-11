@@ -6,7 +6,7 @@ from absl import flags, logging
 from absl import logging
 import ml_collections
 from ml_collections import config_flags
-from clu import metric_writers
+from clu import metric_writers, parameter_overview
 import wandb
 
 sys.path.append("./")
@@ -38,7 +38,6 @@ logging.set_verbosity(logging.INFO)
 
 
 def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> train_state.TrainState:
-
     # Set up wandb run
     if config.wandb.log_train and jax.process_index() == 0:
         wandb_config = to_wandb_config(config)
@@ -82,11 +81,13 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
 
     logging.info("Instantiated the model")
     logging.info("Number of parameters: %d", param_count(params))
+    logging.info(parameter_overview.get_parameter_overview(params))
 
     ## Training config and loop
 
     schedule = optax.warmup_cosine_decay_schedule(init_value=0.0, peak_value=config.optim.learning_rate, warmup_steps=config.training.warmup_steps, decay_steps=config.training.n_train_steps)
     tx = optax.adamw(learning_rate=schedule, weight_decay=config.optim.weight_decay)
+    tx = optax.chain(optax.clip(1.0), tx)
 
     state = train_state.TrainState.create(apply_fn=vdm.apply, params=params, tx=tx)
     pstate = replicate(state)
@@ -96,7 +97,6 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
     train_metrics = []
     with trange(config.training.n_train_steps) as steps:
         for step in steps:
-
             rng, *train_step_rng = jax.random.split(rng, num=jax.local_device_count() + 1)
             train_step_rng = np.asarray(train_step_rng)
 
@@ -106,7 +106,6 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
 
             # Log periodically
             if (step % config.training.log_every_steps == 0) and (step != 0) and (jax.process_index() == 0):
-
                 train_metrics = common_utils.get_metrics(train_metrics)
                 summary = {f"train/{k}": v for k, v in jax.tree_map(lambda x: x.mean(), train_metrics).items()}
 
@@ -141,7 +140,6 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
 
 
 if __name__ == "__main__":
-
     FLAGS = flags.FLAGS
     config_flags.DEFINE_config_file("config", None, "File path to the training or sampling hyperparameter configuration.", lock_config=True)
     FLAGS(sys.argv)  # Parse flags
