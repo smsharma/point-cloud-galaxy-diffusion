@@ -169,7 +169,7 @@ class EGNNScoreNet(nn.Module):
         h = jax.vmap(EGNN(**score_dict))(graph)
         h = h.nodes
 
-        return z + h
+        return h
 
 
 class EquivariantTransformerNet(nn.Module):

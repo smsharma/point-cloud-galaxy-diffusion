@@ -12,7 +12,7 @@ def get_config():
     wandb.group = "cosmology"
     wandb.job_type = "training"
     wandb.name = None
-    wandb.log_train = False
+    wandb.log_train = True
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
@@ -51,11 +51,12 @@ def get_config():
     score.score = "egnn"
     score.k = 20
     score.n_pos_features = 3
-    score.d_hidden = 128
-    score.n_layers = 4
+    score.d_hidden = 64
+    score.n_layers = 3
     score.norm_layer = False
     score.skip_connections = False
     score.message_passing_steps = 4
+    score.activation = "gelu"
 
     # # Equivariant score model
     # config.score = score = ml_collections.ConfigDict()
@@ -70,9 +71,9 @@ def get_config():
     training.half_precision = False
     training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
     training.n_train_steps = 301_000
-    training.warmup_steps = 5000
+    training.warmup_steps = 1
     training.log_every_steps = 100
-    training.eval_every_steps = 2_000  # training.n_train_steps + 1  # Turn off eval for now
+    training.eval_every_steps = 1_000  # training.n_train_steps + 1  # Turn off eval for now
     training.save_every_steps = 20_000
 
     # Data
@@ -85,8 +86,8 @@ def get_config():
 
     # Optimizer (AdamW)
     config.optim = optim = ml_collections.ConfigDict()
-    optim.learning_rate = 1e-4
-    optim.weight_decay = 1e-4
+    optim.learning_rate = 6e-4
+    optim.weight_decay = 1e-5
 
     config.seed = 234
 

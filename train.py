@@ -87,7 +87,6 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
 
     schedule = optax.warmup_cosine_decay_schedule(init_value=0.0, peak_value=config.optim.learning_rate, warmup_steps=config.training.warmup_steps, decay_steps=config.training.n_train_steps)
     tx = optax.adamw(learning_rate=schedule, weight_decay=config.optim.weight_decay)
-    tx = optax.chain(optax.clip(1.0), tx)
 
     state = train_state.TrainState.create(apply_fn=vdm.apply, params=params, tx=tx)
     pstate = replicate(state)

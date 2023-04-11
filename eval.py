@@ -23,9 +23,7 @@ colors = [
 ]
 
 
-def plot_pointclouds_3D(
-    generated_samples: np.array, true_samples: np.array, idx_to_plot: int = 0
-) -> plt.figure:
+def plot_pointclouds_3D(generated_samples: np.array, true_samples: np.array, idx_to_plot: int = 0) -> plt.figure:
     """Plot pointcloud in three dimensions
 
     Args:
@@ -39,9 +37,7 @@ def plot_pointclouds_3D(
     s = 4
     alpha = 0.5
     color = "firebrick"
-    fig, (ax1, ax2) = plt.subplots(
-        1, 2, figsize=(20, 12), subplot_kw={"projection": "3d"}
-    )
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 12), subplot_kw={"projection": "3d"})
     ax1.scatter(
         generated_samples[idx_to_plot, :, 0],
         generated_samples[idx_to_plot, :, 1],
@@ -70,9 +66,7 @@ def plot_pointclouds_3D(
     return fig
 
 
-def plot_pointclouds_2D(
-    generated_samples: np.array, true_samples: np.array, idx_to_plot: int = 0
-):
+def plot_pointclouds_2D(generated_samples: np.array, true_samples: np.array, idx_to_plot: int = 0):
     """Plot pointcloud in two dimensions
 
     Args:
@@ -119,7 +113,7 @@ def plot_knns(
     generated_samples: np.array,
     true_samples: np.array,
     conditioning: np.array,
-    boxsize: float = 1000.0,
+    boxsize: float = 500.0,
     idx_to_plot: List[int] = [0, 1, 2],
 ) -> plt.figure:
     """plot nearest neighbour statistics
@@ -163,9 +157,7 @@ def plot_knns(
             c = plt.plot(
                 r_bins,
                 true_knn[k],
-                label=rf"$\Omega_m={conditioning[i][0]:.2f} \,\,\sigma_8={conditioning[i][-1]:.2f}$"
-                if k == 1
-                else None,
+                label=rf"$\Omega_m={conditioning[i][0]:.2f} \,\,\sigma_8={conditioning[i][-1]:.2f}$" if k == 1 else None,
                 ls="-",
                 alpha=0.75,
                 lw=2,
@@ -232,7 +224,9 @@ def compute_2pcf(
         n_threads=2,
         boxsize=boxsize,
         los="z",
-    )(ells=[0])[0]
+    )(
+        ells=[0]
+    )[0]
 
 
 def compute_2pcf_rsd(
@@ -273,9 +267,7 @@ def compute_2pcf_rsd(
     )(ells=[0, 2])
 
 
-def plot_2pcf(
-    generated_samples: np.array, true_samples: np.array, boxsize: float
-) -> plt.figure:
+def plot_2pcf(generated_samples: np.array, true_samples: np.array, boxsize: float) -> plt.figure:
     """Plot the two point correlation function
 
     Args:
@@ -290,9 +282,7 @@ def plot_2pcf(
     r_bins = np.linspace(0.5, 120.0, 60)
     r = 0.5 * (r_bins[1:] + r_bins[:-1])
     for idx in range(len(generated_samples)):
-        generated_2pcfs.append(
-            compute_2pcf(generated_samples[idx][..., :3], boxsize, r_bins)
-        )
+        generated_2pcfs.append(compute_2pcf(generated_samples[idx][..., :3], boxsize, r_bins))
         true_2pcfs.append(compute_2pcf(true_samples[idx][..., :3], boxsize, r_bins))
 
     fig, _ = plt.subplots()
@@ -352,16 +342,16 @@ def plot_velocity_histograms(
     generated_velocities: np.array,
     true_velocities: np.array,
     idx_to_plot: List[int],
-)->plt.figure:
-    """ plot histograms of velocity modulus
+) -> plt.figure:
+    """plot histograms of velocity modulus
 
     Args:
-        generated_velocities (np.array): generated 3D velociteis 
-        true_velocities (np.array): true 3D velocities 
-        idx_to_plot (List[int]): idx to plot 
+        generated_velocities (np.array): generated 3D velociteis
+        true_velocities (np.array): true 3D velocities
+        idx_to_plot (List[int]): idx to plot
 
     Returns:
-        plt.Figure: figure vel hist 
+        plt.Figure: figure vel hist
     """
     generated_mod = onp.sqrt(onp.sum(generated_velocities**2, axis=-1))
     true_mod = onp.sqrt(onp.sum(true_velocities**2, axis=-1))
@@ -369,12 +359,14 @@ def plot_velocity_histograms(
     offset = 0
     for i, idx in enumerate(idx_to_plot):
         true_hist, bin_edges = np.histogram(
-           true_mod[idx], bins= 50, 
+            true_mod[idx],
+            bins=50,
         )
         generated_hist, bin_edges = np.histogram(
-           generated_mod[idx], bins= bin_edges, 
+            generated_mod[idx],
+            bins=bin_edges,
         )
-        bin_centres = 0.5*(bin_edges[1:] + bin_edges[:-1])
+        bin_centres = 0.5 * (bin_edges[1:] + bin_edges[:-1])
         plt.plot(
             bin_centres + offset,
             true_hist,
@@ -385,7 +377,7 @@ def plot_velocity_histograms(
             bin_centres + offset,
             generated_hist,
             label="Diffusion" if i == 0 else None,
-            linestyle='dashed',
+            linestyle="dashed",
             color=colors[i],
         )
         offset += onp.max(true_mod)
@@ -399,26 +391,28 @@ def plot_hmf(
     generated_masses: np.array,
     true_masses: np.array,
     idx_to_plot: List[int],
-)->plt.figure:
-    """ plot halo mass functions
+) -> plt.figure:
+    """plot halo mass functions
 
     Args:
-        generated_masses (np.array): generated masses 
-        true_masses (np.array): true masses 
-        idx_to_plot (List[int]): idx to plot 
+        generated_masses (np.array): generated masses
+        true_masses (np.array): true masses
+        idx_to_plot (List[int]): idx to plot
 
     Returns:
-        plt.Figure: hmf figure 
+        plt.Figure: hmf figure
     """
     fig, _ = plt.subplots()
     for i, idx in enumerate(idx_to_plot):
         true_hist, bin_edges = np.histogram(
-           true_masses[idx], bins= 50, 
+            true_masses[idx],
+            bins=50,
         )
         generated_hist, bin_edges = np.histogram(
-           generated_masses[idx], bins= bin_edges, 
+            generated_masses[idx],
+            bins=bin_edges,
         )
-        bin_centres = 0.5*(bin_edges[1:] + bin_edges[:-1])
+        bin_centres = 0.5 * (bin_edges[1:] + bin_edges[:-1])
         plt.semilogy(
             bin_centres,
             true_hist,
@@ -430,7 +424,7 @@ def plot_hmf(
             generated_hist,
             label="Diffusion" if i == 0 else None,
             color=colors[i],
-            linestyle='dashed',
+            linestyle="dashed",
         )
 
     plt.legend()
@@ -447,18 +441,18 @@ def plot_2pcf_rsd(
     conditioning: np.array,
     boxsize: float,
 ) -> plt.figure:
-    """ plot 2pcf in redshift space 
+    """plot 2pcf in redshift space
 
     Args:
-        generated_positions (np.array): generated 3D positions 
-        true_positions (np.array): true 3D positions 
-        generated_velocities (np.array): generated 3D velociteis 
-        true_velocities (np.array): true 3D velocities 
-        conditioning (np.array): conditioning (cosmological params) 
-        boxsize (float): boxsize 
+        generated_positions (np.array): generated 3D positions
+        true_positions (np.array): true 3D positions
+        generated_velocities (np.array): generated 3D velociteis
+        true_velocities (np.array): true 3D velocities
+        conditioning (np.array): conditioning (cosmological params)
+        boxsize (float): boxsize
 
     Returns:
-        plt.figure: fig with monopole and quadrupole 
+        plt.figure: fig with monopole and quadrupole
     """
     generated_2pcfs, true_2pcfs = [], []
     r_bins = np.linspace(0.5, 120.0, 60)
@@ -535,8 +529,8 @@ def eval_generation(
     conditioning: np.array,
     mask: np.array,
     norm_dict: Dict,
-    steps: int = 1000,
-    boxsize: float = 1000.0,
+    steps: int = 300,
+    boxsize: float = 500.0,
 ):
     """Evaluate the model on a small subset and log figures and log figures and log figures and log figures
 
@@ -550,12 +544,12 @@ def eval_generation(
         conditioning (np.array): conditioning of the true samples
         mask (np.array): mask
         norm_dict (Dict): dictionariy with mean and std of the true samples, used to normalize the data
-        steps (int, optional): number of steps to sample in diffusion. Defaults to 100.
-        boxsize (float, optional): size of the simulation box. Defaults to 1000.0.
+        steps (int, optional): number of steps to sample in diffusion. Defaults to 300.
+        boxsize (float, optional): size of the simulation box. Defaults to 5000.0.
     """
     generated_samples = generate_samples(
         vdm=vdm,
-        pstate=pstate, 
+        pstate=pstate,
         rng=rng,
         n_samples=n_samples,
         n_particles=n_particles,
@@ -582,9 +576,7 @@ def eval_generation(
         generated_masses = None
         true_velocities = None
         true_masses = None
-    fig = plot_pointclouds_2D(
-        generated_samples=generated_positions, true_samples=true_positions
-    )
+    fig = plot_pointclouds_2D(generated_samples=generated_positions, true_samples=true_positions)
     wandb.log({"eval/pointcloud": fig})
 
     fig = plot_knns(
@@ -628,8 +620,18 @@ def eval_generation(
         )
         wandb.log({"eval/mass": fig})
 
+
 def generate_samples(
-    vdm, pstate, rng, n_samples, n_particles, conditioning, mask, steps, norm_dict, boxsize,
+    vdm,
+    pstate,
+    rng,
+    n_samples,
+    n_particles,
+    conditioning,
+    mask,
+    steps,
+    norm_dict,
+    boxsize,
 ):
     generated_samples = generate(
         vdm,
@@ -643,12 +645,9 @@ def generate_samples(
     generated_samples = generated_samples.mean()
     generated_samples = generated_samples * norm_dict["std"] + norm_dict["mean"]
     # make sure generated samples are inside boxsize
-    generated_samples = generated_samples.at[..., :3].set(
-        generated_samples[..., :3] % boxsize
-    )
+    generated_samples = generated_samples.at[..., :3].set(generated_samples[..., :3] % boxsize)
     return generated_samples
 
 
 def test_samples(generated_samples, true_samples):
-
     return
