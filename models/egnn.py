@@ -97,6 +97,8 @@ def get_edge_mlp_updates(d_hidden, n_layers, activation, position_only=False) ->
         x_i = senders
         x_j = receivers
 
+        print("eu", x_i.shape, x_j.shape, globals.shape, globals)
+
         if x_i.shape[-1] == 3:
             concats = globals
         else:
@@ -180,6 +182,8 @@ def get_node_mlp_updates(d_hidden, n_layers, activation, n_edge, position_only=F
 
         sum_x_ij, m_i = receivers  # Get aggregated messages
         x_i = nodes
+
+        print("nu", globals.shape, globals)
 
         # Apply updates
         if x_i.shape[-1] == 3:
