@@ -58,13 +58,15 @@ def get_config():
     score.message_passing_steps = 4
     score.activation = "gelu"
 
-    # # Equivariant score model
+    # # GNN score model
     # config.score = score = ml_collections.ConfigDict()
-    # score.score = "equivariant"
+    # score.score = "graph"
     # score.k = 20
     # score.n_pos_features = 3
-    # score.d_hidden = 32
-    # score.n_layers = 2
+    # score.num_mlp_layers = 4
+    # score.latent_size = 64
+    # score.skip_connections = True
+    # score.message_passing_steps = 4
 
     # Training
     config.training = training = ml_collections.ConfigDict()

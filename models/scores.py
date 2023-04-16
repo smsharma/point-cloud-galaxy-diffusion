@@ -5,12 +5,14 @@ import jax.numpy as np
 import flax.linen as nn
 import jraph
 import e3nn_jax as e3nn
+from einops import repeat
 
 from models.transformer import Transformer
 from models.gnn import GraphConvNet
 from models.equivariant_transformer import EquivariantTransformer
 from models.nequip import NEQUIP
 from models.egnn import EGNN
+from models.egnn_jax import EGNN as EGNNJax
 from models.mlp import MLP
 
 from models.graph_utils import nearest_neighbors
@@ -148,12 +150,17 @@ class EGNNScoreNet(nn.Module):
         k = self.score_dict["k"]
         n_pos_features = self.score_dict["n_pos_features"]
 
+        # Norms of the positions
+        d2 = np.sum(z[..., :n_pos_features] ** 2, axis=-1, keepdims=True)
+
         sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., :n_pos_features], k, mask=mask)
         n_batch = z.shape[0]
         graph = jraph.GraphsTuple(
             n_node=(mask.sum(-1)[:, None]).astype(np.int32),
             n_edge=np.array(n_batch * [[k]]),
-            nodes=z,
+            # nodes=z[..., n_pos_features:],
+            # nodes=repeat(cond, "b d -> b n d", n=z.shape[1]),
+            nodes=d2,
             edges=None,
             globals=cond,
             senders=sources,
@@ -166,8 +173,12 @@ class EGNNScoreNet(nn.Module):
         score_dict.pop("score", None)
         score_dict.pop("n_pos_features", None)
 
-        h = jax.vmap(EGNN(**score_dict))(graph)
-        h = h.nodes
+        # h = jax.vmap(EGNN(**score_dict))(graph)
+        # h = h.nodes
+
+        # return h
+
+        h = jax.vmap(EGNNJax())(graph, z[..., :n_pos_features])
 
         return h
 

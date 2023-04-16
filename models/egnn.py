@@ -9,6 +9,15 @@ from models.graph_utils import add_graphs_tuples, nearest_neighbors
 from models.mlp import MLP
 
 
+def fourier_features(x, num_encodings=16, include_self=True):
+    dtype, orig_x = x.dtype, x
+    scales = 2 ** jnp.arange(num_encodings, dtype=dtype)
+    x = x / scales
+    x = jnp.concatenate([jnp.sin(x), jnp.cos(x)], axis=-1)
+    x = jnp.concatenate((x, orig_x), axis=-1) if include_self else x
+    return x
+
+
 class CoordNorm(nn.Module):
     """Coordinate normalization, from
     https://github.com/lucidrains/egnn-pytorch/blob/main/egnn_pytorch/egnn_pytorch.py#LL67C28-L67C28
@@ -26,7 +35,7 @@ class CoordNorm(nn.Module):
         return normed_coors * self.scale
 
 
-def get_edge_mlp_updates(d_hidden, n_layers, activation, position_only=False) -> Callable:
+def get_edge_mlp_updates(d_hidden, n_layers, activation, position_only=False, use_fourier_features=False) -> Callable:
     """Get an edge MLP update function
 
     Args:
@@ -97,7 +106,7 @@ def get_edge_mlp_updates(d_hidden, n_layers, activation, position_only=False) ->
         x_i = senders
         x_j = receivers
 
-        print("eu", x_i.shape, x_j.shape, globals.shape, globals)
+        print(globals.shape)
 
         if x_i.shape[-1] == 3:
             concats = globals
@@ -111,6 +120,9 @@ def get_edge_mlp_updates(d_hidden, n_layers, activation, position_only=False) ->
         phi_x = MLP([d_hidden] * (n_layers - 1) + [1], activation=activation)
 
         d_ij2 = jnp.sum((x_i - x_j) ** 2, axis=1, keepdims=True)
+        if use_fourier_features:
+            d_ij2 = fourier_features(d_ij2)
+        print(d_ij2.shape)
 
         # Get invariants
         message_scalars = jnp.concatenate([d_ij2, concats], axis=-1)
@@ -183,8 +195,6 @@ def get_node_mlp_updates(d_hidden, n_layers, activation, n_edge, position_only=F
         sum_x_ij, m_i = receivers  # Get aggregated messages
         x_i = nodes
 
-        print("nu", globals.shape, globals)
-
         # Apply updates
         if x_i.shape[-1] == 3:
             phi_h = MLP([d_hidden] * (n_layers - 1) + [int(d_hidden / 2)], activation=activation)
@@ -210,6 +220,7 @@ class EGNN(nn.Module):
     d_hidden: int = 64
     n_layers: int = 3
     activation: str = "swish"
+    use_fourier_features: bool = True
 
     @nn.compact
     def __call__(self, graphs: jraph.GraphsTuple) -> jraph.GraphsTuple:
@@ -223,7 +234,8 @@ class EGNN(nn.Module):
         """
         in_features = graphs.nodes.shape[-1]
         processed_graphs = graphs
-        processed_graphs = processed_graphs._replace(globals=processed_graphs.globals.reshape(processed_graphs.globals.shape[0], -1))
+        processed_graphs = processed_graphs._replace(globals=processed_graphs.globals.reshape(1, -1))
+
         activation = getattr(nn, self.activation)
 
         # Switch for whether to use positions-only version of edge/node updates
@@ -232,18 +244,12 @@ class EGNN(nn.Module):
 
         positions_only = True if graphs.nodes.shape[-1] == 3 else False
 
-        update_node_fn = get_node_mlp_updates(
-            self.d_hidden,
-            self.n_layers,
-            activation,
-            n_edge=processed_graphs.n_edge,
-            position_only=positions_only,
-        )
-        update_edge_fn = get_edge_mlp_updates(self.d_hidden, self.n_layers, activation, position_only=positions_only)
-
         # Apply message-passing rounds
-        for _ in range(self.message_passing_steps):
+        for i in range(self.message_passing_steps):
+            update_node_fn = get_node_mlp_updates(self.d_hidden, self.n_layers, activation, n_edge=processed_graphs.n_edge, position_only=positions_only)
+            update_edge_fn = get_edge_mlp_updates(self.d_hidden, self.n_layers, activation, position_only=positions_only, use_fourier_features=self.use_fourier_features)
             graph_net = jraph.GraphNetwork(update_node_fn=update_node_fn, update_edge_fn=update_edge_fn)
+            print(processed_graphs.globals.shape)
             if self.skip_connections:
                 processed_graphs = add_graphs_tuples(graph_net(processed_graphs), processed_graphs)
             else:
