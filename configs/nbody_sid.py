@@ -75,7 +75,7 @@ def get_config():
     training.n_train_steps = 301_000
     training.warmup_steps = 1
     training.log_every_steps = 100
-    training.eval_every_steps = 1_000  # training.n_train_steps + 1  # Turn off eval for now
+    training.eval_every_steps = 500  # training.n_train_steps + 1  # Turn off eval for now
     training.save_every_steps = 20_000
 
     # Data
@@ -88,7 +88,7 @@ def get_config():
 
     # Optimizer (AdamW)
     config.optim = optim = ml_collections.ConfigDict()
-    optim.learning_rate = 6e-4
+    optim.learning_rate = 2e-4
     optim.weight_decay = 1e-5
 
     config.seed = 234

@@ -90,7 +90,7 @@ class EGNNLayer(nn.Module):
     ) -> jnp.ndarray:
         _ = senders
 
-        x = jnp.concatenate([nodes, msg, globals], axis=-1)
+        x = jnp.concatenate([nodes, msg], axis=-1)
         if node_attribute is not None:
             x = jnp.concatenate([x, node_attribute], axis=-1)
         x = self.node_mlp(x)
@@ -143,10 +143,10 @@ class EGNN(nn.Module):
     """
 
     hidden_size: int = 128
-    act_fn: Callable = jax.nn.silu
+    act_fn: Callable = jax.nn.gelu
     num_layers: int = 4
     residual: bool = True
-    attention: bool = False
+    attention: bool = True
     normalize: bool = False
     tanh: bool = True
 
@@ -183,7 +183,7 @@ class EGNN(nn.Module):
             graph, pos = EGNNLayer(
                 layer_num=n,
                 hidden_size=self.hidden_size,
-                blocks=1,
+                blocks=2,
                 output_size=output_shape,
                 act_fn=self.act_fn,
                 residual=self.residual,
