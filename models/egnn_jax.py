@@ -6,6 +6,7 @@ import jax.numpy as jnp
 import jraph
 from jax.tree_util import Partial
 from models.mlp import MLP
+from models.graph_utils import nearest_neighbors
 
 
 class EGNNLayer(nn.Module):
@@ -23,6 +24,9 @@ class EGNNLayer(nn.Module):
     normalize: bool = False
     tanh: bool = False
     eps: float = 1e-8
+    coord_mean: jnp.ndarray = None
+    coord_std: jnp.ndarray = None
+    box_size: float = None
 
     def setup(self):
         # message network
@@ -99,7 +103,12 @@ class EGNNLayer(nn.Module):
         return x
 
     def coord2radial(self, graph: jraph.GraphsTuple, coord: jnp.array) -> Tuple[jnp.array, jnp.array]:
-        coord_diff = coord[graph.senders] - coord[graph.receivers]
+        if self.box_size is not None:
+            coord_diff_unnormed = (coord[graph.senders] - coord[graph.receivers]) * self.coord_std + self.coord_mean  # Compute distance and un-normalize
+            coord_diff_unnormed = coord_diff_unnormed - self.box_size * jnp.round(coord_diff_unnormed / self.box_size)  # Get distances in periodic box
+            coord_diff = (coord_diff_unnormed - self.coord_mean) / self.coord_std  # Normalize again
+        else:
+            coord_diff = coord[graph.senders] - coord[graph.receivers]
         radial = jnp.sum(coord_diff**2, 1)[:, jnp.newaxis]
         if self.normalize:
             norm = jnp.sqrt(radial)
@@ -157,6 +166,9 @@ class EGNN(nn.Module):
         pos: jnp.ndarray,
         edge_attribute: Optional[jnp.ndarray] = None,
         node_attribute: Optional[jnp.ndarray] = None,
+        coord_mean: Optional[jnp.ndarray] = None,
+        coord_std: Optional[jnp.ndarray] = None,
+        box_size: float = None,
     ) -> Tuple[jnp.ndarray, jnp.ndarray]:
         """
         Apply EGNN.
@@ -172,10 +184,6 @@ class EGNN(nn.Module):
         """
 
         output_shape = graph.nodes.shape[-1]
-
-        # input node embedding
-        # h = nn.Dense(int(self.hidden_size / 4))(graph.nodes)
-        # graph = graph._replace(nodes=h)
         graph = graph._replace(globals=graph.globals.reshape(1, -1))
 
         # message passing
@@ -190,8 +198,16 @@ class EGNN(nn.Module):
                 attention=self.attention,
                 normalize=self.normalize,
                 tanh=self.tanh,
+                coord_mean=coord_mean,
+                coord_std=coord_std,
+                box_size=box_size,
             )(graph, pos, edge_attribute=edge_attribute, node_attribute=node_attribute)
-
-        # h = nn.Dense(output_shape)(graph.nodes)
-        # return jnp.concatenate([pos, h], axis=-1)
+            graph = self.recompute_edges(graph, pos, coord_mean, coord_std, box_size)
         return pos
+
+    def recompute_edges(self, graph, pos, coord_mean, coord_std, box_size):
+        # TODO: Generalize to arbitrary k
+        pos_unnormed = pos * coord_std + coord_mean
+        sources, targets = nearest_neighbors(pos_unnormed, 20, box_size)
+        graph._replace(senders=sources, receivers=targets)
+        return graph

@@ -6,16 +6,26 @@ from jax_md import space, partition
 from functools import partial
 
 
-@partial(jax.jit, static_argnums=(1,))
-def nearest_neighbors(x, k, mask=None):
-    """The shittiest implementation of nearest neighbours with masking in the world"""
+@partial(jax.jit, static_argnums=(1, 2))
+def nearest_neighbors(x, k, box_size=None, mask=None):
+    """
+    The shittiest implementation of nearest neighbours with masking in the world.
+    Now with periodic boundary conditions!
+    """
 
     if mask is None:
         mask = np.ones((x.shape[0],), dtype=np.int32)
 
     n_nodes = x.shape[0]
 
-    distance_matrix = np.sum((x[:, None, :] - x[None, :, :]) ** 2, axis=-1)
+    # Compute the vector difference between positions accounting for PBC
+    dr = x[:, None, :] - x[None, :, :]
+
+    if box_size is not None:
+        dr = dr - box_size * np.round(dr / box_size)
+
+    # Calculate the distance matrix accounting for PBC
+    distance_matrix = np.sum(dr**2, axis=-1)
 
     distance_matrix = np.where(mask[:, None], distance_matrix, np.inf)
     distance_matrix = np.where(mask[None, :], distance_matrix, np.inf)

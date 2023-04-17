@@ -50,6 +50,7 @@ class VariationalDiffusionModel(nn.Module):
     embed_context: bool = False
     d_context_embedding: int = 32
     use_encdec: bool = True
+    norm_dict: dict = dataclasses.field(default_factory=lambda: {"mean": 0.0, "std": 1.0})
 
     def setup(self):
         # Noise schedule for diffusion
@@ -64,7 +65,7 @@ class VariationalDiffusionModel(nn.Module):
         elif self.score == "graph":
             self.score_model = GraphScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict)
         elif self.score == "egnn":
-            self.score_model = EGNNScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict)
+            self.score_model = EGNNScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict, norm_dict=self.norm_dict)
         elif self.score == "nequip":
             self.score_model = NEQUIPScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict)
         elif self.score == "equivariant":
