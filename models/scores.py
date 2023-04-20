@@ -164,12 +164,16 @@ class EGNNScoreNet(nn.Module):
         coord_std = np.array(self.norm_dict["x_std"])
         box_size = self.norm_dict["box_size"]
 
-        z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
-        z_unnormed_pbc = z_unnormed - box_size * np.round(z_unnormed / box_size)
-        z_pbc = (z_unnormed_pbc - coord_mean) / coord_std
-        d2 = np.sum(z_pbc**2, axis=-1, keepdims=True)
+        if box_size is not None:
+            z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
+            z_unnormed_pbc = z_unnormed - box_size * np.round(z_unnormed / box_size)
+            z_pbc = (z_unnormed_pbc - coord_mean) / coord_std
+            d2 = np.sum(z_pbc**2, axis=-1, keepdims=True)
+            sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, 0))(z_unnormed, k, box_size, mask)
+        else:
+            d2 = np.sum(z[..., :n_pos_features] ** 2, axis=-1, keepdims=True)
+            sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., :n_pos_features], k, mask=mask)
 
-        sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, 0))(z_unnormed, k, box_size, mask)
         n_batch = z.shape[0]
         graph = jraph.GraphsTuple(
             n_node=(mask.sum(-1)[:, None]).astype(np.int32),

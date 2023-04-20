@@ -104,9 +104,9 @@ class EGNNLayer(nn.Module):
 
     def coord2radial(self, graph: jraph.GraphsTuple, coord: jnp.array) -> Tuple[jnp.array, jnp.array]:
         if self.box_size is not None:
-            coord_diff_unnormed = (coord[graph.senders] - coord[graph.receivers]) * self.coord_std + self.coord_mean  # Compute distance and un-normalize
+            coord_diff_unnormed = (coord[graph.senders] - coord[graph.receivers]) * self.coord_std  # Compute distance and un-normalize
             coord_diff_unnormed = coord_diff_unnormed - self.box_size * jnp.round(coord_diff_unnormed / self.box_size)  # Get distances in periodic box
-            coord_diff = (coord_diff_unnormed - self.coord_mean) / self.coord_std  # Normalize again
+            coord_diff = coord_diff_unnormed / self.coord_std  # Normalize again
         else:
             coord_diff = coord[graph.senders] - coord[graph.receivers]
         radial = jnp.sum(coord_diff**2, 1)[:, jnp.newaxis]

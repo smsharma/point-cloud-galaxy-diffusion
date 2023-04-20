@@ -113,7 +113,7 @@ def plot_knns(
     generated_samples: np.array,
     true_samples: np.array,
     conditioning: np.array,
-    boxsize: float = 500.0,
+    boxsize: float = 1000.0,
     idx_to_plot: List[int] = [0, 1, 2],
 ) -> plt.figure:
     """plot nearest neighbour statistics
@@ -530,7 +530,7 @@ def eval_generation(
     mask: np.array,
     norm_dict: Dict,
     steps: int = 300,
-    boxsize: float = 500.0,
+    boxsize: float = 1000.0,
 ):
     """Evaluate the model on a small subset and log figures and log figures and log figures and log figures
 
