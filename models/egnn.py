@@ -106,6 +106,7 @@ def get_edge_mlp_updates(
         message_scalars = jnp.concatenate(
             [jnp.linalg.norm(x_i - x_j, axis=1, keepdims=True) ** 2, globals], axis=-1
         )
+        jax.debug.print(f'nans in message scalars = {jnp.sum(jnp.isnan(message_scalars))}')
         ''''
         if edges is not None:
             # edges[1] = m_ij? -> edges are updated, so after one iteration it won't be None but the message
@@ -114,6 +115,7 @@ def get_edge_mlp_updates(
             )  # Add edge features if available
         '''
         m_ij = phi_e(message_scalars)
+        jax.debug.print(f'nans in m_ij = {jnp.sum(jnp.isnan(m_ij))}')
         return (x_i - x_j) * phi_x(m_ij), m_ij
 
     return update_fn if not position_only else update_fn_position_only
@@ -243,6 +245,7 @@ class EGNN(nn.Module):
         )
         # Apply message-passing rounds
         for _ in range(self.message_passing_steps):
+            jax.debug.print('**********')
             graph_net = jraph.GraphNetwork(
                 update_node_fn=update_node_fn, update_edge_fn=update_edge_fn
             )
@@ -252,6 +255,8 @@ class EGNN(nn.Module):
                 )
             else:
                 processed_graphs = graph_net(processed_graphs)
+            jax.debug.breakpoint()
+            jax.debug.print(f'nans before norm layers = {jnp.sum(jnp.isnan(processed_graphs.nodes))}')
             if self.norm_layer:
                 processed_graphs = self.norm(
                     processed_graphs, positions_only=positions_only

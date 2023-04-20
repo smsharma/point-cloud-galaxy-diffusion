@@ -1,15 +1,28 @@
 import dataclasses
+from typing import Union
 
 from absl import logging
+from pathlib import Path
 
+import yaml
 import jax
 import flax.linen as nn
 import jax.numpy as np
 import tensorflow_probability.substrates.jax as tfp
+from ml_collections.config_dict import ConfigDict
+import optax
+from flax.training import train_state, checkpoints
+from flax.core import FrozenDict
 
 from models.diffusion_utils import variance_preserving_map, alpha, sigma2
 from models.diffusion_utils import NoiseScheduleScalar, NoiseScheduleFixedLinear
-from models.scores import TransformerScoreNet, GraphScoreNet, EquivariantTransformerNet, EGNNScoreNet, NEQUIPScoreNet
+from models.scores import (
+    TransformerScoreNet,
+    GraphScoreNet,
+    EquivariantTransformerNet,
+    EGNNScoreNet,
+    NEQUIPScoreNet,
+)
 from models.mlp import MLPEncoder, MLPDecoder
 
 tfd = tfp.distributions
@@ -43,38 +56,121 @@ class VariationalDiffusionModel(nn.Module):
     noise_scale: float = 1.0e-3
     d_t_embedding: int = 32
     score: str = "transformer"  # "transformer", "graph", "equivariant"
-    score_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
-    encoder_dict: dict = dataclasses.field(default_factory=lambda: {"d_embedding": 12, "d_hidden": 256, "n_layers": 4})
-    decoder_dict: dict = dataclasses.field(default_factory=lambda: {"d_hidden": 256, "n_layers": 4})
+    score_dict: dict = dataclasses.field(
+        default_factory=lambda: {
+            "d_model": 256,
+            "d_mlp": 512,
+            "n_layers": 4,
+            "n_heads": 4,
+        }
+    )
+    encoder_dict: dict = dataclasses.field(
+        default_factory=lambda: {"d_embedding": 12, "d_hidden": 256, "n_layers": 4}
+    )
+    decoder_dict: dict = dataclasses.field(
+        default_factory=lambda: {"d_hidden": 256, "n_layers": 4}
+    )
     n_classes: int = 0
     embed_context: bool = False
     d_context_embedding: int = 32
     use_encdec: bool = True
 
-    def setup(self):
+    @classmethod
+    def from_path_to_model(cls, path_to_model: Union[str, Path])->"VariationalDiffusionModel":
+        """ load model from path where it is stored 
 
+        Args:
+            path_to_model (Union[str, Path]): path to model
+
+        Returns:
+            Tuple[VariationalDiffusionModel, np.array]: model, params
+        """
+        with open(path_to_model / 'config.yaml', "r") as file:
+            config = yaml.safe_load(file)
+        config = ConfigDict(config)
+        score_dict = FrozenDict(config.score)
+        encoder_dict = FrozenDict(config.encoder)
+        decoder_dict = FrozenDict(config.decoder)
+        vdm = VariationalDiffusionModel(
+            d_feature=config.data.n_features,
+            timesteps=config.vdm.timesteps,
+            noise_schedule=config.vdm.noise_schedule,
+            noise_scale=config.vdm.noise_scale,
+            gamma_min=config.vdm.gamma_min,
+            gamma_max=config.vdm.gamma_max,
+            score=config.score.score,
+            score_dict=score_dict,
+            embed_context=config.vdm.embed_context,
+            d_context_embedding=config.vdm.d_context_embedding,
+            n_classes=config.vdm.n_classes,
+            use_encdec=config.vdm.use_encdec,
+            encoder_dict=encoder_dict,
+            decoder_dict=decoder_dict,
+        )
+        rng = jax.random.PRNGKey(42)
+        x_dummy = jax.random.normal(rng, (config.training.batch_size, config.data.n_particles, config.data.n_features))
+        conditioning_dummy = jax.random.normal(rng, (config.training.batch_size, 2))
+        mask_dummy = np.ones((config.training.batch_size, config.data.n_particles))
+        _, params = vdm.init_with_output(
+            {"sample": rng, "params": rng}, x_dummy, conditioning_dummy, mask_dummy
+        )
+        schedule = optax.warmup_cosine_decay_schedule(
+            init_value=0.0,
+            peak_value=config.optim.learning_rate,
+            warmup_steps=config.training.warmup_steps,
+            decay_steps=config.training.n_train_steps,
+        )
+        tx = optax.adamw(learning_rate=schedule, weight_decay=config.optim.weight_decay)
+        state = train_state.TrainState.create(apply_fn=vdm.apply, params=params, tx=tx)
+        # Training config and state
+        restored_state = checkpoints.restore_checkpoint(
+            ckpt_dir=path_to_model, target=state
+        )
+        if state is restored_state:
+            raise FileNotFoundError(f"Did not load checkpoint correctly")
+        return vdm, restored_state.params
+
+    def setup(self):
         # Noise schedule for diffusion
         if self.noise_schedule == "learned_linear":
-            self.gamma = NoiseScheduleFixedLinear(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
+            self.gamma = NoiseScheduleFixedLinear(
+                gamma_min=self.gamma_min, gamma_max=self.gamma_max
+            )
         elif self.noise_schedule == "scalar":
-            self.gamma = NoiseScheduleScalar(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
+            self.gamma = NoiseScheduleScalar(
+                gamma_min=self.gamma_min, gamma_max=self.gamma_max
+            )
 
         # Score model specification
         if self.score == "transformer":
-            self.score_model = TransformerScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict)
+            self.score_model = TransformerScoreNet(
+                d_t_embedding=self.d_t_embedding, score_dict=self.score_dict
+            )
         elif self.score == "graph":
-            self.score_model = GraphScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict)
+            self.score_model = GraphScoreNet(
+                d_t_embedding=self.d_t_embedding, score_dict=self.score_dict
+            )
         elif self.score == "egnn":
-            self.score_model = EGNNScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict)
+            self.score_model = EGNNScoreNet(
+                d_t_embedding=self.d_t_embedding, score_dict=self.score_dict
+            )
         elif self.score == "nequip":
-            self.score_model = NEQUIPScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict)
+            self.score_model = NEQUIPScoreNet(
+                d_t_embedding=self.d_t_embedding, score_dict=self.score_dict
+            )
         elif self.score == "equivariant":
-            self.score_model = EquivariantTransformerNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict)
+            self.score_model = EquivariantTransformerNet(
+                d_t_embedding=self.d_t_embedding, score_dict=self.score_dict
+            )
 
         # Optional encoder/decoder for latent diffusion
         if self.use_encdec:
             self.encoder = MLPEncoder(**self.encoder_dict)
-            self.decoder = MLPDecoder(d_output=self.d_feature, noise_scale=self.noise_scale, **self.decoder_dict)
+            self.decoder = MLPDecoder(
+                d_output=self.d_feature,
+                noise_scale=self.noise_scale,
+                **self.decoder_dict
+            )
 
         # Embedding for class and context
         if self.n_classes > 0:
@@ -134,7 +230,6 @@ class VariationalDiffusionModel(nn.Module):
         return loss_diff
 
     def __call__(self, x, conditioning=None, mask=None):
-
         d_batch = x.shape[0]
 
         # 1. Reconstruction loss
@@ -170,15 +265,26 @@ class VariationalDiffusionModel(nn.Module):
         if not self.embed_context:
             return conditioning
         else:
-            if self.n_classes > 0 and conditioning.shape[-1] > 1:  # If both classes and conditioning
-                classes, conditioning = conditioning[..., 0].astype(np.int32), conditioning[..., 1:]
-                class_embedding, context_embedding = self.embedding_class(classes), self.embedding_context(conditioning)
+            if (
+                self.n_classes > 0 and conditioning.shape[-1] > 1
+            ):  # If both classes and conditioning
+                classes, conditioning = (
+                    conditioning[..., 0].astype(np.int32),
+                    conditioning[..., 1:],
+                )
+                class_embedding, context_embedding = self.embedding_class(
+                    classes
+                ), self.embedding_context(conditioning)
                 return class_embedding + context_embedding
-            elif self.n_classes > 0 and conditioning.shape[-1] == 1:  # If no conditioning but classes
+            elif (
+                self.n_classes > 0 and conditioning.shape[-1] == 1
+            ):  # If no conditioning but classes
                 classes = conditioning[..., 0].astype(np.int32)
                 class_embedding = self.embedding_class(classes)
                 return class_embedding
-            elif self.n_classes == 0 and conditioning is not None:  # If no classes but conditioning
+            elif (
+                self.n_classes == 0 and conditioning is not None
+            ):  # If no classes but conditioning
                 context_embedding = self.embedding_context(conditioning)
                 return context_embedding
             else:  # If no conditioning
@@ -222,12 +328,17 @@ class VariationalDiffusionModel(nn.Module):
 
         cond = self.embed(conditioning)
 
-        eps_hat_cond = self.score_model(z_t, g_t * np.ones((z_t.shape[0],), z_t.dtype), cond, mask)
+        eps_hat_cond = self.score_model(
+            z_t, g_t * np.ones((z_t.shape[0],), z_t.dtype), cond, mask
+        )
 
         a = nn.sigmoid(g_s)
         b = nn.sigmoid(g_t)
         c = -np.expm1(g_t - g_s)
         sigma_t = np.sqrt(sigma2(g_t))
-        z_s = np.sqrt(a / b) * (z_t - sigma_t * c * eps_hat_cond) + np.sqrt((1.0 - a) * c) * eps
+        z_s = (
+            np.sqrt(a / b) * (z_t - sigma_t * c * eps_hat_cond)
+            + np.sqrt((1.0 - a) * c) * eps
+        )
 
         return z_s

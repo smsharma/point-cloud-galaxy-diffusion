@@ -57,7 +57,7 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
     writer = metric_writers.create_default_writer(logdir=workdir, just_logging=jax.process_index() != 0)
 
     # Load the dataset
-    train_ds, norm_dict = load_data(config.data.dataset, config.data.n_features, config.data.n_particles, config.training.batch_size, config.seed, **config.data.kwargs)
+    train_ds, norm_dict = load_data(config.data.dataset, config.data.n_features, config.data.n_particles, config.training.batch_size, config.seed, shuffle=True, split='train', **config.data.kwargs)
 
     batches = create_input_iter(train_ds)
 

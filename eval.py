@@ -7,7 +7,6 @@ sys.path.append("./")
 sys.path.append("../")
 
 from typing import List, Dict
-import optax
 
 from jax import random
 import jax.numpy as np
@@ -16,9 +15,6 @@ from models.diffusion import VariationalDiffusionModel
 
 
 import wandb
-from flax.training import train_state, checkpoints
-from flax.core import FrozenDict
-
 import matplotlib.pyplot as plt
 from ml_collections.config_dict import ConfigDict
 from pycorr import TwoPointCorrelationFunction
@@ -27,6 +23,7 @@ from models.train_utils import create_input_iter
 from datasets import nbody_dataset
 from cosmo_utils.knn import get_CDFkNN
 
+import time
 
 colors = [
     "lightseagreen",
@@ -133,7 +130,7 @@ def plot_knns(
     generated_samples: np.array,
     true_samples: np.array,
     conditioning: np.array,
-    boxsize: float = 500.0,
+    boxsize: float = 1000.0,
     idx_to_plot: List[int] = [0, 1, 2],
 ) -> plt.figure:
     """plot nearest neighbour statistics
@@ -148,7 +145,7 @@ def plot_knns(
     Returns:
         plt.figure: figure
     """
-    r_bins = np.linspace(0.5, 120.0, 60)
+    r_bins = np.linspace(0.5, 100.0, 60)
     k_bins = [1, 5, 9]
     key = random.PRNGKey(0)
     random_points = boxsize * random.uniform(
@@ -178,11 +175,11 @@ def plot_knns(
                 r_bins,
                 true_knn[k],
                 label=rf"$\Omega_m={conditioning[i][0]:.2f} \,\,\sigma_8={conditioning[i][-1]:.2f}$"
-                if k == 1
+                if (k == 1 and conditioning is not None)
                 else None,
                 ls="-",
                 alpha=0.75,
-                lw=2,
+                lw=1,
                 color=color,
             )
             plt.plot(
@@ -191,7 +188,7 @@ def plot_knns(
                 color=color,
                 ls="--",
                 alpha=0.75,
-                lw=2,
+                lw=1,
             )
     plt.legend(
         fontsize=12,
@@ -366,16 +363,16 @@ def plot_velocity_histograms(
     generated_velocities: np.array,
     true_velocities: np.array,
     idx_to_plot: List[int],
-)->plt.figure:
-    """ plot histograms of velocity modulus
+) -> plt.figure:
+    """plot histograms of velocity modulus
 
     Args:
-        generated_velocities (np.array): generated 3D velociteis 
-        true_velocities (np.array): true 3D velocities 
-        idx_to_plot (List[int]): idx to plot 
+        generated_velocities (np.array): generated 3D velociteis
+        true_velocities (np.array): true 3D velocities
+        idx_to_plot (List[int]): idx to plot
 
     Returns:
-        plt.Figure: figure vel hist 
+        plt.Figure: figure vel hist
     """
     generated_mod = onp.sqrt(onp.sum(generated_velocities**2, axis=-1))
     true_mod = onp.sqrt(onp.sum(true_velocities**2, axis=-1))
@@ -383,12 +380,14 @@ def plot_velocity_histograms(
     offset = 0
     for i, idx in enumerate(idx_to_plot):
         true_hist, bin_edges = np.histogram(
-           true_mod[idx], bins= 50, 
+            true_mod[idx],
+            bins=50,
         )
         generated_hist, bin_edges = np.histogram(
-           generated_mod[idx], bins= bin_edges, 
+            generated_mod[idx],
+            bins=bin_edges,
         )
-        bin_centres = 0.5*(bin_edges[1:] + bin_edges[:-1])
+        bin_centres = 0.5 * (bin_edges[1:] + bin_edges[:-1])
         plt.plot(
             bin_centres + offset,
             true_hist,
@@ -399,7 +398,7 @@ def plot_velocity_histograms(
             bin_centres + offset,
             generated_hist,
             label="Diffusion" if i == 0 else None,
-            linestyle='dashed',
+            linestyle="dashed",
             color=colors[i],
         )
         offset += onp.max(true_mod)
@@ -413,26 +412,28 @@ def plot_hmf(
     generated_masses: np.array,
     true_masses: np.array,
     idx_to_plot: List[int],
-)->plt.figure:
-    """ plot halo mass functions
+) -> plt.figure:
+    """plot halo mass functions
 
     Args:
-        generated_masses (np.array): generated masses 
-        true_masses (np.array): true masses 
-        idx_to_plot (List[int]): idx to plot 
+        generated_masses (np.array): generated masses
+        true_masses (np.array): true masses
+        idx_to_plot (List[int]): idx to plot
 
     Returns:
-        plt.Figure: hmf figure 
+        plt.Figure: hmf figure
     """
     fig, _ = plt.subplots()
     for i, idx in enumerate(idx_to_plot):
         true_hist, bin_edges = np.histogram(
-           true_masses[idx], bins= 50, 
+            true_masses[idx],
+            bins=50,
         )
         generated_hist, bin_edges = np.histogram(
-           generated_masses[idx], bins= bin_edges, 
+            generated_masses[idx],
+            bins=bin_edges,
         )
-        bin_centres = 0.5*(bin_edges[1:] + bin_edges[:-1])
+        bin_centres = 0.5 * (bin_edges[1:] + bin_edges[:-1])
         plt.semilogy(
             bin_centres,
             true_hist,
@@ -444,7 +445,7 @@ def plot_hmf(
             generated_hist,
             label="Diffusion" if i == 0 else None,
             color=colors[i],
-            linestyle='dashed',
+            linestyle="dashed",
         )
 
     plt.legend()
@@ -461,18 +462,18 @@ def plot_2pcf_rsd(
     conditioning: np.array,
     boxsize: float,
 ) -> plt.figure:
-    """ plot 2pcf in redshift space 
+    """plot 2pcf in redshift space
 
     Args:
-        generated_positions (np.array): generated 3D positions 
-        true_positions (np.array): true 3D positions 
-        generated_velocities (np.array): generated 3D velociteis 
-        true_velocities (np.array): true 3D velocities 
-        conditioning (np.array): conditioning (cosmological params) 
-        boxsize (float): boxsize 
+        generated_positions (np.array): generated 3D positions
+        true_positions (np.array): true 3D positions
+        generated_velocities (np.array): generated 3D velociteis
+        true_velocities (np.array): true 3D velocities
+        conditioning (np.array): conditioning (cosmological params)
+        boxsize (float): boxsize
 
     Returns:
-        plt.figure: fig with monopole and quadrupole 
+        plt.figure: fig with monopole and quadrupole
     """
     generated_2pcfs, true_2pcfs = [], []
     r_bins = np.linspace(0.5, 120.0, 60)
@@ -549,8 +550,9 @@ def eval_generation(
     conditioning: np.array,
     mask: np.array,
     norm_dict: Dict,
-    steps: int = 1000,
-    boxsize: float = 500.0,
+    steps: int = 500,
+    boxsize: float = 1000.0,
+    log_wandb: bool = True,
 ):
     """Evaluate the model on a small subset and log figures and log figures and log figures and log figures
 
@@ -569,7 +571,7 @@ def eval_generation(
     """
     generated_samples = generate_samples(
         vdm=vdm,
-        pstate=pstate, 
+        params=pstate.params,
         rng=rng,
         n_samples=n_samples,
         n_particles=n_particles,
@@ -599,23 +601,26 @@ def eval_generation(
     fig = plot_pointclouds_2D(
         generated_samples=generated_positions, true_samples=true_positions
     )
-    wandb.log({"eval/pointcloud": fig})
+    if log_wandb:
+        wandb.log({"eval/pointcloud": fig})
 
     fig = plot_knns(
         generated_samples=generated_positions,
         true_samples=true_positions,
         conditioning=conditioning,
         boxsize=boxsize,
-        idx_to_plot=[0, 1, 2],
+        idx_to_plot=range(6),
     )
-    wandb.log({"eval/knn": fig})
+    if log_wandb:
+        wandb.log({"eval/knn": fig})
 
     fig = plot_2pcf(
         generated_samples=generated_positions,
         true_samples=true_positions,
         boxsize=boxsize,
     )
-    wandb.log({"eval/2pcf": fig})
+    if log_wandb:
+        wandb.log({"eval/2pcf": fig})
 
     if generated_velocities is not None:
         fig = plot_velocity_histograms(
@@ -623,7 +628,8 @@ def eval_generation(
             true_velocities=true_velocities,
             idx_to_plot=[0, 1, 2],
         )
-        wandb.log({"eval/vels": fig})
+        if log_wandb:
+            wandb.log({"eval/vels": fig})
         fig = plot_2pcf_rsd(
             generated_positions=onp.array(generated_positions),
             true_positions=onp.array(true_positions),
@@ -632,22 +638,34 @@ def eval_generation(
             conditioning=onp.array(conditioning),
             boxsize=boxsize,
         )
-        wandb.log({"eval/2pcf_rsd": fig})
+        if log_wandb:
+            wandb.log({"eval/2pcf_rsd": fig})
 
     if generated_masses is not None:
         fig = plot_hmf(
             generated_masses=generated_masses,
             true_masses=true_masses,
-            idx_to_plot=[0, 1, 2],
+            idx_to_plot=[0, 1, 2, 3,],
         )
-        wandb.log({"eval/mass": fig})
+        if log_wandb:
+            wandb.log({"eval/mass": fig})
+
 
 def generate_samples(
-    vdm, pstate, rng, n_samples, n_particles, conditioning, mask, steps, norm_dict, boxsize,
+    vdm,
+    params,
+    rng,
+    n_samples,
+    n_particles,
+    conditioning,
+    mask,
+    steps,
+    norm_dict,
+    boxsize,
 ):
     generated_samples = generate(
         vdm,
-        pstate.params,
+        params,
         rng,
         (n_samples, n_particles),
         conditioning=conditioning,
@@ -662,18 +680,17 @@ def generate_samples(
     )
     return generated_samples
 
+
 def generate_test_samples_from_model_folder(
     path_to_model: Path,
-    steps: int = 1000,
+    steps: int = 500,
     batch_size: int = 32,
+    boxsize: float = 1000.,
+    n_test: int = 1600,
 ):
-    with open(path_to_model / 'config.yaml', 'r') as file:
+    with open(path_to_model / "config.yaml", "r") as file:
         config = yaml.safe_load(file)
     config = ConfigDict(config)
-    score_dict = FrozenDict(config.score)
-    encoder_dict = FrozenDict(config.encoder)
-    decoder_dict = FrozenDict(config.decoder)
-
     # get conditioning for test set
     test_ds, norm_dict = nbody_dataset(
         n_features=config.data.n_features,
@@ -681,61 +698,50 @@ def generate_test_samples_from_model_folder(
         batch_size=batch_size,
         seed=config.seed,
         shuffle=False,
-        split='test',
+        split="test",
     )
     batches = create_input_iter(test_ds)
-
-    vdm = VariationalDiffusionModel(
-        d_feature=config.data.n_features, 
-        timesteps=config.vdm.timesteps, 
-        noise_schedule=config.vdm.noise_schedule, 
-        noise_scale=config.vdm.noise_scale, 
-        gamma_min=config.vdm.gamma_min, 
-        gamma_max=config.vdm.gamma_max, 
-        score=config.score.score, 
-        score_dict=score_dict, 
-        embed_context=config.vdm.embed_context, 
-        d_context_embedding=config.vdm.d_context_embedding, 
-        n_classes=config.vdm.n_classes, 
-        use_encdec=config.vdm.use_encdec, 
-        encoder_dict=encoder_dict, 
-        decoder_dict=decoder_dict,
-    )
     x_batch, conditioning_batch, mask_batch = next(batches)
-    print('conditioniing batch = ', conditioning_batch.shape)
-    _, params = vdm.init_with_output({"sample": rng, "params": rng}, x_batch[0], conditioning_batch[0], mask_batch[0])
-    state = train_state.TrainState.create(apply_fn=vdm.apply, params=params, tx=tx)
+    vdm, params = VariationalDiffusionModel.from_path_to_model(
+        path_to_model=path_to_model
+    )
     rng = jax.random.PRNGKey(42)
-    # Training config and state
-    schedule = optax.warmup_cosine_decay_schedule(init_value=0.0, peak_value=config.optim.learning_rate, warmup_steps=config.training.warmup_steps, decay_steps=config.training.n_train_steps)
-    tx = optax.adamw(learning_rate=schedule, weight_decay=config.optim.weight_decay)
+    n_batches = n_test // batch_size
+    print(f'N batches = ', n_batches)
+    true_samples, generated_samples = [], []
+    for i in range(n_batches):
+        t0 = time.time()
+        print(f'Iteration {i}')
+        x_batch, conditioning_batch, mask_batch = next(batches)
+        true_samples.append(x_batch[0] * norm_dict["std"] + norm_dict["mean"])
+        generated_samples.append(
+            generate_samples(
+                    vdm=vdm,
+                    params=params,
+                    rng=rng,
+                    n_samples=batch_size,
+                    n_particles=config.data.n_particles,
+                    conditioning=conditioning_batch[0],
+                    mask=mask_batch[0],
+                    steps=steps,
+                    norm_dict=norm_dict,
+                    boxsize=boxsize,
+                )
+        ) 
+        print(f'Iteration {i} takes {time.time() - t0} seconds')
+    return np.array(true_samples), np.array(generated_samples)
 
-    restored_state = checkpoints.restore_checkpoint(ckpt_dir=path_to_model, target=state)
-    if state is restored_state:
-        raise FileNotFoundError(f"Did not load checkpoint correctly")
-    return generate_samples(
-        vdm=vdm,
-        pstate=restored_state,
-        rng=rng,
-        n_samples=batch_size,
-        n_particles=5000,
-        conditioning=conditioning_batch,
-        mask=None,
-        steps=steps,
-        norm_dict=norm_dict,
-        boxsize=500.,
-    )
-
-def test_samples(generated_samples, true_samples):
-
-    return
-
-if __name__ == '__main__':
-    import time
-
+if __name__ == "__main__":
     t0 = time.time()
-    samples = generate_test_samples_from_model_folder(
-        Path('/n/home11/ccuestalazaro/set-diffuser/logging/cosmology/comic-sky-82/')
+    run_name = 'misunderstood-surf-117'
+    path_to_samples = Path(f'/n/holystore01/LABS/itc_lab/Users/ccuestalazaro/set_diffuser/samples/{run_name}')
+    path_to_samples.mkdir(exist_ok=True)
+    path_to_model = Path(f"/n/home11/ccuestalazaro/set-diffuser/logging/cosmology/{run_name}")
+    steps = 500
+    true_samples, generated_samples = generate_test_samples_from_model_folder(
+        path_to_model=path_to_model, 
+        steps=steps,
     )
-    print('samples = ', samples.shape)
-    print(f'It takes {time.time() - t0} seconds to generate samples')
+    np.save(path_to_samples / f'true_test_samples.npy', true_samples)
+    np.save(path_to_samples / f'generated_test_samples_{steps}_steps.npy', generated_samples)
+    print(f"It takes {time.time() - t0} seconds to generate samples")

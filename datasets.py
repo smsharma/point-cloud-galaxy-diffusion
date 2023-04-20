@@ -47,13 +47,13 @@ def get_nbody_data(
     split: str = "train",
 ):
     DATA_DIR = Path("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/")
-    x = get_halo_data(
+    x, conditioning = get_halo_data(
         data_dir=DATA_DIR, n_features=n_features, n_particles=n_particles, split=split
     )
     if split == "train":
         x_train = x
     else:
-        x_train = get_halo_data(
+        x_train, _ = get_halo_data(
             data_dir=DATA_DIR,
             n_features=n_features,
             n_particles=n_particles,
@@ -161,13 +161,12 @@ def jetnet_dataset(
         "mean_particle": mean_particle.data,
         "std_particle": std_particle.data,
     }
-
     return train_ds, norm_dict
 
 
-def load_data(dataset, n_features, n_particles, batch_size, seed, **kwargs):
+def load_data(dataset, n_features, n_particles, batch_size, seed, shuffle, split, **kwargs):
     if dataset == "nbody":
-        train_ds, norm_dict = nbody_dataset(n_features, n_particles, batch_size, seed)
+        train_ds, norm_dict = nbody_dataset(n_features, n_particles, batch_size, seed, shuffle=shuffle, split=split,)
     elif dataset == "jetnet":
         train_ds, norm_dict = jetnet_dataset(
             n_features, n_particles, batch_size, seed, **kwargs
