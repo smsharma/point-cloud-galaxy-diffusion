@@ -90,6 +90,15 @@ class VariationalDiffusionModel(nn.Module):
         """
         g_0 = self.gamma(0.0)
         eps_0 = jax.random.normal(self.make_rng("sample"), shape=f.shape)
+
+        # If using periodic boundary conditions, subtract center-of-mass from noise
+        if self.norm_dict["box_size"] is not None:
+            # Normalize eps to zero center-of-mass (first 3 elements of last dim)
+            eps_com = np.mean(eps_0[..., :3], axis=-1, keepdims=True)
+
+            # Subtract center-of-mass from first 3 elements of last dim of eps
+            eps_0 = eps_0.at[..., :3].set(eps_0[..., :3] - eps_com)
+
         z_0 = variance_preserving_map(f, g_0, eps_0)
         z_0_rescaled = z_0 / alpha(g_0)
         loss_recon = -self.decode(z_0_rescaled, cond).log_prob(x)
