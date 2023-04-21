@@ -158,6 +158,7 @@ class EGNN(nn.Module):
     attention: bool = True
     normalize: bool = False
     tanh: bool = True
+    k: int = 20
 
     @nn.compact
     def __call__(
@@ -202,12 +203,13 @@ class EGNN(nn.Module):
                 coord_std=coord_std,
                 box_size=box_size,
             )(graph, pos, edge_attribute=edge_attribute, node_attribute=node_attribute)
-            graph = self.recompute_edges(graph, pos, coord_mean, coord_std, box_size)
+
+            # Recompute edges after each position update
+            graph = self.recompute_edges(graph, pos, coord_mean, coord_std, box_size, self.k)
         return pos
 
-    def recompute_edges(self, graph, pos, coord_mean, coord_std, box_size):
-        # TODO: Generalize to arbitrary k
+    def recompute_edges(self, graph, pos, coord_mean, coord_std, box_size, k):
         pos_unnormed = pos * coord_std + coord_mean
-        sources, targets = nearest_neighbors(pos_unnormed, 20, box_size)
+        sources, targets = nearest_neighbors(pos_unnormed, k, box_size)
         graph._replace(senders=sources, receivers=targets)
         return graph

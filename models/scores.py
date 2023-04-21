@@ -198,7 +198,7 @@ class EGNNScoreNet(nn.Module):
 
         # return h
 
-        h = jax.vmap(EGNNJax(), in_axes=(0, 0, 0, 0, None, None, None))(graph, z[..., :n_pos_features], None, None, coord_mean, coord_std, box_size)
+        h = jax.vmap(EGNNJax(k=k), in_axes=(0, 0, 0, 0, None, None, None))(graph, z[..., :n_pos_features], None, None, coord_mean, coord_std, box_size)
 
         return h
 

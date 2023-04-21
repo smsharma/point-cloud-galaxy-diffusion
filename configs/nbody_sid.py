@@ -46,7 +46,7 @@ def get_config():
     # score.n_layers = 4
     # score.n_heads = 2
 
-    # # Graph score model
+    # # Equivariant graph score model
     config.score = score = ml_collections.ConfigDict()
     score.score = "egnn"
     score.k = 20
@@ -84,6 +84,7 @@ def get_config():
     data.n_particles = 5000  # Select the first n_particles particles
     data.n_features = 3  # Select the first n_features features
     data.n_pos_features = 3  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
+    data.box_size = 1000.0  # Box size for periodic boundary conditions. Set to `None` for no PBCs.
     data.kwargs = {}
 
     # Optimizer (AdamW)
