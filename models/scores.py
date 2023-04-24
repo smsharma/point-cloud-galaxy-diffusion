@@ -178,9 +178,8 @@ class EGNNScoreNet(nn.Module):
         graph = jraph.GraphsTuple(
             n_node=(mask.sum(-1)[:, None]).astype(np.int32),
             n_edge=np.array(n_batch * [[k]]),
-            # nodes=z[..., n_pos_features:],
             # nodes=repeat(cond, "b d -> b n d", n=z.shape[1]),
-            nodes=d2,
+            nodes=np.ones_like(d2),
             edges=None,
             globals=cond,
             senders=sources,
