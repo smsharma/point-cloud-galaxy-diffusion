@@ -94,7 +94,7 @@ class VariationalDiffusionModel(nn.Module):
         # If using periodic boundary conditions, subtract center-of-mass from noise
         if self.norm_dict["box_size"] is not None:
             # Normalize eps to zero center-of-mass (first 3 elements of last dim)
-            eps_com = np.mean(eps_0[..., :3], axis=-1, keepdims=True)
+            eps_com = np.mean(eps_0[..., :3], axis=-2, keepdims=True)
 
             # Subtract center-of-mass from first 3 elements of last dim of eps
             eps_0 = eps_0.at[..., :3].set(eps_0[..., :3] - eps_com)
@@ -125,7 +125,7 @@ class VariationalDiffusionModel(nn.Module):
         # If using periodic boundary conditions, subtract center-of-mass from noise
         if self.norm_dict["box_size"] is not None:
             # Normalize eps to zero center-of-mass (first 3 elements of last dim)
-            eps_com = np.mean(eps[..., :3], axis=-1, keepdims=True)
+            eps_com = np.mean(eps[..., :3], axis=-2, keepdims=True)
 
             # Subtract center-of-mass from first 3 elements of last dim of eps
             eps = eps.at[..., :3].set(eps[..., :3] - eps_com)
@@ -231,6 +231,12 @@ class VariationalDiffusionModel(nn.Module):
         """Sample a single step of the diffusion process."""
         rng_body = jax.random.fold_in(rng, i)
         eps = jax.random.normal(rng_body, z_t.shape)
+
+        # Subtract center-of-mass from first 3 elements of last dim of eps
+        if self.norm_dict["box_size"] is not None:
+            eps_com = np.mean(eps[..., :3], axis=-2, keepdims=True)
+            eps = eps.at[..., :3].set(eps[..., :3] - eps_com)
+
         t = (T - i) / T
         s = (T - i - 1) / T
 
