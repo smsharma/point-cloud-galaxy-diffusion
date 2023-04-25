@@ -32,9 +32,14 @@ def make_dataloader(x, conditioning, mask, batch_size, seed):
 def get_nbody_data(
     n_features,
     n_particles,
+    small=False,
 ):
-    x = np.load("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/halos.npy")
-    conditioning = np.array(pd.read_csv("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/cosmology.csv").values)
+    if small:
+        x = np.load("./notebooks/data_local/halos_small.npy")
+        conditioning = np.array(pd.read_csv("./notebooks/data_local/cosmology_small.csv").values)
+    else:
+        x = np.load("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/halos.npy")
+        conditioning = np.array(pd.read_csv("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/cosmology.csv").values)
 
     if n_features == 7:
         x = x.at[:, :, -1].set(np.log10(x[:, :, -1]))  # Use log10(mass)
