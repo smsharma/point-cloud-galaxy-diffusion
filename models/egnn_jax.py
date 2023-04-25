@@ -26,7 +26,7 @@ class EGNNLayer(nn.Module):
     eps: float = 1e-8
     coord_mean: jnp.ndarray = None
     coord_std: jnp.ndarray = None
-    boxsize: float = 1000.
+    box_size: float = 1000.
     unit_cell: jnp.ndarray = jnp.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]) 
 
     def setup(self):
@@ -106,7 +106,7 @@ class EGNNLayer(nn.Module):
     def coord2radial(self, graph: jraph.GraphsTuple, coord: jnp.array) -> Tuple[jnp.array, jnp.array]:
         if self.box_size is not None:
             coord_diff_unnormed = (coord[graph.senders] - coord[graph.receivers]) * self.coord_std  # Compute distance and un-normalize
-            coord_diff_unnormed = apply_pbc(coord_diff_unnormed, self.boxsize*self.unit_cell)
+            coord_diff_unnormed = apply_pbc(coord_diff_unnormed, self.box_size*self.unit_cell)
             coord_diff = coord_diff_unnormed / self.coord_std  # Normalize again
         else:
             coord_diff = coord[graph.senders] - coord[graph.receivers]
@@ -171,6 +171,7 @@ class EGNN(nn.Module):
         coord_mean: Optional[jnp.ndarray] = None,
         coord_std: Optional[jnp.ndarray] = None,
         box_size: float = None,
+        unit_cell: jnp.ndarray = None,
     ) -> Tuple[jnp.ndarray, jnp.ndarray]:
         """
         Apply EGNN.
@@ -184,6 +185,9 @@ class EGNN(nn.Module):
         Returns:
             Tuple of updated node features and positions
         """
+
+        if box_size is not None and unit_cell is None:
+            unit_cell = jnp.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]) 
 
         output_shape = graph.nodes.shape[-1]
         graph = graph._replace(globals=graph.globals.reshape(1, -1))
@@ -206,11 +210,11 @@ class EGNN(nn.Module):
             )(graph, pos, edge_attribute=edge_attribute, node_attribute=node_attribute)
 
             # Recompute edges after each position update
-            graph = self.recompute_edges(graph, pos, coord_mean, coord_std, box_size, self.k)
+            graph = self.recompute_edges(graph, pos, coord_mean, coord_std, box_size, unit_cell, self.k)
         return pos
 
-    def recompute_edges(self, graph, pos, coord_mean, coord_std, box_size, k):
+    def recompute_edges(self, graph, pos, coord_mean, coord_std, box_size, unit_cell, k):
         pos_unnormed = pos * coord_std + coord_mean
-        sources, targets = nearest_neighbors(pos_unnormed, k, box_size)
+        sources, targets = nearest_neighbors(pos_unnormed, k, box_size, unit_cell)
         graph._replace(senders=sources, receivers=targets)
         return graph
