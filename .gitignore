@@ -169,3 +169,5 @@ logging/
 wandb
 wandb/*
 notebooks/data
+
+.vscode
