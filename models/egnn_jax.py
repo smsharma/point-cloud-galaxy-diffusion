@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import jraph
 from jax.tree_util import Partial
 from models.mlp import MLP
-from models.graph_utils import nearest_neighbors
+from models.graph_utils import nearest_neighbors, apply_pbc
 
 
 class EGNNLayer(nn.Module):
@@ -26,7 +26,8 @@ class EGNNLayer(nn.Module):
     eps: float = 1e-8
     coord_mean: jnp.ndarray = None
     coord_std: jnp.ndarray = None
-    box_size: float = None
+    boxsize: float = 1000.
+    unit_cell: jnp.ndarray = jnp.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]) 
 
     def setup(self):
         # message network
@@ -105,7 +106,7 @@ class EGNNLayer(nn.Module):
     def coord2radial(self, graph: jraph.GraphsTuple, coord: jnp.array) -> Tuple[jnp.array, jnp.array]:
         if self.box_size is not None:
             coord_diff_unnormed = (coord[graph.senders] - coord[graph.receivers]) * self.coord_std  # Compute distance and un-normalize
-            coord_diff_unnormed = coord_diff_unnormed - self.box_size * jnp.round(coord_diff_unnormed / self.box_size)  # Get distances in periodic box
+            coord_diff_unnormed = apply_pbc(coord_diff_unnormed, self.boxsize*self.unit_cell)
             coord_diff = coord_diff_unnormed / self.coord_std  # Normalize again
         else:
             coord_diff = coord[graph.senders] - coord[graph.receivers]
