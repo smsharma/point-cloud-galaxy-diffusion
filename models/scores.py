@@ -163,14 +163,19 @@ class EGNNScoreNet(nn.Module):
         coord_mean = np.array(self.norm_dict["x_mean"])
         coord_std = np.array(self.norm_dict["x_std"])
         box_size = self.norm_dict["box_size"]
+        unit_cell = None
 
         if box_size is not None:
             z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
+
+            # The following is just to compute d2, which isn't really used anyway
             z_unnormed_pbc = z_unnormed - box_size * np.round(z_unnormed / box_size)
             z_pbc = (z_unnormed_pbc - coord_mean) / coord_std
             d2 = np.sum(z_pbc**2, axis=-1, keepdims=True)
-            unit_cell = np.array([[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]])
+
+            unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
             sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(z_unnormed, k, box_size, unit_cell, mask)
+            print(targets.sum())
         else:
             d2 = np.sum(z[..., :n_pos_features] ** 2, axis=-1, keepdims=True)
             sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., :n_pos_features], k, mask=mask)
@@ -198,7 +203,11 @@ class EGNNScoreNet(nn.Module):
 
         # return h
 
-        h = jax.vmap(EGNNJax(k=k), in_axes=(0, 0, 0, 0, None, None, None, None))(graph, z[..., :n_pos_features], None, None, coord_mean, coord_std, box_size, unit_cell)
+        # Subtract center of mass
+        z_com = np.mean(z[..., :n_pos_features], axis=1, keepdims=True)
+        z_pos_centered = z[..., :n_pos_features] - z_com
+
+        h = jax.vmap(EGNNJax(k=k), in_axes=(0, 0, 0, 0, None, None, None, None))(graph, z_pos_centered, None, None, coord_mean, coord_std, box_size, unit_cell)
 
         return h
 

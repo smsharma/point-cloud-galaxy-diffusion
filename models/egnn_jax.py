@@ -26,8 +26,8 @@ class EGNNLayer(nn.Module):
     eps: float = 1e-8
     coord_mean: jnp.ndarray = None
     coord_std: jnp.ndarray = None
-    box_size: float = 1000.
-    unit_cell: jnp.ndarray = jnp.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]) 
+    box_size: float = 1000.0
+    unit_cell: jnp.ndarray = jnp.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
 
     def setup(self):
         # message network
@@ -106,7 +106,7 @@ class EGNNLayer(nn.Module):
     def coord2radial(self, graph: jraph.GraphsTuple, coord: jnp.array) -> Tuple[jnp.array, jnp.array]:
         if self.box_size is not None:
             coord_diff_unnormed = (coord[graph.senders] - coord[graph.receivers]) * self.coord_std  # Compute distance and un-normalize
-            coord_diff_unnormed = apply_pbc(coord_diff_unnormed, self.box_size*self.unit_cell)
+            coord_diff_unnormed = apply_pbc(coord_diff_unnormed, self.box_size * self.unit_cell)
             coord_diff = coord_diff_unnormed / self.coord_std  # Normalize again
         else:
             coord_diff = coord[graph.senders] - coord[graph.receivers]
@@ -187,7 +187,7 @@ class EGNN(nn.Module):
         """
 
         if box_size is not None and unit_cell is None:
-            unit_cell = jnp.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]) 
+            unit_cell = jnp.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
 
         output_shape = graph.nodes.shape[-1]
         graph = graph._replace(globals=graph.globals.reshape(1, -1))
