@@ -165,16 +165,16 @@ class EGNNScoreNet(nn.Module):
         box_size = self.norm_dict["box_size"]
         unit_cell = None
 
-        # if box_size is not None:
-        #     z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
+        if box_size is not None:
+            z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
 
-        #     d2 = np.sum(z[..., :n_pos_features] ** 2, axis=-1, keepdims=True)
+            d2 = np.sum(z[..., :n_pos_features] ** 2, axis=-1, keepdims=True)
 
-        #     unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-        #     sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(z_unnormed, k, box_size, unit_cell, mask)
-        # else:
-        d2 = np.sum(z[..., :n_pos_features] ** 2, axis=-1, keepdims=True)
-        sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., :n_pos_features], k, mask=mask)
+            unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+            sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(z_unnormed, k, box_size, unit_cell, mask)
+        else:
+            d2 = np.sum(z[..., :n_pos_features] ** 2, axis=-1, keepdims=True)
+            sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., :n_pos_features], k, mask=mask)
 
         n_batch = z.shape[0]
         graph = jraph.GraphsTuple(
