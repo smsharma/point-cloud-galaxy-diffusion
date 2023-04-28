@@ -140,9 +140,11 @@ class EGNNLayer(nn.Module):
             aggregate_edges_for_nodes_fn=self.msg_aggregate_fn,
         )(graph)
 
-        pos = pos + self.pos_update(pos, graph, coord_diff)
+        pos_update = self.pos_update(pos, graph, coord_diff)
 
-        return graph, pos
+        pos = pos + pos_update
+
+        return graph, pos, pos_update
 
 
 class EGNN(nn.Module):
@@ -152,13 +154,13 @@ class EGNN(nn.Module):
     Original implementation: https://github.com/vgsatorras/egnn
     """
 
-    hidden_size: int = 128
+    hidden_size: int = 64
     act_fn: Callable = jax.nn.gelu
     num_layers: int = 4
     residual: bool = True
-    attention: bool = True
+    attention: bool = False
     normalize: bool = False
-    tanh: bool = True
+    tanh: bool = False
     k: int = 20
 
     @nn.compact
@@ -192,9 +194,11 @@ class EGNN(nn.Module):
         output_shape = graph.nodes.shape[-1]
         graph = graph._replace(globals=graph.globals.reshape(1, -1))
 
+        pos_updates_list = []
+
         # message passing
         for n in range(self.num_layers):
-            graph, pos = EGNNLayer(
+            graph, pos, pos_update = EGNNLayer(
                 layer_num=n,
                 hidden_size=self.hidden_size,
                 blocks=2,
@@ -209,9 +213,14 @@ class EGNN(nn.Module):
                 box_size=box_size,
             )(graph, pos, edge_attribute=edge_attribute, node_attribute=node_attribute)
 
+            pos_updates_list.append(pos_update)
+
             # Recompute edges after each position update
             graph = self.recompute_edges(graph, pos, coord_mean, coord_std, box_size, unit_cell, self.k)
-        return pos
+
+        # Stack position updates along zeroth dim (corresponding to number of message passing rounds) and sum along it to get cumulative update
+        pos_update_cumulative = jnp.sum(jnp.stack(pos_updates_list), axis=0)
+        return pos_update_cumulative
 
     def recompute_edges(self, graph, pos, coord_mean, coord_std, box_size, unit_cell, k):
         pos_unnormed = pos * coord_std + coord_mean

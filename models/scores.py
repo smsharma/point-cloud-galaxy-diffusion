@@ -165,20 +165,16 @@ class EGNNScoreNet(nn.Module):
         box_size = self.norm_dict["box_size"]
         unit_cell = None
 
-        if box_size is not None:
-            z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
+        # if box_size is not None:
+        #     z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
 
-            # The following is just to compute d2, which isn't really used anyway
-            z_unnormed_pbc = z_unnormed - box_size * np.round(z_unnormed / box_size)
-            z_pbc = (z_unnormed_pbc - coord_mean) / coord_std
-            d2 = np.sum(z_pbc**2, axis=-1, keepdims=True)
+        #     d2 = np.sum(z[..., :n_pos_features] ** 2, axis=-1, keepdims=True)
 
-            unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-            sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(z_unnormed, k, box_size, unit_cell, mask)
-            print(targets.sum())
-        else:
-            d2 = np.sum(z[..., :n_pos_features] ** 2, axis=-1, keepdims=True)
-            sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., :n_pos_features], k, mask=mask)
+        #     unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+        #     sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(z_unnormed, k, box_size, unit_cell, mask)
+        # else:
+        d2 = np.sum(z[..., :n_pos_features] ** 2, axis=-1, keepdims=True)
+        sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., :n_pos_features], k, mask=mask)
 
         n_batch = z.shape[0]
         graph = jraph.GraphsTuple(
@@ -203,9 +199,11 @@ class EGNNScoreNet(nn.Module):
 
         # return h
 
-        # Subtract center of mass
-        z_com = np.mean(z[..., :n_pos_features], axis=1, keepdims=True)
-        z_pos_centered = z[..., :n_pos_features] - z_com
+        # # Subtract center of mass
+        # z_com = np.mean(z[..., :n_pos_features], axis=1, keepdims=True)
+        # z_pos_centered = z[..., :n_pos_features] - z_com
+
+        z_pos_centered = z[..., :n_pos_features]
 
         h = jax.vmap(EGNNJax(k=k), in_axes=(0, 0, 0, 0, None, None, None, None))(graph, z_pos_centered, None, None, coord_mean, coord_std, box_size, unit_cell)
 

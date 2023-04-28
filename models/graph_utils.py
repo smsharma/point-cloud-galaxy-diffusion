@@ -5,12 +5,14 @@ from jax_md import space, partition
 
 from functools import partial
 
+
 def apply_pbc(dr, cell):
     """Compute the distance between x and y accounting for periodic boundary conditions."""
     return dr - np.round(dr.dot(np.linalg.inv(cell))).dot(cell)
 
+
 @partial(jax.jit, static_argnums=(1,))
-def nearest_neighbors(x, k, boxsize: float=None, unit_cell=None, mask=None):
+def nearest_neighbors(x, k, boxsize: float = None, unit_cell=None, mask=None):
     """
     The shittiest implementation of nearest neighbours with masking in the world.
     Now with periodic boundary conditions!
@@ -24,7 +26,10 @@ def nearest_neighbors(x, k, boxsize: float=None, unit_cell=None, mask=None):
     # Compute the vector difference between positions accounting for PBC
     dr = x[:, None, :] - x[None, :, :]
     if boxsize is not None:
-        dr = apply_pbc(dr=dr, cell=boxsize*unit_cell,)
+        dr = apply_pbc(
+            dr=dr,
+            cell=boxsize * unit_cell,
+        )
     # Calculate the distance matrix accounting for PBC
     distance_matrix = np.sum(dr**2, axis=-1)
 

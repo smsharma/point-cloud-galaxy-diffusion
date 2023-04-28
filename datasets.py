@@ -62,8 +62,10 @@ def get_nbody_data(
     return x, mask, conditioning, norm_dict
 
 
-def nbody_dataset(n_features, n_particles, batch_size, seed, small=False):
+def nbody_dataset(n_features, n_particles, batch_size, seed, small=False, n_samples=None):
     x, mask, conditioning, norm_dict = get_nbody_data(n_features, n_particles, small)
+    if n_samples is not None:
+        x, mask, conditioning = x[:n_samples], mask[:n_samples], conditioning[:n_samples]
     train_ds = make_dataloader(x, conditioning, mask, batch_size, seed)
     return train_ds, norm_dict
 
