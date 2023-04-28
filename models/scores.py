@@ -163,6 +163,12 @@ class EGNNScoreNet(nn.Module):
         coord_mean = np.array(self.norm_dict["x_mean"])
         coord_std = np.array(self.norm_dict["x_std"])
         box_size = self.norm_dict["box_size"]
+        unit_cell = None
+
+        # if box_size is not None:
+        #     z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
+
+        #     d2 = np.sum(z[..., :n_pos_features] ** 2, axis=-1, keepdims=True)
 
         if box_size is not None:
             z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
@@ -198,7 +204,13 @@ class EGNNScoreNet(nn.Module):
 
         # return h
 
-        h = jax.vmap(EGNNJax(k=k), in_axes=(0, 0, 0, 0, None, None, None))(graph, z[..., :n_pos_features], None, None, coord_mean, coord_std, box_size)
+        # # Subtract center of mass
+        # z_com = np.mean(z[..., :n_pos_features], axis=1, keepdims=True)
+        # z_pos_centered = z[..., :n_pos_features] - z_com
+
+        z_pos_centered = z[..., :n_pos_features]
+
+        h = jax.vmap(EGNNJax(k=k), in_axes=(0, 0, 0, 0, None, None, None, None))(graph, z_pos_centered, None, None, coord_mean, coord_std, box_size, unit_cell)
 
         return h
 

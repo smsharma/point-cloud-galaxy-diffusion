@@ -1,3 +1,4 @@
+import os
 import tensorflow as tf
 import jax
 import jax.numpy as np
@@ -35,8 +36,12 @@ def get_nbody_data(
     small=False,
 ):
     if small:
-        x = np.load("./notebooks/data_local/halos_small.npy")
-        conditioning = np.array(pd.read_csv("./notebooks/data_local/cosmology_small.csv").values)
+        # Get the absolute path of the current script
+        script_path = os.path.abspath(__file__)
+        script_dir = os.path.dirname(script_path)
+
+        x = np.load("{}/notebooks/data_local/halos_small.npy".format(script_dir))
+        conditioning = np.array(pd.read_csv("{}/notebooks/data_local/cosmology_small.csv".format(script_dir)).values)
     else:
         x = np.load("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/halos.npy")
         conditioning = np.array(pd.read_csv("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/cosmology.csv").values)
@@ -57,8 +62,10 @@ def get_nbody_data(
     return x, mask, conditioning, norm_dict
 
 
-def nbody_dataset(n_features, n_particles, batch_size, seed):
-    x, mask, conditioning, norm_dict = get_nbody_data(n_features, n_particles)
+def nbody_dataset(n_features, n_particles, batch_size, seed, small=False, n_samples=None):
+    x, mask, conditioning, norm_dict = get_nbody_data(n_features, n_particles, small)
+    if n_samples is not None:
+        x, mask, conditioning = x[:n_samples], mask[:n_samples], conditioning[:n_samples]
     train_ds = make_dataloader(x, conditioning, mask, batch_size, seed)
     return train_ds, norm_dict
 
@@ -119,7 +126,7 @@ def jetnet_dataset(n_features, n_particles, batch_size, seed, jet_type=["q", "g"
 
 def load_data(dataset, n_features, n_particles, batch_size, seed, **kwargs):
     if dataset == "nbody":
-        train_ds, norm_dict = nbody_dataset(n_features, n_particles, batch_size, seed)
+        train_ds, norm_dict = nbody_dataset(n_features, n_particles, batch_size, seed, **kwargs)
     elif dataset == "jetnet":
         train_ds, norm_dict = jetnet_dataset(n_features, n_particles, batch_size, seed, **kwargs)
     else:

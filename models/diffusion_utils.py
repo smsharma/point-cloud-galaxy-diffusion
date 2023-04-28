@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as np
 import flax.linen as nn
+from einops import rearrange
 
 
 class NoiseScheduleScalar(nn.Module):
@@ -45,12 +46,12 @@ def variance_preserving_map(x, gamma, eps):
 
     x_shape = x.shape
 
-    x = x.reshape(x.shape[0], -1)
-    eps = eps.reshape(eps.shape[0], -1)
+    x = rearrange(x, "b n f -> b (n f)")
+    eps = rearrange(eps, "b n f -> b (n f)")
 
     noise_augmented = a * x + np.sqrt(var) * eps
 
-    return noise_augmented.reshape(x_shape)
+    return rearrange(noise_augmented, "b (n f) -> b n f", n=x_shape[1])
 
 
 def get_timestep_embedding(timesteps, embedding_dim: int, dtype=np.float32):

@@ -11,6 +11,7 @@ from models.diffusion_utils import variance_preserving_map, alpha, sigma2
 from models.diffusion_utils import NoiseScheduleScalar, NoiseScheduleFixedLinear
 from models.scores import TransformerScoreNet, GraphScoreNet, EquivariantTransformerNet, EGNNScoreNet, NEQUIPScoreNet
 from models.mlp import MLPEncoder, MLPDecoder
+from models.graph_utils import apply_pbc
 
 tfd = tfp.distributions
 
@@ -94,7 +95,7 @@ class VariationalDiffusionModel(nn.Module):
         # If using periodic boundary conditions, subtract center-of-mass from noise
         if self.norm_dict["box_size"] is not None:
             # Normalize eps to zero center-of-mass (first 3 elements of last dim)
-            eps_com = np.mean(eps_0[..., :3], axis=-2, keepdims=True)
+            eps_com = np.mean(eps_0[..., :3], axis=1, keepdims=True)
 
             # Subtract center-of-mass from first 3 elements of last dim of eps
             eps_0 = eps_0.at[..., :3].set(eps_0[..., :3] - eps_com)
@@ -125,7 +126,7 @@ class VariationalDiffusionModel(nn.Module):
         # If using periodic boundary conditions, subtract center-of-mass from noise
         if self.norm_dict["box_size"] is not None:
             # Normalize eps to zero center-of-mass (first 3 elements of last dim)
-            eps_com = np.mean(eps[..., :3], axis=-2, keepdims=True)
+            eps_com = np.mean(eps[..., :3], axis=1, keepdims=True)
 
             # Subtract center-of-mass from first 3 elements of last dim of eps
             eps = eps.at[..., :3].set(eps[..., :3] - eps_com)
@@ -133,7 +134,17 @@ class VariationalDiffusionModel(nn.Module):
         z_t = variance_preserving_map(f, g_t[:, None], eps)
 
         eps_hat = self.score_model(z_t, g_t, cond, mask)  # Compute predicted noise
-        loss_diff_mse = np.square(eps - eps_hat)  # Compute MSE of predicted noise
+
+        x_std = np.array(self.norm_dict["x_std"])
+
+        if self.norm_dict["box_size"] is None:
+            deps = eps - eps_hat
+        else:
+            deps = (eps - eps_hat) * x_std  # Compute difference between predicted and true noise
+            unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+            deps = apply_pbc(deps, self.norm_dict["box_size"] * unit_cell) / x_std  # Apply periodic boundary conditions
+
+        loss_diff_mse = np.square(deps)  # Compute MSE of predicted noise
 
         T = self.timesteps
 
@@ -234,7 +245,7 @@ class VariationalDiffusionModel(nn.Module):
 
         # Subtract center-of-mass from first 3 elements of last dim of eps
         if self.norm_dict["box_size"] is not None:
-            eps_com = np.mean(eps[..., :3], axis=-2, keepdims=True)
+            eps_com = np.mean(eps[..., :3], axis=1, keepdims=True)
             eps = eps.at[..., :3].set(eps[..., :3] - eps_com)
 
         t = (T - i) / T

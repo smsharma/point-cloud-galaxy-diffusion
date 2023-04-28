@@ -204,7 +204,7 @@ if __name__ == "__main__":
     n_steps = 1000
     lr = 1e-2
 
-    fit_idx = 1 
+    fit_idx = 1
     x = load_data_for_inference(config)
     x_test = x[fit_idx]
 
@@ -235,14 +235,12 @@ if __name__ == "__main__":
     num_samples = 10_000
 
     rng, _ = jax.random.split(rng)
-    posterior_dict = guide.sample_posterior(
-        rng_key=rng, params=svi_results.params, sample_shape=(num_samples,)
-    )
-    print('Got posterior!')
+    posterior_dict = guide.sample_posterior(rng_key=rng, params=svi_results.params, sample_shape=(num_samples,))
+    print("Got posterior!")
     print(posterior_dict)
-    with open(f'chain_{fit_idx}.pkl', 'wb') as f:
+    with open(f"chain_{fit_idx}.pkl", "wb") as f:
         pickle.dump(posterior_dict, f)
-    #post = vnp.array(posterior_dict["params"])
-    #print('post array')
-    #print(post)
-    #vnp.save(f'chain_{fit_idx}.npy', post)
+    # post = vnp.array(posterior_dict["params"])
+    # print('post array')
+    # print(post)
+    # vnp.save(f'chain_{fit_idx}.npy', post)
