@@ -165,10 +165,10 @@ class EGNNScoreNet(nn.Module):
         box_size = self.norm_dict["box_size"]
         unit_cell = None
 
-        # if box_size is not None:
-        #     z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
+        if box_size is not None:
+            z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
 
-        #     d2 = np.sum(z[..., :n_pos_features] ** 2, axis=-1, keepdims=True)
+            d2 = np.sum(z[..., :n_pos_features] ** 2, axis=-1, keepdims=True)
 
         if box_size is not None:
             z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
