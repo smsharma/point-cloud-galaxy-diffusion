@@ -170,13 +170,8 @@ class EGNNScoreNet(nn.Module):
 
             d2 = np.sum(z[..., :n_pos_features] ** 2, axis=-1, keepdims=True)
 
-        if box_size is not None:
-            z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
-            z_unnormed_pbc = z_unnormed - box_size * np.round(z_unnormed / box_size)
-            z_pbc = (z_unnormed_pbc - coord_mean) / coord_std
-            d2 = np.sum(z_pbc**2, axis=-1, keepdims=True)
-            unit_cell = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-            sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, 0))(z_unnormed, k, box_size, unit_cell, mask)
+            unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+            sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(z_unnormed, k, box_size, unit_cell, mask)
         else:
             d2 = np.sum(z[..., :n_pos_features] ** 2, axis=-1, keepdims=True)
             sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(z[..., :n_pos_features], k, mask=mask)
