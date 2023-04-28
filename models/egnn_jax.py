@@ -158,9 +158,9 @@ class EGNN(nn.Module):
     act_fn: Callable = jax.nn.gelu
     num_layers: int = 4
     residual: bool = True
-    attention: bool = False
+    attention: bool = True
     normalize: bool = False
-    tanh: bool = False
+    tanh: bool = True
     k: int = 20
 
     @nn.compact

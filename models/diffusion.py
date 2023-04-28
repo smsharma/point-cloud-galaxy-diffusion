@@ -137,6 +137,7 @@ class VariationalDiffusionModel(nn.Module):
 
         x_std = np.array(self.norm_dict["x_std"])
 
+        # If using periodic boundary conditions, take this into account when comparing predicted and true noise
         if self.norm_dict["box_size"] is None:
             deps = eps - eps_hat
         else:
@@ -243,7 +244,7 @@ class VariationalDiffusionModel(nn.Module):
         rng_body = jax.random.fold_in(rng, i)
         eps = jax.random.normal(rng_body, z_t.shape)
 
-        # Subtract center-of-mass from first 3 elements of last dim of eps
+        # Subtract center-of-mass from first 3 elements of last dim of eps if using PBCs
         if self.norm_dict["box_size"] is not None:
             eps_com = np.mean(eps[..., :3], axis=1, keepdims=True)
             eps = eps.at[..., :3].set(eps[..., :3] - eps_com)
