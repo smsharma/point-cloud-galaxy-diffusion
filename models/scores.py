@@ -130,7 +130,8 @@ class GraphScoreNet(nn.Module):
         score_dict.pop("n_pos_features", None)
 
         h = jax.vmap(GraphConvNet(**score_dict))(graph)
-        return h.nodes
+        pos_update = graph.nodes - h.nodes
+        return pos_update
 
 
 
