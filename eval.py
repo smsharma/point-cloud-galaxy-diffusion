@@ -663,6 +663,9 @@ def generate_samples(
     norm_dict,
     boxsize,
 ):
+    print('conditioning in generate')
+    print(conditioning.shape)
+    print(conditioning)
     generated_samples = generate(
         vdm,
         params,
@@ -684,9 +687,9 @@ def generate_samples(
 def generate_test_samples_from_model_folder(
     path_to_model: Path,
     steps: int = 500,
-    batch_size: int = 32,
+    batch_size: int = 20,
     boxsize: float = 1000.,
-    n_test: int = 1600,
+    n_test: int = 200,
 ):
     with open(path_to_model / "config.yaml", "r") as file:
         config = yaml.safe_load(file)
@@ -707,12 +710,12 @@ def generate_test_samples_from_model_folder(
     )
     rng = jax.random.PRNGKey(42)
     n_batches = n_test // batch_size
-    print(f'N batches = ', n_batches)
-    true_samples, generated_samples = [], []
+    true_samples, generated_samples, conditioning_samples = [], [], []
     for i in range(n_batches):
         t0 = time.time()
-        print(f'Iteration {i}')
         x_batch, conditioning_batch, mask_batch = next(batches)
+        print(x_batch.shape)
+        print(conditioning_batch.shape)
         true_samples.append(x_batch[0] * norm_dict["std"] + norm_dict["mean"])
         generated_samples.append(
             generate_samples(
@@ -728,20 +731,22 @@ def generate_test_samples_from_model_folder(
                     boxsize=boxsize,
                 )
         ) 
+        conditioning_samples.append(conditioning_batch[0]) 
         print(f'Iteration {i} takes {time.time() - t0} seconds')
-    return np.array(true_samples), np.array(generated_samples)
+    return np.array(true_samples), np.array(generated_samples), np.array(conditioning_samples)
 
 if __name__ == "__main__":
     t0 = time.time()
-    run_name = 'misunderstood-surf-117'
+    run_name = 'chocolate-cloud-122'
     path_to_samples = Path(f'/n/holystore01/LABS/itc_lab/Users/ccuestalazaro/set_diffuser/samples/{run_name}')
     path_to_samples.mkdir(exist_ok=True)
     path_to_model = Path(f"/n/home11/ccuestalazaro/set-diffuser/logging/cosmology/{run_name}")
     steps = 500
-    true_samples, generated_samples = generate_test_samples_from_model_folder(
+    true_samples, generated_samples, conditioninig_samples = generate_test_samples_from_model_folder(
         path_to_model=path_to_model, 
         steps=steps,
     )
     np.save(path_to_samples / f'true_test_samples.npy', true_samples)
     np.save(path_to_samples / f'generated_test_samples_{steps}_steps.npy', generated_samples)
+    np.save(path_to_samples / f'cond_test_samples_{steps}_steps.npy', conditioninig_samples)
     print(f"It takes {time.time() - t0} seconds to generate samples")
