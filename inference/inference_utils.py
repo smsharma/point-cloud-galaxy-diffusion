@@ -90,7 +90,7 @@ def get_model(
     restored_state_params,
     rng,
 ):
-    def model(x_test, n_samples=2, steps=50,):
+    def model(x_test, n_samples=2, steps=20,):
         # Omega_m and sigma_8 prior distributions
         omega_m = numpyro.sample("omega_m", dist.Uniform(0.1, 0.5))
         sigma_8 = numpyro.sample("sigma_8", dist.Uniform(0.6, 1.0))

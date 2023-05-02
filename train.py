@@ -71,7 +71,11 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
     decoder_dict = FrozenDict(config.decoder)
 
     # Diffusion model
-    vdm = VariationalDiffusionModel(d_feature=config.data.n_features, timesteps=config.vdm.timesteps, noise_schedule=config.vdm.noise_schedule, noise_scale=config.vdm.noise_scale, gamma_min=config.vdm.gamma_min, gamma_max=config.vdm.gamma_max, score=config.score.score, score_dict=score_dict, embed_context=config.vdm.embed_context, d_context_embedding=config.vdm.d_context_embedding, n_classes=config.vdm.n_classes, use_encdec=config.vdm.use_encdec, encoder_dict=encoder_dict, decoder_dict=decoder_dict)
+    x_mean = tuple(map(float, norm_dict["mean"]))
+    x_std = tuple(map(float, norm_dict["std"]))
+    box_size = config.data.box_size
+    norm_dict_input = FrozenDict({"x_mean": x_mean, "x_std": x_std 'box_size': box_size,})
+    vdm = VariationalDiffusionModel(d_feature=config.data.n_features, timesteps=config.vdm.timesteps, noise_schedule=config.vdm.noise_schedule, noise_scale=config.vdm.noise_scale, gamma_min=config.vdm.gamma_min, gamma_max=config.vdm.gamma_max, score=config.score.score, score_dict=score_dict, embed_context=config.vdm.embed_context, d_context_embedding=config.vdm.d_context_embedding, n_classes=config.vdm.n_classes, use_encdec=config.vdm.use_encdec, encoder_dict=encoder_dict, decoder_dict=decoder_dict, norm_dict=norm_dict_input,)
 
     rng = jax.random.PRNGKey(config.seed)
     rng, rng_params = jax.random.split(rng)

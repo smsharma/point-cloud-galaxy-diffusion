@@ -76,6 +76,8 @@ class VariationalDiffusionModel(nn.Module):
     embed_context: bool = False
     d_context_embedding: int = 32
     use_encdec: bool = True
+    norm_dict: dict = dataclasses.field(default_factory=lambda: {"mean": 0.0, "std": 1.0, "box_size": None,})
+
 
     @classmethod
     def from_path_to_model(cls, path_to_model: Union[str, Path])->"VariationalDiffusionModel":
@@ -150,7 +152,7 @@ class VariationalDiffusionModel(nn.Module):
             )
         elif self.score == "graph":
             self.score_model = GraphScoreNet(
-                d_t_embedding=self.d_t_embedding, score_dict=self.score_dict
+                d_t_embedding=self.d_t_embedding, score_dict=self.score_dict, norm_dict=self.norm_dict,
             )
         elif self.score == "egnn":
             self.score_model = EGNNScoreNet(
@@ -213,13 +215,13 @@ class VariationalDiffusionModel(nn.Module):
         z_t = variance_preserving_map(f, g_t[:, None], eps)
 
         eps_hat = self.score_model(z_t, g_t, cond, mask)  # Compute predicted noise
-        if self.box_size is not None:
+        if self.norm_dict['box_size'] is not None:
             deps = eps - eps_hat
         else:
             x_std = np.array(self.norm_dict['std'])
             deps = (eps - eps_hat) * x_std
             unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-            deps = apply_pbc(deps, self.box_size * unit_cell) / x_std  # Apply periodic boundary conditions
+            deps = apply_pbc(deps, self.norm_dict['box_size'] * unit_cell) / x_std  # Apply periodic boundary conditions
 
         loss_diff_mse = np.square(eps - eps_hat)  # Compute MSE of predicted noise
 

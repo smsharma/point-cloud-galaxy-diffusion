@@ -72,7 +72,13 @@ class GraphScoreNet(nn.Module):
             "skip_connections": True,
             "message_passing_steps": 4,
             "n_pos_features": 3,
-            "box_size": 1000.,
+        }
+    )
+    norm_dict: dict = dataclasses.field(
+        default_factory=lambda: {
+            "x_mean": None,
+            "x_std": None,
+            "box_size": None,
         }
     )
 
@@ -98,15 +104,16 @@ class GraphScoreNet(nn.Module):
         cond = MLP([d_cond * 4, d_cond * 4, d_cond])(cond)
         k = self.score_dict["k"]
         n_pos_features = self.score_dict["n_pos_features"]
-        if self.box_size is not None:
+        box_size = self.norm_dict["box_size"]
+        if box_size is not None:
             coord_mean = np.array(self.norm_dict["x_mean"])
             coord_std = np.array(self.norm_dict["x_std"])
             z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
             unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
             sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
-                z_unnormed, k, self.box_size, unit_cell, mask,
+                z_unnormed, k, box_size, unit_cell, mask,
             )
-            z_unnormed = wrap_positions_to_periodic_box(z_unnormed, cell_matrix=self.box_size*unit_cell)
+            z_unnormed = wrap_positions_to_periodic_box(z_unnormed, cell_matrix=box_size*unit_cell)
             z = (z_unnormed - coord_mean) / coord_std
         else:
             sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(
