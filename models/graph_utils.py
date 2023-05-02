@@ -5,13 +5,28 @@ from jax_md import space, partition
 
 from functools import partial
 
+def wrap_positions_to_periodic_box(positions: np.array, cell_matrix: np.array)->np.array:
+    """
+    Apply periodic boundary conditions to a set of positions.
+
+    Args:
+        positions (np.array): An array of shape (N, 3) containing the particle positions.
+        cell_matrix (np.array): A 3x3 matrix describing the box dimensions and orientation.
+
+    Returns:
+        numpy.ndarray: An array of shape (N, 3) containing the wrapped particle positions.
+    """
+    inv_cell_matrix = np.linalg.inv(cell_matrix)
+    fractional_positions = np.matmul(positions, inv_cell_matrix)
+    fractional_positions = np.mod(fractional_positions, 1.0)
+    return np.matmul(fractional_positions, cell_matrix)
 
 def apply_pbc(dr: np.array, cell: np.array) -> np.array:
     """Apply periodic boundary conditions to a displacement vector, dr, given a cell.
 
     Args:
-        dr (np.array): displacement vector
-        cell (np.array): cell matrix
+        dr (np.array): An array of shape (N,3) containing the displacement vector
+        cell_matrix (np.array): A 3x3 matrix describing the box dimensions and orientation.
 
     Returns:
         np.array: displacement vector with periodic boundary conditions applied

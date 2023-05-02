@@ -23,6 +23,7 @@ from models.scores import (
     EGNNScoreNet,
     NEQUIPScoreNet,
 )
+from models.graph_utils import apply_pbc
 from models.mlp import MLPEncoder, MLPDecoder
 
 tfd = tfp.distributions
@@ -62,6 +63,7 @@ class VariationalDiffusionModel(nn.Module):
             "d_mlp": 512,
             "n_layers": 4,
             "n_heads": 4,
+            "box_size": 1000.,
         }
     )
     encoder_dict: dict = dataclasses.field(
@@ -211,6 +213,14 @@ class VariationalDiffusionModel(nn.Module):
         z_t = variance_preserving_map(f, g_t[:, None], eps)
 
         eps_hat = self.score_model(z_t, g_t, cond, mask)  # Compute predicted noise
+        if self.box_size is not None:
+            deps = eps - eps_hat
+        else:
+            x_std = np.array(self.norm_dict['std'])
+            deps = (eps - eps_hat) * x_std
+            unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+            deps = apply_pbc(deps, self.box_size * unit_cell) / x_std  # Apply periodic boundary conditions
+
         loss_diff_mse = np.square(eps - eps_hat)  # Compute MSE of predicted noise
 
         T = self.timesteps
