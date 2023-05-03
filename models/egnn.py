@@ -101,8 +101,11 @@ def get_edge_mlp_updates(d_hidden, n_layers, activation, position_only=False) ->
         phi_x = MLP([d_hidden] * (n_layers - 1) + [1], activation=activation)
 
         # Get invariants
-        message_scalars = jnp.concatenate([jnp.linalg.norm(x_i - x_j, axis=1, keepdims=True) ** 2, globals], axis=-1)
-        """'
+        message_scalars = jnp.concatenate(
+            [jnp.linalg.norm(x_i - x_j, axis=1, keepdims=True) ** 2, globals], axis=-1
+        )
+        jax.debug.print(f'nans in message scalars = {jnp.sum(jnp.isnan(message_scalars))}')
+        ''''
         if edges is not None:
             # edges[1] = m_ij? -> edges are updated, so after one iteration it won't be None but the message
             message_scalars = jnp.concatenate(
@@ -110,6 +113,7 @@ def get_edge_mlp_updates(d_hidden, n_layers, activation, position_only=False) ->
             )  # Add edge features if available
         """
         m_ij = phi_e(message_scalars)
+        jax.debug.print(f'nans in m_ij = {jnp.sum(jnp.isnan(m_ij))}')
         return (x_i - x_j) * phi_x(m_ij), m_ij
 
     return update_fn if not position_only else update_fn_position_only
@@ -227,11 +231,16 @@ class EGNN(nn.Module):
         update_edge_fn = get_edge_mlp_updates(self.d_hidden, self.n_layers, activation, position_only=positions_only)
         # Apply message-passing rounds
         for _ in range(self.message_passing_steps):
-            graph_net = jraph.GraphNetwork(update_node_fn=update_node_fn, update_edge_fn=update_edge_fn)
+            jax.debug.print('**********')
+            graph_net = jraph.GraphNetwork(
+                update_node_fn=update_node_fn, update_edge_fn=update_edge_fn
+            )
             if self.skip_connections:
                 processed_graphs = add_graphs_tuples(graph_net(processed_graphs), processed_graphs)
             else:
                 processed_graphs = graph_net(processed_graphs)
+            jax.debug.breakpoint()
+            jax.debug.print(f'nans before norm layers = {jnp.sum(jnp.isnan(processed_graphs.nodes))}')
             if self.norm_layer:
                 processed_graphs = self.norm(processed_graphs, positions_only=positions_only)
         return processed_graphs

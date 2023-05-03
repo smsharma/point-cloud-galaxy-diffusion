@@ -83,6 +83,9 @@ def attention_logit_fn(senders, receivers, edges):
     feat = jnp.concatenate((senders, receivers), axis=-1)
     return jax.nn.leaky_relu(MLP(1)(feat))
 
+def attention_reduce_fn(edge_features, weights):
+    return edge_features[0] * weights
+
 class GraphConvNet(nn.Module):
     """A simple graph convolutional network"""
 
@@ -110,19 +113,20 @@ class GraphConvNet(nn.Module):
         processed_graphs = embedder(graphs)
         # Keep "batch" index of globals, flatten the rest
         processed_graphs = processed_graphs._replace(
-            globals=processed_graphs.globals.reshape(processed_graphs.globals.shape[0], -1)
+            globals=processed_graphs.globals.reshape(1, -1),
         )
         mlp_feature_sizes = [self.latent_size] * self.num_mlp_layers
         update_node_fn = get_node_mlp_updates(mlp_feature_sizes)
         update_edge_fn = get_edge_mlp_updates(mlp_feature_sizes)
 
         # Now, we will apply the GCN once for each message-passing round.
-        graph_net = jraph.GraphNetwork(
-            update_node_fn=update_node_fn, 
-            update_edge_fn=update_edge_fn,
-            attention_logit_fn = attention_logit_fn if self.attention else None,
-        )
         for _ in range(self.message_passing_steps):
+            graph_net = jraph.GraphNetwork(
+                update_node_fn=update_node_fn, 
+                update_edge_fn=update_edge_fn,
+                attention_logit_fn = attention_logit_fn if self.attention else None,
+                attention_reduce_fn = attention_reduce_fn if self.attention else None,
+            )
             if self.skip_connections:
                 processed_graphs = add_graphs_tuples(
                     graph_net(processed_graphs), processed_graphs

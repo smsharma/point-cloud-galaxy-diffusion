@@ -27,7 +27,12 @@ import tensorflow as tf
 from eval import eval_generation
 from models.diffusion import VariationalDiffusionModel
 from models.diffusion_utils import loss_vdm
-from models.train_utils import create_input_iter, param_count, train_step, to_wandb_config
+from models.train_utils import (
+    create_input_iter,
+    param_count,
+    train_step,
+    to_wandb_config,
+)
 
 from datasets import load_data
 
@@ -37,13 +42,22 @@ unreplicate = flax.jax_utils.unreplicate
 logging.set_verbosity(logging.INFO)
 
 
-def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> train_state.TrainState:
-
+def train(
+    config: ml_collections.ConfigDict, workdir: str = "./logging/"
+) -> train_state.TrainState:
     # Set up wandb run
     if config.wandb.log_train and jax.process_index() == 0:
         wandb_config = to_wandb_config(config)
-        run = wandb.init(entity=config.wandb.entity, project=config.wandb.project, job_type=config.wandb.job_type, group=config.wandb.group, config=wandb_config)
-        wandb.define_metric("*", step_metric="train/step")  # Set default x-axis as 'train/step'
+        run = wandb.init(
+            entity=config.wandb.entity,
+            project=config.wandb.project,
+            job_type=config.wandb.job_type,
+            group=config.wandb.group,
+            config=wandb_config,
+        )
+        wandb.define_metric(
+            "*", step_metric="train/step"
+        )  # Set default x-axis as 'train/step'
         workdir = os.path.join(workdir, run.group, run.name)
 
         # Recursively create workdir
@@ -53,10 +67,21 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
     with open(os.path.join(workdir, "config.yaml"), "w") as f:
         yaml.dump(config.to_dict(), f)
 
-    writer = metric_writers.create_default_writer(logdir=workdir, just_logging=jax.process_index() != 0)
+    writer = metric_writers.create_default_writer(
+        logdir=workdir, just_logging=jax.process_index() != 0
+    )
 
     # Load the dataset
-    train_ds, norm_dict = load_data(config.data.dataset, config.data.n_features, config.data.n_particles, config.training.batch_size, config.seed, **config.data.kwargs)
+    train_ds, norm_dict = load_data(
+        config.data.dataset,
+        config.data.n_features,
+        config.data.n_particles,
+        config.training.batch_size,
+        config.seed,
+        shuffle=True,
+        split="train",
+        **config.data.kwargs,
+    )
 
     batches = create_input_iter(train_ds)
 
@@ -70,7 +95,33 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
     decoder_dict = FrozenDict(config.decoder)
 
     # Diffusion model
-    vdm = VariationalDiffusionModel(d_feature=config.data.n_features, timesteps=config.vdm.timesteps, noise_schedule=config.vdm.noise_schedule, noise_scale=config.vdm.noise_scale, gamma_min=config.vdm.gamma_min, gamma_max=config.vdm.gamma_max, score=config.score.score, score_dict=score_dict, embed_context=config.vdm.embed_context, d_context_embedding=config.vdm.d_context_embedding, n_classes=config.vdm.n_classes, use_encdec=config.vdm.use_encdec, encoder_dict=encoder_dict, decoder_dict=decoder_dict)
+    x_mean = tuple(map(float, norm_dict["mean"]))
+    x_std = tuple(map(float, norm_dict["std"]))
+    box_size = config.data.box_size
+    norm_dict_input = FrozenDict(
+        {
+            "x_mean": x_mean,
+            "x_std": x_std,
+            "box_size": box_size,
+        }
+    )
+    vdm = VariationalDiffusionModel(
+        d_feature=config.data.n_features,
+        timesteps=config.vdm.timesteps,
+        noise_schedule=config.vdm.noise_schedule,
+        noise_scale=config.vdm.noise_scale,
+        gamma_min=config.vdm.gamma_min,
+        gamma_max=config.vdm.gamma_max,
+        score=config.score.score,
+        score_dict=score_dict,
+        embed_context=config.vdm.embed_context,
+        d_context_embedding=config.vdm.d_context_embedding,
+        n_classes=config.vdm.n_classes,
+        use_encdec=config.vdm.use_encdec,
+        encoder_dict=encoder_dict,
+        decoder_dict=decoder_dict,
+        norm_dict=norm_dict_input,
+    )
 
     rng = jax.random.PRNGKey(config.seed)
     rng, rng_params = jax.random.split(rng)
@@ -78,14 +129,24 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
     # Pass a test batch through to initialize model
     # TODO: Make so we don't have to pass an entire batch (slow)
     x_batch, conditioning_batch, mask_batch = next(batches)
-    _, params = vdm.init_with_output({"sample": rng, "params": rng_params}, x_batch[0], conditioning_batch[0], mask_batch[0])
+    _, params = vdm.init_with_output(
+        {"sample": rng, "params": rng_params},
+        x_batch[0],
+        conditioning_batch[0],
+        mask_batch[0],
+    )
 
     logging.info("Instantiated the model")
     logging.info("Number of parameters: %d", param_count(params))
 
     ## Training config and loop
 
-    schedule = optax.warmup_cosine_decay_schedule(init_value=0.0, peak_value=config.optim.learning_rate, warmup_steps=config.training.warmup_steps, decay_steps=config.training.n_train_steps)
+    schedule = optax.warmup_cosine_decay_schedule(
+        init_value=0.0,
+        peak_value=config.optim.learning_rate,
+        warmup_steps=config.training.warmup_steps,
+        decay_steps=config.training.n_train_steps,
+    )
     tx = optax.adamw(learning_rate=schedule, weight_decay=config.optim.weight_decay)
 
     state = train_state.TrainState.create(apply_fn=vdm.apply, params=params, tx=tx)
@@ -96,19 +157,28 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
     train_metrics = []
     with trange(config.training.n_train_steps) as steps:
         for step in steps:
-
-            rng, *train_step_rng = jax.random.split(rng, num=jax.local_device_count() + 1)
+            rng, *train_step_rng = jax.random.split(
+                rng, num=jax.local_device_count() + 1
+            )
             train_step_rng = np.asarray(train_step_rng)
 
-            pstate, metrics = train_step(pstate, next(batches), train_step_rng, vdm, loss_vdm)
+            pstate, metrics = train_step(
+                pstate, next(batches), train_step_rng, vdm, loss_vdm
+            )
             steps.set_postfix(val=unreplicate(metrics["loss"]))
             train_metrics.append(metrics)
 
             # Log periodically
-            if (step % config.training.log_every_steps == 0) and (step != 0) and (jax.process_index() == 0):
-
+            if (
+                (step % config.training.log_every_steps == 0)
+                and (step != 0)
+                and (jax.process_index() == 0)
+            ):
                 train_metrics = common_utils.get_metrics(train_metrics)
-                summary = {f"train/{k}": v for k, v in jax.tree_map(lambda x: x.mean(), train_metrics).items()}
+                summary = {
+                    f"train/{k}": v
+                    for k, v in jax.tree_map(lambda x: x.mean(), train_metrics).items()
+                }
 
                 writer.write_scalars(step, summary)
                 train_metrics = []
@@ -117,7 +187,12 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
                     wandb.log({"train/step": step, **summary})
 
             # Eval periodically
-            if (step % config.training.eval_every_steps == 0) and (step != 0) and (jax.process_index() == 0) and (config.wandb.log_train):
+            if (
+                (step % config.training.eval_every_steps == 0)
+                and (step != 0)
+                and (jax.process_index() == 0)
+                and (config.wandb.log_train)
+            ):
                 eval_generation(
                     vdm=vdm,
                     pstate=unreplicate(pstate),
@@ -125,15 +200,27 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
                     n_samples=config.training.batch_size,
                     n_particles=config.data.n_particles,
                     true_samples=x_batch.reshape((-1, *x_batch.shape[2:])),
-                    conditioning=conditioning_batch.reshape((-1, *conditioning_batch.shape[2:])),
+                    conditioning=conditioning_batch.reshape(
+                        (-1, *conditioning_batch.shape[2:])
+                    ),
                     mask=mask_batch.reshape((-1, *mask_batch.shape[2:])),
                     norm_dict=norm_dict,
                 )
 
             # Save checkpoints periodically
-            if (step % config.training.save_every_steps == 0) and (step != 0) and (jax.process_index() == 0):
+            if (
+                (step % config.training.save_every_steps == 0)
+                and (step != 0)
+                and (jax.process_index() == 0)
+            ):
                 state_ckpt = unreplicate(pstate)
-                checkpoints.save_checkpoint(ckpt_dir=workdir, target=state_ckpt, step=step, overwrite=True, keep=np.inf)
+                checkpoints.save_checkpoint(
+                    ckpt_dir=workdir,
+                    target=state_ckpt,
+                    step=step,
+                    overwrite=True,
+                    keep=np.inf,
+                )
 
     logging.info("All done! Have a great day.")
 
@@ -141,9 +228,13 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
 
 
 if __name__ == "__main__":
-
     FLAGS = flags.FLAGS
-    config_flags.DEFINE_config_file("config", None, "File path to the training or sampling hyperparameter configuration.", lock_config=True)
+    config_flags.DEFINE_config_file(
+        "config",
+        None,
+        "File path to the training or sampling hyperparameter configuration.",
+        lock_config=True,
+    )
     FLAGS(sys.argv)  # Parse flags
 
     # Ensure TF does not see GPU and grab all GPU memory
