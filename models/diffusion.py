@@ -23,7 +23,7 @@ from models.scores import (
     EGNNScoreNet,
     NEQUIPScoreNet,
 )
-from models.graph_utils import apply_pbc
+from models.graph_utils import apply_pbc, wrap_positions_to_periodic_box
 from models.mlp import MLPEncoder, MLPDecoder
 
 tfd = tfp.distributions
@@ -191,6 +191,16 @@ class VariationalDiffusionModel(nn.Module):
         eps_0 = jax.random.normal(self.make_rng("sample"), shape=f.shape)
         z_0 = variance_preserving_map(f, g_0, eps_0)
         z_0_rescaled = z_0 / alpha(g_0)
+        if self.norm_dict['box_size'] is not None:
+            coord_mean = np.array(self.norm_dict["x_mean"])
+            coord_std = np.array(self.norm_dict["x_std"])
+            unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+            z_unnormed = z_0_rescaled * coord_std + coord_mean
+            z_unnormed = wrap_positions_to_periodic_box(
+                z_unnormed, 
+                cell_matrix=self.norm_dict['box_size']*unit_cell,
+            )
+            z_0_rescaled = (z_unnormed - coord_mean) / coord_std
         loss_recon = -self.decode(z_0_rescaled, cond).log_prob(x)
         return loss_recon
 
