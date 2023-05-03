@@ -256,14 +256,7 @@ class EGNN(nn.Module):
                 processed_graphs = graph_net(processed_graphs)
             if self.norm_layer:
                 processed_graphs = self.norm(processed_graphs, positions_only=positions_only)
-            # processed_graphs = self.recompute_edges(processed_graphs)
         return processed_graphs
-
-    # def recompute_edges(self, graph):
-    #     # TODO: Generalize to arbitrary k
-    #     sources, targets = nearest_neighbors(graph.nodes[..., :3], 20)
-    #     graph._replace(senders=sources, receivers=targets)
-    #     return graph
 
     def norm(self, graph, positions_only=False):
         if not positions_only:
