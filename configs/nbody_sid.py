@@ -13,7 +13,7 @@ def get_config():
     wandb.group = "cosmology"
     wandb.job_type = "training"
     wandb.name = None
-    wandb.log_train = True
+    wandb.log_train = False
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
@@ -37,25 +37,26 @@ def get_config():
     decoder.d_hidden = 256
     decoder.n_layers = 4
 
-    # Transformer score model
-    config.score = score = ml_collections.ConfigDict()
-    score.score = "transformer"
-    score.induced_attention = False
-    score.n_inducing_points = 200
-    score.d_model = 256
-    score.d_mlp = 512
-    score.n_layers = 4
-    score.n_heads = 2
-
-    # # # Graph score model
+    # # Transformer score model
     # config.score = score = ml_collections.ConfigDict()
-    # score.score = "graph"
-    # score.k = 20
-    # score.n_pos_features = 3
-    # score.num_mlp_layers = 4
-    # score.latent_size = 64
-    # score.skip_connections = True
-    # score.message_passing_steps = 4
+    # score.score = "transformer"
+    # score.induced_attention = False
+    # score.n_inducing_points = 200
+    # score.d_model = 256
+    # score.d_mlp = 512
+    # score.n_layers = 4
+    # score.n_heads = 2
+
+    # # Graph score model
+    config.score = score = ml_collections.ConfigDict()
+    score.score = "egnn"
+    score.k = 20
+    score.n_pos_features = 3
+    score.d_hidden = 64
+    score.n_layers = 3
+    score.norm_layer = True
+    score.skip_connections = False
+    score.message_passing_steps = 4
 
     # # Equivariant score model
     # config.score = score = ml_collections.ConfigDict()

@@ -3,9 +3,19 @@ from typing import Callable
 import flax.linen as nn
 import jax.numpy as jnp
 import jraph
+from jraph._src import utils
 
-from models.graph_utils import add_graphs_tuples
+from models.graph_utils import add_graphs_tuples, nearest_neighbors
 from models.mlp import MLP
+
+
+def fourier_features(x, num_encodings=16, include_self=True):
+    dtype, orig_x = x.dtype, x
+    scales = 2 ** jnp.arange(num_encodings, dtype=dtype)
+    x = x / scales
+    x = jnp.concatenate([jnp.sin(x), jnp.cos(x)], axis=-1)
+    x = jnp.concatenate((x, orig_x), axis=-1) if include_self else x
+    return x
 
 
 class CoordNorm(nn.Module):
@@ -13,11 +23,11 @@ class CoordNorm(nn.Module):
     https://github.com/lucidrains/egnn-pytorch/blob/main/egnn_pytorch/egnn_pytorch.py#LL67C28-L67C28
     """
 
-    eps: float = 1e-8
+    eps: float = 1e-5
     scale_init: float = 1.0
 
     def setup(self):
-        self.scale = self.param("scale", nn.initializers.ones, (1,))
+        self.scale = self.param("scale", nn.initializers.constant(self.scale_init), (1,))
 
     def __call__(self, coors):
         norm = jnp.linalg.norm(coors, axis=-1, keepdims=True)
@@ -25,9 +35,7 @@ class CoordNorm(nn.Module):
         return normed_coors * self.scale
 
 
-def get_edge_mlp_updates(
-    d_hidden, n_layers, activation, position_only=False
-) -> Callable:
+def get_edge_mlp_updates(d_hidden, n_layers, activation, position_only=False, use_fourier_features=False) -> Callable:
     """Get an edge MLP update function
 
     Args:
@@ -98,32 +106,33 @@ def get_edge_mlp_updates(
         x_i = senders
         x_j = receivers
 
+        print(globals.shape)
+
+        if x_i.shape[-1] == 3:
+            concats = globals
+        else:
+            x_i, h_i = x_i[:, :3], x_i[:, 3:]
+            x_j, h_j = x_j[:, :3], x_j[:, 3:]
+            concats = jnp.concatenate([h_i, h_j, globals], -1)
+
         # Messages from Eqs. (3) and (4)/(7)
         phi_e = MLP([d_hidden] * (n_layers), activation=activation)
         phi_x = MLP([d_hidden] * (n_layers - 1) + [1], activation=activation)
 
+        d_ij2 = jnp.sum((x_i - x_j) ** 2, axis=1, keepdims=True)
+        if use_fourier_features:
+            d_ij2 = fourier_features(d_ij2)
+        print(d_ij2.shape)
+
         # Get invariants
-        message_scalars = jnp.concatenate(
-            [jnp.linalg.norm(x_i - x_j, axis=1, keepdims=True) ** 2, globals], axis=-1
-        )
-        jax.debug.print(f'nans in message scalars = {jnp.sum(jnp.isnan(message_scalars))}')
-        ''''
-        if edges is not None:
-            # edges[1] = m_ij? -> edges are updated, so after one iteration it won't be None but the message
-            message_scalars = jnp.concatenate(
-                [message_scalars, edges[1]], axis=-1
-            )  # Add edge features if available
-        '''
+        message_scalars = jnp.concatenate([d_ij2, concats], axis=-1)
         m_ij = phi_e(message_scalars)
-        jax.debug.print(f'nans in m_ij = {jnp.sum(jnp.isnan(m_ij))}')
-        return (x_i - x_j) * phi_x(m_ij), m_ij
+        return (x_i - x_j) * phi_x(jnp.concatenate([m_ij, concats], -1)), m_ij
 
     return update_fn if not position_only else update_fn_position_only
 
 
-def get_node_mlp_updates(
-    d_hidden, n_layers, activation, n_edge, position_only=False
-) -> Callable:
+def get_node_mlp_updates(d_hidden, n_layers, activation, n_edge, position_only=False) -> Callable:
     """Get an node MLP update function
 
     Args:
@@ -156,9 +165,7 @@ def get_node_mlp_updates(
 
         # From Eqs. (6) and (7)
         phi_v = MLP([d_hidden] * (n_layers - 1) + [1], activation=activation)
-        phi_h = MLP(
-            [d_hidden] * (n_layers - 1) + [h_i.shape[-1]], activation=activation
-        )
+        phi_h = MLP([d_hidden] * (n_layers - 1) + [h_i.shape[-1]], activation=activation)
 
         # Apply updates
         v_i_p = sum_x_ij / (n_edge - 1) + phi_v(h_i) * v_i
@@ -185,13 +192,21 @@ def get_node_mlp_updates(
             jnp.ndarray: updated edge features
         """
 
-        sum_x_ij, _ = receivers  # Get aggregated messages
+        sum_x_ij, m_i = receivers  # Get aggregated messages
         x_i = nodes
 
         # Apply updates
-        x_i_p = x_i + sum_x_ij
-
-        return x_i_p
+        if x_i.shape[-1] == 3:
+            phi_h = MLP([d_hidden] * (n_layers - 1) + [int(d_hidden / 2)], activation=activation)
+            x_i_p = x_i + sum_x_ij / (n_edge - 1)
+            h_i_p = phi_h(jnp.concatenate([m_i], -1))
+            return jnp.concatenate([x_i_p, h_i_p], -1)
+        else:
+            x_i_p = x_i[..., :3] + sum_x_ij / (n_edge - 1)
+            h_i = x_i[..., 3:]
+            phi_h = MLP([d_hidden] * (n_layers - 1) + [h_i.shape[-1]], activation=activation)
+            h_i_p = phi_h(jnp.concatenate([h_i, m_i], -1))
+            return x_i_p
 
     return update_fn if not position_only else update_fn_position_only
 
@@ -199,12 +214,13 @@ def get_node_mlp_updates(
 class EGNN(nn.Module):
     """A simple graph convolutional network"""
 
-    message_passing_steps: int = 4
+    message_passing_steps: int = 3
     skip_connections: bool = False
     norm_layer: bool = True
     d_hidden: int = 64
     n_layers: int = 3
-    activation: str = "gelu"
+    activation: str = "swish"
+    use_fourier_features: bool = True
 
     @nn.compact
     def __call__(self, graphs: jraph.GraphsTuple) -> jraph.GraphsTuple:
@@ -218,49 +234,28 @@ class EGNN(nn.Module):
         """
         in_features = graphs.nodes.shape[-1]
         processed_graphs = graphs
-        processed_graphs = processed_graphs._replace(
-            globals=processed_graphs.globals.reshape(
-                processed_graphs.globals.shape[0], -1
-            )
-        )
+        processed_graphs = processed_graphs._replace(globals=processed_graphs.globals.reshape(1, -1))
+
         activation = getattr(nn, self.activation)
 
         # Switch for whether to use positions-only version of edge/node updates
         if (graphs.nodes.shape[-1] > 3) & (graphs.nodes.shape[-1] < 6):
-            raise NotImplementedError(
-                "Number of features should be either 3 (just positions) or >= 6 (positions, velocities, and scalars)"
-            )
+            raise NotImplementedError("Number of features should be either 3 (just positions) or >= 6 (positions, velocities, and scalars)")
 
         positions_only = True if graphs.nodes.shape[-1] == 3 else False
 
-        update_node_fn = get_node_mlp_updates(
-            self.d_hidden,
-            self.n_layers,
-            activation,
-            n_edge=processed_graphs.n_edge,
-            position_only=positions_only,
-        )
-        update_edge_fn = get_edge_mlp_updates(
-            self.d_hidden, self.n_layers, activation, position_only=positions_only
-        )
         # Apply message-passing rounds
-        for _ in range(self.message_passing_steps):
-            jax.debug.print('**********')
-            graph_net = jraph.GraphNetwork(
-                update_node_fn=update_node_fn, update_edge_fn=update_edge_fn
-            )
+        for i in range(self.message_passing_steps):
+            update_node_fn = get_node_mlp_updates(self.d_hidden, self.n_layers, activation, n_edge=processed_graphs.n_edge, position_only=positions_only)
+            update_edge_fn = get_edge_mlp_updates(self.d_hidden, self.n_layers, activation, position_only=positions_only, use_fourier_features=self.use_fourier_features)
+            graph_net = jraph.GraphNetwork(update_node_fn=update_node_fn, update_edge_fn=update_edge_fn)
+            print(processed_graphs.globals.shape)
             if self.skip_connections:
-                processed_graphs = add_graphs_tuples(
-                    graph_net(processed_graphs), processed_graphs
-                )
+                processed_graphs = add_graphs_tuples(graph_net(processed_graphs), processed_graphs)
             else:
                 processed_graphs = graph_net(processed_graphs)
-            jax.debug.breakpoint()
-            jax.debug.print(f'nans before norm layers = {jnp.sum(jnp.isnan(processed_graphs.nodes))}')
             if self.norm_layer:
-                processed_graphs = self.norm(
-                    processed_graphs, positions_only=positions_only
-                )
+                processed_graphs = self.norm(processed_graphs, positions_only=positions_only)
         return processed_graphs
 
     def norm(self, graph, positions_only=False):

@@ -40,7 +40,6 @@ replicate = flax.jax_utils.replicate
 unreplicate = flax.jax_utils.unreplicate
 
 logging.set_verbosity(logging.INFO)
-config.update("jax_enable_x64", True)
 
 
 def train(
