@@ -63,7 +63,6 @@ class VariationalDiffusionModel(nn.Module):
             "d_mlp": 512,
             "n_layers": 4,
             "n_heads": 4,
-            "box_size": 1000.,
         }
     )
     encoder_dict: dict = dataclasses.field(
