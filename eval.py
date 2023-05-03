@@ -663,9 +663,6 @@ def generate_samples(
     norm_dict,
     boxsize,
 ):
-    print('conditioning in generate')
-    print(conditioning.shape)
-    print(conditioning)
     generated_samples = generate(
         vdm,
         params,

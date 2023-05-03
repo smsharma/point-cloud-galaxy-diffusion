@@ -139,6 +139,8 @@ class GraphScoreNet(nn.Module):
         h = jax.vmap(GraphConvNet(**score_dict))(graph)
         pos_update = graph.nodes - h.nodes
         return pos_update
+        #return z + h.nodes
+
 
 
 
