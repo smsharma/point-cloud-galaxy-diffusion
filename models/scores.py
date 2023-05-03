@@ -106,15 +106,33 @@ class GraphScoreNet(nn.Module):
         n_pos_features = self.score_dict["n_pos_features"]
         box_size = self.norm_dict["box_size"]
         if box_size is not None:
+            print('*'*100)
+            print('In score function')
             coord_mean = np.array(self.norm_dict["x_mean"])
             coord_std = np.array(self.norm_dict["x_std"])
+            print('SCaled')
+            jax.debug.print('mean = {x}', x = z.mean())
+            jax.debug.print("min = {x}", x=z.min())
+            jax.debug.print("max = {x}", x=z.max())
             z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
+            print('Unscaled')
+            jax.debug.print('mean = {x}', x = z_unnormed.mean())
+            jax.debug.print('min = {x}', x = z_unnormed.min())
+            jax.debug.print('max = {x}', x = z_unnormed.max())
             unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
             sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
                 z_unnormed, k, box_size, unit_cell, mask,
             )
             z_unnormed = wrap_positions_to_periodic_box(z_unnormed, cell_matrix=box_size*unit_cell)
+            print('Wrapped in box')
+            jax.debug.print('mean = {x}', x = z_unnormed.mean())
+            jax.debug.print('min = {x}', x = z_unnormed.min())
+            jax.debug.print('max = {x}', x = z_unnormed.max())
             z = (z_unnormed - coord_mean) / coord_std
+            print('SCaled')
+            jax.debug.print('mean = {x}', x = z.mean())
+            jax.debug.print("min = {x}", x=z.min())
+            jax.debug.print("max = {x}", x=z.max())
         else:
             sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(
                 z[..., :n_pos_features], k, mask=mask

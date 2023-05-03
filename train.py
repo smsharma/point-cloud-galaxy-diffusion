@@ -20,7 +20,6 @@ import optax
 import flax
 from flax.core import FrozenDict
 from flax.training import checkpoints, common_utils, train_state
-from jax.config import config
 
 import tensorflow as tf
 

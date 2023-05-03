@@ -23,7 +23,7 @@ from models.scores import (
     EGNNScoreNet,
     NEQUIPScoreNet,
 )
-from models.graph_utils import apply_pbc, wrap_positions_to_periodic_box
+from models.graph_utils import apply_pbc, PeriodicNormal
 from models.mlp import MLPEncoder, MLPDecoder
 
 tfd = tfp.distributions
@@ -191,16 +191,6 @@ class VariationalDiffusionModel(nn.Module):
         eps_0 = jax.random.normal(self.make_rng("sample"), shape=f.shape)
         z_0 = variance_preserving_map(f, g_0, eps_0)
         z_0_rescaled = z_0 / alpha(g_0)
-        if self.norm_dict['box_size'] is not None:
-            coord_mean = np.array(self.norm_dict["x_mean"])
-            coord_std = np.array(self.norm_dict["x_std"])
-            unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-            z_unnormed = z_0_rescaled * coord_std + coord_mean
-            z_unnormed = wrap_positions_to_periodic_box(
-                z_unnormed, 
-                cell_matrix=self.norm_dict['box_size']*unit_cell,
-            )
-            z_0_rescaled = (z_unnormed - coord_mean) / coord_std
         loss_recon = -self.decode(z_0_rescaled, cond).log_prob(x)
         return loss_recon
 
@@ -324,7 +314,7 @@ class VariationalDiffusionModel(nn.Module):
         else:
             return x
 
-    def decode(self, z0, conditioning=None, mask=None):
+    def decode(self, z0, conditioning=None, mask=None,):
         """Decode a latent sample z0."""
 
         # Decode if using encoder-decoder; otherwise just return last latent distribution
@@ -335,6 +325,14 @@ class VariationalDiffusionModel(nn.Module):
                 cond = None
             return self.decoder(z0, cond, mask)
         else:
+            if self.norm_dict['box_size'] is not None:
+                return PeriodicNormal(
+                    unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]),
+                    coord_std = np.array(self.norm_dict['x_std']),
+                    box_size = self.norm_dict['box_size'],
+                    loc=z0,
+                    scale=self.noise_scale,
+                )
             return tfd.Normal(loc=z0, scale=self.noise_scale)
 
     def sample_step(self, rng, i, T, z_t, conditioning=None, mask=None):
