@@ -42,7 +42,7 @@ class PeriodicNormal:
         dr = (x - self.loc) * self.coord_std
         dr = apply_pbc(dr, self.box_size*self.unit_cell,) / self.coord_std
         log_unnormalized = -0.5 * 1./self.scale ** 2 * dr**2
-        log_normalization =  0.5 * np.log(1.*np.pi) + np.log(self.scale)
+        log_normalization =  0.5 * np.log(2.*np.pi) + np.log(self.scale)
         return log_unnormalized - log_normalization
 
     def mean(self)->np.array:

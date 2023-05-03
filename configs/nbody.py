@@ -13,7 +13,7 @@ def get_config():
     wandb.group = "cosmology"
     wandb.job_type = "training"
     wandb.name = None
-    wandb.log_train = False 
+    wandb.log_train = True 
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
