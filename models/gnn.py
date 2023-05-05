@@ -7,6 +7,9 @@ import jraph
 from models.graph_utils import add_graphs_tuples
 from models.mlp import MLP
 
+from models.graph_utils import nearest_neighbors, wrap_positions_to_periodic_box 
+
+
 
 def get_node_mlp_updates(mlp_feature_sizes: int) -> Callable:
     """Get a node MLP update  function
@@ -140,3 +143,6 @@ class GraphConvNet(nn.Module):
                 )
         decoder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(in_features))
         return decoder(processed_graphs)
+
+
+   

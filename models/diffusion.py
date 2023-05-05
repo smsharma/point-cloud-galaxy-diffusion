@@ -75,12 +75,19 @@ class VariationalDiffusionModel(nn.Module):
     embed_context: bool = False
     d_context_embedding: int = 32
     use_encdec: bool = True
-    norm_dict: dict = dataclasses.field(default_factory=lambda: {"x_mean": 0.0, "x_std": 1.0, "box_size": None,})
-
+    norm_dict: dict = dataclasses.field(
+        default_factory=lambda: {
+            "x_mean": 0.0,
+            "x_std": 1.0,
+            "box_size": None,
+        }
+    )
 
     @classmethod
-    def from_path_to_model(cls, path_to_model: Union[str, Path])->"VariationalDiffusionModel":
-        """ load model from path where it is stored 
+    def from_path_to_model(
+        cls, path_to_model: Union[str, Path]
+    ) -> "VariationalDiffusionModel":
+        """load model from path where it is stored
 
         Args:
             path_to_model (Union[str, Path]): path to model
@@ -88,7 +95,7 @@ class VariationalDiffusionModel(nn.Module):
         Returns:
             Tuple[VariationalDiffusionModel, np.array]: model, params
         """
-        with open(path_to_model / 'config.yaml', "r") as file:
+        with open(path_to_model / "config.yaml", "r") as file:
             config = yaml.safe_load(file)
         config = ConfigDict(config)
         score_dict = FrozenDict(config.score)
@@ -111,7 +118,14 @@ class VariationalDiffusionModel(nn.Module):
             decoder_dict=decoder_dict,
         )
         rng = jax.random.PRNGKey(42)
-        x_dummy = jax.random.normal(rng, (config.training.batch_size, config.data.n_particles, config.data.n_features))
+        x_dummy = jax.random.normal(
+            rng,
+            (
+                config.training.batch_size,
+                config.data.n_particles,
+                config.data.n_features,
+            ),
+        )
         conditioning_dummy = jax.random.normal(rng, (config.training.batch_size, 2))
         mask_dummy = np.ones((config.training.batch_size, config.data.n_particles))
         _, params = vdm.init_with_output(
@@ -151,7 +165,9 @@ class VariationalDiffusionModel(nn.Module):
             )
         elif self.score == "graph":
             self.score_model = GraphScoreNet(
-                d_t_embedding=self.d_t_embedding, score_dict=self.score_dict, norm_dict=self.norm_dict,
+                d_t_embedding=self.d_t_embedding,
+                score_dict=self.score_dict,
+                norm_dict=self.norm_dict,
             )
         elif self.score == "egnn":
             self.score_model = EGNNScoreNet(
@@ -172,7 +188,7 @@ class VariationalDiffusionModel(nn.Module):
             self.decoder = MLPDecoder(
                 d_output=self.d_feature,
                 noise_scale=self.noise_scale,
-                **self.decoder_dict
+                **self.decoder_dict,
             )
 
         # Embedding for class and context
@@ -212,16 +228,22 @@ class VariationalDiffusionModel(nn.Module):
         g_t = self.gamma(t)
         eps = jax.random.normal(self.make_rng("sample"), shape=f.shape)
         z_t = variance_preserving_map(f, g_t[:, None], eps)
-
         eps_hat = self.score_model(z_t, g_t, cond, mask)  # Compute predicted noise
-        if self.norm_dict['box_size'] is None:
+        if self.norm_dict["box_size"] is None:
             deps = eps - eps_hat
         else:
-            x_std = np.array(self.norm_dict['x_std'])
+            rescaled_box_size = (
+                alpha(g_t) / np.sqrt(sigma2(g_t)) * self.norm_dict["box_size"]
+            )
+            x_std = np.array(self.norm_dict["x_std"])
             deps = (eps - eps_hat) * x_std
             unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-            deps = apply_pbc(deps, self.norm_dict['box_size'] * unit_cell) / x_std  # Apply periodic boundary conditions
-
+            deps = (
+                jax.vmap(apply_pbc)(
+                    deps, np.expand_dims(rescaled_box_size, (-1, -2)) * unit_cell
+                )
+                / x_std
+            )
         loss_diff_mse = np.square(deps)  # Compute MSE of predicted noise
 
         T = self.timesteps
@@ -314,7 +336,18 @@ class VariationalDiffusionModel(nn.Module):
         else:
             return x
 
-    def decode(self, z0, conditioning=None, mask=None,):
+    def evaluate_score(self, z_t, gamma, conditioning, mask):
+        return self.score_model(z_t, gamma, conditioning, mask)
+
+    def evaluate_gamma(self, t):
+        return self.gamma(t)
+
+    def decode(
+        self,
+        z0,
+        conditioning=None,
+        mask=None,
+    ):
         """Decode a latent sample z0."""
 
         # Decode if using encoder-decoder; otherwise just return last latent distribution
@@ -325,11 +358,16 @@ class VariationalDiffusionModel(nn.Module):
                 cond = None
             return self.decoder(z0, cond, mask)
         else:
-            if self.norm_dict['box_size'] is not None:
+            if self.norm_dict["box_size"] is not None:
+                rescaled_box_size = (
+                    alpha(0.0) / np.sqrt(sigma2(0.0)) * self.norm_dict["box_size"]
+                )
                 return PeriodicNormal(
-                    unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]),
-                    coord_std = np.array(self.norm_dict['x_std']),
-                    box_size = self.norm_dict['box_size'],
+                    unit_cell=np.array(
+                        [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+                    ),
+                    coord_std=np.array(self.norm_dict["x_std"]),
+                    box_size=rescaled_box_size,  # self.norm_dict['box_size'],
                     loc=z0,
                     scale=self.noise_scale,
                 )
