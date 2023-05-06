@@ -31,7 +31,7 @@ class TransformerScoreNet(nn.Module):
     )
 
     @nn.compact
-    def __call__(self, z, t, conditioning, mask):
+    def __call__(self, z, t, conditioning, mask, alpha=None):
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
         t = t * np.ones(z.shape[0])  # Ensure t is a vector
 
@@ -83,7 +83,7 @@ class GraphScoreNet(nn.Module):
     )
 
     @nn.compact
-    def __call__(self, z, t, conditioning, mask):
+    def __call__(self, z, t, conditioning, mask, alpha=None,):
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
         t = t * np.ones(z.shape[0])  # Ensure t is a vector
 
@@ -106,14 +106,23 @@ class GraphScoreNet(nn.Module):
         n_pos_features = self.score_dict["n_pos_features"]
         box_size = self.norm_dict["box_size"]
         if box_size is not None:
+            rescaled_box_size = alpha * box_size
             coord_mean = np.array(self.norm_dict["x_mean"])
             coord_std = np.array(self.norm_dict["x_std"])
             z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
             unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-            sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
-                z_unnormed, k, box_size, unit_cell, mask,
-            )
-            z_unnormed = wrap_positions_to_periodic_box(z_unnormed, cell_matrix=box_size*unit_cell)
+            if np.isscalar(rescaled_box_size):
+                sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
+                    z_unnormed, k, rescaled_box_size, unit_cell, mask,
+                )
+                z_unnormed = wrap_positions_to_periodic_box(z_unnormed, cell_matrix=rescaled_box_size*unit_cell)
+            else:
+                sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, 0, None, 0))(
+                    z_unnormed, k, rescaled_box_size, unit_cell, mask,
+                )
+                z_unnormed = jax.vmap(wrap_positions_to_periodic_box)(
+                    z_unnormed, np.expand_dims(rescaled_box_size, (-1,-2))*unit_cell
+                )
             z = (z_unnormed - coord_mean) / coord_std
         else:
             sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(

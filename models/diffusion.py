@@ -227,8 +227,9 @@ class VariationalDiffusionModel(nn.Module):
         # Sample z_t
         g_t = self.gamma(t)
         eps = jax.random.normal(self.make_rng("sample"), shape=f.shape)
-        z_t = variance_preserving_map(f, g_t[:, None], eps)
-        eps_hat = self.score_model(z_t, g_t, cond, mask)  # Compute predicted noise
+        z_t = variance_preserving_map(f, g_t[:, None], eps) 
+        # Compute predicted noise
+        eps_hat = self.score_model(z_t, g_t, cond, mask, alpha=alpha(g_t)) 
         if self.norm_dict["box_size"] is None:
             deps = eps - eps_hat
         else:
@@ -367,7 +368,7 @@ class VariationalDiffusionModel(nn.Module):
                         [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
                     ),
                     coord_std=np.array(self.norm_dict["x_std"]),
-                    box_size=rescaled_box_size,  # self.norm_dict['box_size'],
+                    box_size=rescaled_box_size,
                     loc=z0,
                     scale=self.noise_scale,
                 )
@@ -382,13 +383,13 @@ class VariationalDiffusionModel(nn.Module):
 
         g_s = self.gamma(s)
         g_t = self.gamma(t)
+        alpha_t = alpha(g_t)
 
         cond = self.embed(conditioning)
 
         eps_hat_cond = self.score_model(
-            z_t, g_t * np.ones((z_t.shape[0],), z_t.dtype), cond, mask
+            z_t, g_t * np.ones((z_t.shape[0],), z_t.dtype), cond, mask, alpha=alpha_t
         )
-
         a = nn.sigmoid(g_s)
         b = nn.sigmoid(g_t)
         c = -np.expm1(g_t - g_s)
@@ -397,5 +398,4 @@ class VariationalDiffusionModel(nn.Module):
             np.sqrt(a / b) * (z_t - sigma_t * c * eps_hat_cond)
             + np.sqrt((1.0 - a) * c) * eps
         )
-
         return z_s

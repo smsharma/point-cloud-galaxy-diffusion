@@ -700,19 +700,68 @@ def generate_test_samples_from_model_folder(
         shuffle=False,
         split="test",
     )
-    batches = create_input_iter(test_ds)
+    return generate_samples_for_dataset(
+        ds=test_ds,
+        n_particles=config.data.n_particles,
+        norm_dict=norm_dict,
+        n_total_samples=n_test,
+        path_to_model=path_to_model,
+        steps=steps,
+        batch_size=batch_size,
+        boxsize=boxsize,
+    )
+
+def generate_fiducial_samples_from_model_folder(
+    path_to_model: Path,
+    steps: int = 500,
+    batch_size: int = 20,
+    boxsize: float = 1000.,
+    n_test: int = 200,
+):
+    with open(path_to_model / "config.yaml", "r") as file:
+        config = yaml.safe_load(file)
+    config = ConfigDict(config)
+    # get conditioning for test set
+    _, norm_dict = nbody_dataset(
+        n_features=config.data.n_features,
+        n_particles=config.data.n_particles,
+        batch_size=batch_size,
+        seed=config.seed,
+        shuffle=False,
+        split="test",
+    )
+    #fiducial_ds = 
+    return generate_samples_for_dataset(
+        ds=fiducial_ds,
+        norm_dict=norm_dict,
+        n_total_samples=n_test,
+        path_to_model=path_to_model,
+        steps=steps,
+        batch_size=batch_size,
+        boxsize=boxsize,
+    )
+
+def generate_samples_for_dataset(
+    ds,
+    norm_dict,
+    n_particles: int,
+    n_total_samples: int,
+    path_to_model: Path,
+    steps: int = 500,
+    batch_size: int = 20,
+    boxsize: float = 1000.,
+):
+    batches = create_input_iter(ds)
     x_batch, conditioning_batch, mask_batch = next(batches)
     vdm, params = VariationalDiffusionModel.from_path_to_model(
         path_to_model=path_to_model
     )
     rng = jax.random.PRNGKey(42)
-    n_batches = n_test // batch_size
+    n_batches = n_total_samples // batch_size
     true_samples, generated_samples, conditioning_samples = [], [], []
     for i in range(n_batches):
         t0 = time.time()
         x_batch, conditioning_batch, mask_batch = next(batches)
-        print(x_batch.shape)
-        print(conditioning_batch.shape)
         true_samples.append(x_batch[0] * norm_dict["std"] + norm_dict["mean"])
         generated_samples.append(
             generate_samples(
@@ -720,7 +769,7 @@ def generate_test_samples_from_model_folder(
                     params=params,
                     rng=rng,
                     n_samples=batch_size,
-                    n_particles=config.data.n_particles,
+                    n_particles=n_particles,
                     conditioning=conditioning_batch[0],
                     mask=mask_batch[0],
                     steps=steps,
@@ -734,7 +783,7 @@ def generate_test_samples_from_model_folder(
 
 if __name__ == "__main__":
     t0 = time.time()
-    run_name = 'chocolate-cloud-122'
+    run_name = 'confused-gorge-138' #'chocolate-cloud-122'
     path_to_samples = Path(f'/n/holystore01/LABS/itc_lab/Users/ccuestalazaro/set_diffuser/samples/{run_name}')
     path_to_samples.mkdir(exist_ok=True)
     path_to_model = Path(f"/n/home11/ccuestalazaro/set-diffuser/logging/cosmology/{run_name}")
