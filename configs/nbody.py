@@ -82,6 +82,7 @@ def get_config():
     data.n_features = 3  # Select the first n_features features
     data.n_pos_features = 3  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
     data.box_size = 1000.
+    data.unit_cell = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
     data.kwargs = {}
 
     # Optimizer (AdamW)

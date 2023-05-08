@@ -97,11 +97,13 @@ def train(
     x_mean = tuple(map(float, norm_dict["mean"]))
     x_std = tuple(map(float, norm_dict["std"]))
     box_size = config.data.box_size
+    unit_cell = np.array(config.data.unit_cell) if box_size is not None else None
     norm_dict_input = FrozenDict(
         {
             "x_mean": x_mean,
             "x_std": x_std,
             "box_size": box_size,
+            "unit_cell": unit_cell,
         }
     )
     vdm = VariationalDiffusionModel(

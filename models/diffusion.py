@@ -23,8 +23,9 @@ from models.scores import (
     EGNNScoreNet,
     NEQUIPScoreNet,
 )
-from models.graph_utils import apply_pbc, PeriodicNormal
+from models.periodic_boundary_utils import apply_pbc, wrap_positions_to_periodic_box, PeriodicNormal
 from models.mlp import MLPEncoder, MLPDecoder
+from datasets import load_data
 
 tfd = tfp.distributions
 
@@ -80,12 +81,14 @@ class VariationalDiffusionModel(nn.Module):
             "x_mean": 0.0,
             "x_std": 1.0,
             "box_size": None,
+            "unit_cell": None,
         }
     )
+    n_pos_features: int = 3
 
     @classmethod
     def from_path_to_model(
-        cls, path_to_model: Union[str, Path]
+        cls, path_to_model: Union[str, Path], norm_dict: dict=None,
     ) -> "VariationalDiffusionModel":
         """load model from path where it is stored
 
@@ -101,6 +104,29 @@ class VariationalDiffusionModel(nn.Module):
         score_dict = FrozenDict(config.score)
         encoder_dict = FrozenDict(config.encoder)
         decoder_dict = FrozenDict(config.decoder)
+        if norm_dict is None:
+            _, norm_dict = load_data(
+                config.data.dataset,
+                config.data.n_features,
+                config.data.n_particles,
+                config.training.batch_size,
+                config.seed,
+                shuffle=True,
+                split='train',
+                **config.data.kwargs,
+            )
+        x_mean = tuple(map(float, norm_dict["mean"]))
+        x_std = tuple(map(float, norm_dict["std"]))
+        box_size = config.data.box_size
+        unit_cell = np.array(config.data.unit_cell) if box_size is not None else None
+        norm_dict_input = FrozenDict(
+            {
+                "x_mean": x_mean,
+                "x_std": x_std,
+                "box_size": box_size,
+                "unit_cell": unit_cell,
+            }
+        )
         vdm = VariationalDiffusionModel(
             d_feature=config.data.n_features,
             timesteps=config.vdm.timesteps,
@@ -116,6 +142,7 @@ class VariationalDiffusionModel(nn.Module):
             use_encdec=config.vdm.use_encdec,
             encoder_dict=encoder_dict,
             decoder_dict=decoder_dict,
+            norm_dict = norm_dict_input,
         )
         rng = jax.random.PRNGKey(42)
         x_dummy = jax.random.normal(
@@ -220,6 +247,42 @@ class VariationalDiffusionModel(nn.Module):
         mean1_sqr = (1.0 - var_1) * np.square(f)
         loss_klz = 0.5 * (mean1_sqr + var_1 - np.log(var_1) - 1.0)
         return loss_klz
+    
+    @property
+    def apply_pbcs(self,)->bool:
+        """ whether to apply periodic boundary conditions to the generated data
+
+        Returns:
+            bool: True if periodic boundary conditions are applied 
+        """
+        if self.norm_dict['box_size'] is not None:
+            return True
+        return False
+
+    def wrap_z_in_periodic_box(self, z, alpha,):
+        rescaled_box_size = alpha * self.norm_dict['box_size']
+        coord_mean = np.array(self.norm_dict["x_mean"])
+        coord_std = np.array(self.norm_dict["x_std"])
+        unit_cell = self.norm_dict['unit_cell']
+        z_unnormed = z * coord_std + coord_mean
+        if np.isscalar(rescaled_box_size):
+            z_unnormed = z_unnormed.at[...,:self.n_pos_features].set(
+                wrap_positions_to_periodic_box(
+                    z_unnormed[...,self.n_pos_features],
+                    cell_matrix= rescaled_box_size * unit_cell,
+                )
+            )
+        else:
+            z_unnormed = z_unnormed.at[...,:self.n_pos_features].set(
+                jax.vmap(
+                    wrap_positions_to_periodic_box
+                )(
+                    z_unnormed[...,:self.n_pos_features],
+                    np.expand_dims(rescaled_box_size, (-1,-2))*unit_cell
+                )
+            )
+        return (z_unnormed - coord_mean) / coord_std
+
 
     def diffusion_loss(self, t, f, cond, mask):
         """The diffusion loss measures the gap in the intermediate steps."""
@@ -228,27 +291,29 @@ class VariationalDiffusionModel(nn.Module):
         g_t = self.gamma(t)
         eps = jax.random.normal(self.make_rng("sample"), shape=f.shape)
         z_t = variance_preserving_map(f, g_t[:, None], eps) 
+        z_t = self.wrap_z_in_periodic_box(
+            z=z_t, alpha=alpha(g_t), 
+        )
         # Compute predicted noise
         eps_hat = self.score_model(z_t, g_t, cond, mask, alpha=alpha(g_t)) 
-        if self.norm_dict["box_size"] is None:
-            deps = eps - eps_hat
-        else:
+        if self.apply_pbcs:
+            # If PBCs, allow for equivalent noise in periodic box
             rescaled_box_size = (
                 alpha(g_t) / np.sqrt(sigma2(g_t)) * self.norm_dict["box_size"]
             )
             x_std = np.array(self.norm_dict["x_std"])
             deps = (eps - eps_hat) * x_std
-            unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-            deps = (
+            deps = deps.at[...,:self.n_pos_features].set(
                 jax.vmap(apply_pbc)(
-                    deps, np.expand_dims(rescaled_box_size, (-1, -2)) * unit_cell
+                    deps[...,:self.n_pos_features],
+                    np.expand_dims(rescaled_box_size, (-1, -2)) * self.norm_dict['unit_cell']
                 )
-                / x_std
             )
+            deps /= x_std
+        else:
+            deps = eps - eps_hat
         loss_diff_mse = np.square(deps)  # Compute MSE of predicted noise
-
         T = self.timesteps
-
         # NOTE: retain dimension here so that mask can be applied later (hence dummy dims)
         # NOTE: opposite sign convention to official VDM repo!
         if T == 0:
@@ -337,12 +402,6 @@ class VariationalDiffusionModel(nn.Module):
         else:
             return x
 
-    def evaluate_score(self, z_t, gamma, conditioning, mask):
-        return self.score_model(z_t, gamma, conditioning, mask)
-
-    def evaluate_gamma(self, t):
-        return self.gamma(t)
-
     def decode(
         self,
         z0,
@@ -359,18 +418,18 @@ class VariationalDiffusionModel(nn.Module):
                 cond = None
             return self.decoder(z0, cond, mask)
         else:
-            if self.norm_dict["box_size"] is not None:
+            if self.apply_pbcs:
+                # If PBCs, allow for equivalent noise in periodic box
                 rescaled_box_size = (
                     alpha(0.0) / np.sqrt(sigma2(0.0)) * self.norm_dict["box_size"]
                 )
                 return PeriodicNormal(
-                    unit_cell=np.array(
-                        [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-                    ),
+                    unit_cell=self.norm_dict['unit_cell'],
                     coord_std=np.array(self.norm_dict["x_std"]),
                     box_size=rescaled_box_size,
                     loc=z0,
                     scale=self.noise_scale,
+                    n_pos_features=self.n_pos_features,
                 )
             return tfd.Normal(loc=z0, scale=self.noise_scale)
 
@@ -386,7 +445,9 @@ class VariationalDiffusionModel(nn.Module):
         alpha_t = alpha(g_t)
 
         cond = self.embed(conditioning)
-
+        z_t = self.wrap_z_in_periodic_box(
+            z=z_t, alpha=alpha_t, n_pos_features=self.d_feature
+        )
         eps_hat_cond = self.score_model(
             z_t, g_t * np.ones((z_t.shape[0],), z_t.dtype), cond, mask, alpha=alpha_t
         )

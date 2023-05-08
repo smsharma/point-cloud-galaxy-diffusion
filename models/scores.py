@@ -13,9 +13,8 @@ from models.nequip import NEQUIP
 from models.egnn import EGNN
 from models.mlp import MLP
 
-from models.graph_utils import nearest_neighbors, wrap_positions_to_periodic_box
+from models.graph_utils import nearest_neighbors
 from models.diffusion_utils import get_timestep_embedding
-
 
 class TransformerScoreNet(nn.Module):
     """Transformer score network."""
@@ -106,24 +105,19 @@ class GraphScoreNet(nn.Module):
         n_pos_features = self.score_dict["n_pos_features"]
         box_size = self.norm_dict["box_size"]
         if box_size is not None:
+            unit_cell = self.norm_dict['unit_cell']
             rescaled_box_size = alpha * box_size
             coord_mean = np.array(self.norm_dict["x_mean"])
             coord_std = np.array(self.norm_dict["x_std"])
-            z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
-            unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+            z_unnormed = z * coord_std + coord_mean
             if np.isscalar(rescaled_box_size):
                 sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
-                    z_unnormed, k, rescaled_box_size, unit_cell, mask,
+                    z_unnormed[...,:n_pos_features], k, rescaled_box_size, unit_cell, mask,
                 )
-                z_unnormed = wrap_positions_to_periodic_box(z_unnormed, cell_matrix=rescaled_box_size*unit_cell)
             else:
                 sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, 0, None, 0))(
-                    z_unnormed, k, rescaled_box_size, unit_cell, mask,
+                    z_unnormed[...,:n_pos_features], k, rescaled_box_size, unit_cell, mask,
                 )
-                z_unnormed = jax.vmap(wrap_positions_to_periodic_box)(
-                    z_unnormed, np.expand_dims(rescaled_box_size, (-1,-2))*unit_cell
-                )
-            z = (z_unnormed - coord_mean) / coord_std
         else:
             sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(
                 z[..., :n_pos_features], k, mask=mask
