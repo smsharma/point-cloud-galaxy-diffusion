@@ -80,6 +80,6 @@ if __name__ == "__main__":
         posterior_dict = guide.sample_posterior(
             rng_key=rng, params=svi_results.params, sample_shape=(num_samples,)
         )
-        with open(path_to_posteriors / f'chain_{split}_{idx}_n1000_s20.pkl', 'wb') as f:
+        with open(path_to_posteriors / f'chain_{split}_{idx}.pkl', 'wb') as f:
             pickle.dump(posterior_dict, f)
         print(f'Finished chain {idx} in {time.time() - t0:.2f} seconds')

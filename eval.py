@@ -783,7 +783,7 @@ def generate_samples_for_dataset(
 
 if __name__ == "__main__":
     t0 = time.time()
-    run_name = 'confused-gorge-138' #'chocolate-cloud-122'
+    run_name = 'legendary-astromech-149' #'confused-gorge-138' #'chocolate-cloud-122'
     path_to_samples = Path(f'/n/holystore01/LABS/itc_lab/Users/ccuestalazaro/set_diffuser/samples/{run_name}')
     path_to_samples.mkdir(exist_ok=True)
     path_to_model = Path(f"/n/home11/ccuestalazaro/set-diffuser/logging/cosmology/{run_name}")

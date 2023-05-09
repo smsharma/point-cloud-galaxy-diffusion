@@ -4,7 +4,7 @@ import jraph
 from jax_md import space, partition
 
 from functools import partial
-from periodic_boundary_utils import apply_pbc
+from models.periodic_boundary_utils import apply_pbc
 
 @partial(jax.jit, static_argnums=(1,))
 def nearest_neighbors(

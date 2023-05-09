@@ -106,11 +106,11 @@ class GraphScoreNet(nn.Module):
         box_size = self.norm_dict["box_size"]
         if box_size is not None:
             unit_cell = self.norm_dict['unit_cell']
-            rescaled_box_size = alpha * box_size
+            rescaled_box_size = np.squeeze(alpha * box_size)
             coord_mean = np.array(self.norm_dict["x_mean"])
             coord_std = np.array(self.norm_dict["x_std"])
             z_unnormed = z * coord_std + coord_mean
-            if np.isscalar(rescaled_box_size):
+            if np.isscalar(rescaled_box_size) or rescaled_box_size.ndim == 0:
                 sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
                     z_unnormed[...,:n_pos_features], k, rescaled_box_size, unit_cell, mask,
                 )
@@ -119,8 +119,8 @@ class GraphScoreNet(nn.Module):
                     z_unnormed[...,:n_pos_features], k, rescaled_box_size, unit_cell, mask,
                 )
         else:
-            sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None))(
-                z[..., :n_pos_features], k, mask=mask
+            sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
+                z[..., :n_pos_features], k, None, None, mask
             )
         n_batch = z.shape[0]
         graph = jraph.GraphsTuple(
@@ -140,8 +140,9 @@ class GraphScoreNet(nn.Module):
         score_dict.pop("n_pos_features", None)
 
         h = jax.vmap(GraphConvNet(**score_dict))(graph)
-        pos_update = graph.nodes - h.nodes
-        return pos_update
+        #pos_update = graph.nodes - h.nodes
+        #return pos_update
+        return z + h.nodes
 
 
 

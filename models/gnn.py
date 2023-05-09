@@ -7,7 +7,6 @@ import jraph
 from models.graph_utils import add_graphs_tuples
 from models.mlp import MLP
 
-from models.graph_utils import nearest_neighbors, wrap_positions_to_periodic_box 
 
 
 

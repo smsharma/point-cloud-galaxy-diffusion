@@ -7,10 +7,11 @@ import jax.numpy as np
 import numpyro
 import numpyro.distributions as dist
 
-def elbo(vdm, params, rng, x, conditioning, mask, steps=500, unroll_loop=True):
+def get_loss(vdm, params, rng, x, conditioning, mask, steps=500, unroll_loop=True):
     rng, spl = jax.random.split(rng)
     cond = vdm.apply(params, conditioning, method=vdm.embed)
     f = vdm.apply(params, x, conditioning, method=vdm.encode)
+    print('x = ', f.shape)
     loss_recon = vdm.apply(params, x, f, conditioning, rngs={"sample": rng}, method=vdm.recon_loss)
     loss_klz = vdm.apply(params, f, method=vdm.latent_loss)
     if not unroll_loop:
@@ -33,6 +34,7 @@ def elbo(vdm, params, rng, x, conditioning, mask, steps=500, unroll_loop=True):
     else:
         loss_diff, rng = (np.zeros(x.shape[0]), rng)
         for i in range(steps):
+            print(i)
             rng, spl = jax.random.split(rng)
             new_loss = vdm.apply(
                 params,
@@ -43,7 +45,22 @@ def elbo(vdm, params, rng, x, conditioning, mask, steps=500, unroll_loop=True):
                 rngs={"sample": spl},
                 method=vdm.diffusion_loss,
             )
+            print('new loss values = ', new_loss.sum((-1,-2)))
             loss_diff = loss_diff + (new_loss * mask[..., None]).sum((-1, -2)) / steps
+    return loss_recon, loss_klz, loss_diff
+
+def elbo(vdm, params, rng, x, conditioning, mask, steps=500, unroll_loop=True):
+    loss_recon, loss_klz, loss_diff = get_loss(
+        vdm=vdm,
+        params=params,
+        rng=rng,
+        x=x,
+        conditioning=conditioning,
+        mask=mask,
+        steps=steps,
+        unroll_loop=unroll_loop
+        
+    )
     return (loss_recon * mask[..., None]).sum((-1, -2)) + (loss_klz * mask[..., None]).sum((-1, -2)) + loss_diff
 
 

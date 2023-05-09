@@ -260,15 +260,15 @@ class VariationalDiffusionModel(nn.Module):
         return False
 
     def wrap_z_in_periodic_box(self, z, alpha,):
-        rescaled_box_size = alpha * self.norm_dict['box_size']
+        rescaled_box_size = np.squeeze(alpha * self.norm_dict['box_size'])
         coord_mean = np.array(self.norm_dict["x_mean"])
         coord_std = np.array(self.norm_dict["x_std"])
         unit_cell = self.norm_dict['unit_cell']
         z_unnormed = z * coord_std + coord_mean
-        if np.isscalar(rescaled_box_size):
+        if np.isscalar(rescaled_box_size) or rescaled_box_size.ndim == 0:
             z_unnormed = z_unnormed.at[...,:self.n_pos_features].set(
                 wrap_positions_to_periodic_box(
-                    z_unnormed[...,self.n_pos_features],
+                    z_unnormed[...,:self.n_pos_features],
                     cell_matrix= rescaled_box_size * unit_cell,
                 )
             )
@@ -291,9 +291,10 @@ class VariationalDiffusionModel(nn.Module):
         g_t = self.gamma(t)
         eps = jax.random.normal(self.make_rng("sample"), shape=f.shape)
         z_t = variance_preserving_map(f, g_t[:, None], eps) 
-        z_t = self.wrap_z_in_periodic_box(
-            z=z_t, alpha=alpha(g_t), 
-        )
+        if self.apply_pbcs:
+            z_t = self.wrap_z_in_periodic_box(
+                z=z_t, alpha=alpha(g_t), 
+            )
         # Compute predicted noise
         eps_hat = self.score_model(z_t, g_t, cond, mask, alpha=alpha(g_t)) 
         if self.apply_pbcs:
@@ -301,14 +302,23 @@ class VariationalDiffusionModel(nn.Module):
             rescaled_box_size = (
                 alpha(g_t) / np.sqrt(sigma2(g_t)) * self.norm_dict["box_size"]
             )
+            rescaled_box_size = np.squeeze(rescaled_box_size)
             x_std = np.array(self.norm_dict["x_std"])
             deps = (eps - eps_hat) * x_std
-            deps = deps.at[...,:self.n_pos_features].set(
-                jax.vmap(apply_pbc)(
-                    deps[...,:self.n_pos_features],
-                    np.expand_dims(rescaled_box_size, (-1, -2)) * self.norm_dict['unit_cell']
+            if np.isscalar(rescaled_box_size) or rescaled_box_size.ndim ==0:
+                deps = deps.at[...,:self.n_pos_features].set(
+                    apply_pbc(
+                        deps[...,:self.n_pos_features],
+                        rescaled_box_size * self.norm_dict['unit_cell']
+                    )
                 )
-            )
+            else:
+                deps = deps.at[...,:self.n_pos_features].set(
+                    jax.vmap(apply_pbc)(
+                        deps[...,:self.n_pos_features],
+                        np.expand_dims(rescaled_box_size, (-1, -2)) * self.norm_dict['unit_cell']
+                    )
+                )
             deps /= x_std
         else:
             deps = eps - eps_hat
@@ -445,9 +455,10 @@ class VariationalDiffusionModel(nn.Module):
         alpha_t = alpha(g_t)
 
         cond = self.embed(conditioning)
-        z_t = self.wrap_z_in_periodic_box(
-            z=z_t, alpha=alpha_t, n_pos_features=self.d_feature
-        )
+        if self.apply_pbcs:
+            z_t = self.wrap_z_in_periodic_box(
+                z=z_t, alpha=alpha_t,
+            )
         eps_hat_cond = self.score_model(
             z_t, g_t * np.ones((z_t.shape[0],), z_t.dtype), cond, mask, alpha=alpha_t
         )
