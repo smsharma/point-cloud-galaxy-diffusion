@@ -18,23 +18,6 @@ def fourier_features(x, num_encodings=16, include_self=True):
     return x
 
 
-class CoordNorm(nn.Module):
-    """Coordinate normalization, from
-    https://github.com/lucidrains/egnn-pytorch/blob/main/egnn_pytorch/egnn_pytorch.py#LL67C28-L67C28
-    """
-
-    eps: float = 1e-5
-    scale_init: float = 1.0
-
-    def setup(self):
-        self.scale = self.param("scale", nn.initializers.constant(self.scale_init), (1,))
-
-    def __call__(self, coors):
-        norm = jnp.linalg.norm(coors, axis=-1, keepdims=True)
-        normed_coors = coors / jax.lax.clamp(self.eps, norm, jnp.inf)
-        return normed_coors * self.scale
-
-
 def get_edge_mlp_updates(d_hidden, n_layers, activation, position_only=False, use_fourier_features=False) -> Callable:
     """Get an edge MLP update function
 
@@ -216,7 +199,6 @@ class EGNN(nn.Module):
 
     message_passing_steps: int = 3
     skip_connections: bool = False
-    norm_layer: bool = True
     d_hidden: int = 64
     n_layers: int = 3
     activation: str = "swish"
@@ -249,27 +231,8 @@ class EGNN(nn.Module):
             update_node_fn = get_node_mlp_updates(self.d_hidden, self.n_layers, activation, n_edge=processed_graphs.n_edge, position_only=positions_only)
             update_edge_fn = get_edge_mlp_updates(self.d_hidden, self.n_layers, activation, position_only=positions_only, use_fourier_features=self.use_fourier_features)
             graph_net = jraph.GraphNetwork(update_node_fn=update_node_fn, update_edge_fn=update_edge_fn)
-            print(processed_graphs.globals.shape)
             if self.skip_connections:
                 processed_graphs = add_graphs_tuples(graph_net(processed_graphs), processed_graphs)
             else:
                 processed_graphs = graph_net(processed_graphs)
-            if self.norm_layer:
-                processed_graphs = self.norm(processed_graphs, positions_only=positions_only)
         return processed_graphs
-
-    def norm(self, graph, positions_only=False):
-        if not positions_only:
-            x, v, h = graph.nodes[..., :3], graph.nodes[..., 3:6], graph.nodes[..., 6:]
-
-            # Only apply LN if scalars have more than one feature
-            x, v, h = (
-                CoordNorm()(x),
-                CoordNorm()(v),
-                h if h.shape[-1] == 1 else nn.LayerNorm()(h),
-            )
-            graph = graph._replace(nodes=jnp.concatenate([x, v, h], -1))
-        else:
-            x = CoordNorm()(graph.nodes)
-            graph = graph._replace(nodes=x)
-        return graph
