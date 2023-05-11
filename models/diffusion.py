@@ -118,7 +118,7 @@ class VariationalDiffusionModel(nn.Module):
         x_mean = tuple(map(float, norm_dict["mean"]))
         x_std = tuple(map(float, norm_dict["std"]))
         box_size = config.data.box_size
-        unit_cell = np.array(config.data.unit_cell) if box_size is not None else None
+        unit_cell = tuple(map(tuple, config.data.unit_cell)) if box_size is not None else None
         norm_dict_input = FrozenDict(
             {
                 "x_mean": x_mean,
@@ -263,7 +263,7 @@ class VariationalDiffusionModel(nn.Module):
         rescaled_box_size = np.squeeze(alpha * self.norm_dict['box_size'])
         coord_mean = np.array(self.norm_dict["x_mean"])
         coord_std = np.array(self.norm_dict["x_std"])
-        unit_cell = self.norm_dict['unit_cell']
+        unit_cell = np.array(self.norm_dict['unit_cell'])
         z_unnormed = z * coord_std + coord_mean
         if np.isscalar(rescaled_box_size) or rescaled_box_size.ndim == 0:
             z_unnormed = z_unnormed.at[...,:self.n_pos_features].set(
@@ -304,19 +304,20 @@ class VariationalDiffusionModel(nn.Module):
             )
             rescaled_box_size = np.squeeze(rescaled_box_size)
             x_std = np.array(self.norm_dict["x_std"])
+            unit_cell = np.array(self.norm_dict['unit_cell'])
             deps = (eps - eps_hat) * x_std
             if np.isscalar(rescaled_box_size) or rescaled_box_size.ndim ==0:
                 deps = deps.at[...,:self.n_pos_features].set(
                     apply_pbc(
                         deps[...,:self.n_pos_features],
-                        rescaled_box_size * self.norm_dict['unit_cell']
+                        rescaled_box_size * unit_cell
                     )
                 )
             else:
                 deps = deps.at[...,:self.n_pos_features].set(
                     jax.vmap(apply_pbc)(
                         deps[...,:self.n_pos_features],
-                        np.expand_dims(rescaled_box_size, (-1, -2)) * self.norm_dict['unit_cell']
+                        np.expand_dims(rescaled_box_size, (-1, -2)) * unit_cell
                     )
                 )
             deps /= x_std
@@ -434,7 +435,7 @@ class VariationalDiffusionModel(nn.Module):
                     alpha(0.0) / np.sqrt(sigma2(0.0)) * self.norm_dict["box_size"]
                 )
                 return PeriodicNormal(
-                    unit_cell=self.norm_dict['unit_cell'],
+                    unit_cell=np.array(self.norm_dict['unit_cell']),
                     coord_std=np.array(self.norm_dict["x_std"]),
                     box_size=rescaled_box_size,
                     loc=z0,

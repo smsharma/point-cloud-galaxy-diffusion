@@ -105,7 +105,7 @@ class GraphScoreNet(nn.Module):
         n_pos_features = self.score_dict["n_pos_features"]
         box_size = self.norm_dict["box_size"]
         if box_size is not None:
-            unit_cell = self.norm_dict['unit_cell']
+            unit_cell = np.array(self.norm_dict['unit_cell'])
             rescaled_box_size = np.squeeze(alpha * box_size)
             coord_mean = np.array(self.norm_dict["x_mean"])
             coord_std = np.array(self.norm_dict["x_std"])
