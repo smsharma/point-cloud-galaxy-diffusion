@@ -8,8 +8,6 @@ from models.graph_utils import add_graphs_tuples
 from models.mlp import MLP
 
 
-
-
 def get_node_mlp_updates(mlp_feature_sizes: int) -> Callable:
     """Get a node MLP update  function
 
@@ -81,12 +79,19 @@ def get_edge_mlp_updates(mlp_feature_sizes: int) -> Callable:
 
     return update_fn
 
-def attention_logit_fn(edges, sent_attributes, received_attributes, global_edge_attributes):
-    feat = jnp.concatenate((edges, sent_attributes, received_attributes, global_edge_attributes), axis=-1)
+
+def attention_logit_fn(
+    edges, sent_attributes, received_attributes, global_edge_attributes
+):
+    feat = jnp.concatenate(
+        (edges, sent_attributes, received_attributes, global_edge_attributes), axis=-1
+    )
     return jax.nn.sigmoid(MLP([1])(feat))
+
 
 def attention_reduce_fn(edge_features, weights):
     return edge_features * weights
+
 
 class GraphConvNet(nn.Module):
     """A simple graph convolutional network"""
@@ -118,17 +123,19 @@ class GraphConvNet(nn.Module):
         processed_graphs = processed_graphs._replace(
             globals=processed_graphs.globals.reshape(1, -1),
         )
-        mlp_feature_sizes = [self.hidden_size] * self.num_mlp_layers + [self.latent_size]
+        mlp_feature_sizes = [self.hidden_size] * self.num_mlp_layers + [
+            self.latent_size
+        ]
         update_node_fn = get_node_mlp_updates(mlp_feature_sizes)
         update_edge_fn = get_edge_mlp_updates(mlp_feature_sizes)
 
         # Now, we will apply the GCN once for each message-passing round.
         for _ in range(self.message_passing_steps):
             graph_net = jraph.GraphNetwork(
-                update_node_fn=update_node_fn, 
+                update_node_fn=update_node_fn,
                 update_edge_fn=update_edge_fn,
-                attention_logit_fn = attention_logit_fn if self.attention else None,
-                attention_reduce_fn = attention_reduce_fn if self.attention else None,
+                attention_logit_fn=attention_logit_fn if self.attention else None,
+                attention_reduce_fn=attention_reduce_fn if self.attention else None,
             )
             if self.skip_connections:
                 processed_graphs = add_graphs_tuples(
@@ -143,6 +150,3 @@ class GraphConvNet(nn.Module):
                 )
         decoder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(in_features))
         return decoder(processed_graphs)
-
-
-   
