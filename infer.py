@@ -22,7 +22,8 @@ if __name__ == "__main__":
     use_test_set = True 
     split='test' if use_test_set else 'train'
     print("{} devices visible".format(jax.device_count()))
-    run_name = 'chocolate-cloud-122' #'eternal-oath-121'
+    #run_name = 'chocolate-cloud-122' #'eternal-oath-121'
+    run_name = 'confused-gorge-138'
     path_to_model = Path(
         f"/n/home11/ccuestalazaro/set-diffuser/logging/cosmology/{run_name}"
     )
@@ -42,14 +43,14 @@ if __name__ == "__main__":
     lr = 1e-2
 
     min_fit_idx = 0
-    max_fit_idx = 200 
+    max_fit_idx = 10 
     x, _, conditioning, _ = get_nbody_data(
         n_features=config.data.n_features,
         n_particles = config.data.n_particles,
         split=split,
     )
-    print(conditioning)
     test_idx = np.array(range(min_fit_idx, max_fit_idx))
+    print(conditioning[test_idx])
     x = x[test_idx]
 
     rng = jax.random.PRNGKey(42)
@@ -80,6 +81,6 @@ if __name__ == "__main__":
         posterior_dict = guide.sample_posterior(
             rng_key=rng, params=svi_results.params, sample_shape=(num_samples,)
         )
-        with open(path_to_posteriors / f'chain_{split}_{idx}.pkl', 'wb') as f:
+        with open(path_to_posteriors / f'chain_{split}_{idx}_steps10.pkl', 'wb') as f:
             pickle.dump(posterior_dict, f)
         print(f'Finished chain {idx} in {time.time() - t0:.2f} seconds')

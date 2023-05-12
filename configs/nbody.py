@@ -22,7 +22,7 @@ def get_config():
     vdm.noise_schedule = "learned_linear"
     vdm.noise_scale = 1e-3
     vdm.timesteps = 0  # 0 for continuous-time VLB
-    vdm.embed_context = False
+    vdm.embed_context = True 
     vdm.d_context_embedding = 16
     vdm.n_classes = 0
     vdm.use_encdec = False
@@ -50,12 +50,14 @@ def get_config():
     # # Graph score model
     config.score = score = ml_collections.ConfigDict()
     score.score = "graph"
-    score.k = 20
+    score.k = 30
     score.n_pos_features = 3
     score.num_mlp_layers = 4
     score.latent_size = 64
+    score.hidden_size = 512
     score.skip_connections = True
     score.message_passing_steps = 4
+    score.attention = True
 
     # # Equivariant score model
     # config.score = score = ml_collections.ConfigDict()
@@ -81,8 +83,8 @@ def get_config():
     data.n_particles = 5000  # Select the first n_particles particles
     data.n_features = 3  # Select the first n_features features
     data.n_pos_features = 3  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
-    data.box_size = 1000.
-    data.unit_cell = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    data.box_size = None #1000.
+    data.unit_cell = None #[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
     data.kwargs = {}
 
     # Optimizer (AdamW)

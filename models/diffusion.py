@@ -286,7 +286,6 @@ class VariationalDiffusionModel(nn.Module):
 
     def diffusion_loss(self, t, f, cond, mask):
         """The diffusion loss measures the gap in the intermediate steps."""
-
         # Sample z_t
         g_t = self.gamma(t)
         eps = jax.random.normal(self.make_rng("sample"), shape=f.shape)

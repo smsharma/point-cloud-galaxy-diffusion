@@ -42,16 +42,11 @@ def alpha(gamma):
 def variance_preserving_map(x, gamma, eps):
     a = alpha(gamma)
     var = sigma2(gamma)
-
     x_shape = x.shape
-
     x = x.reshape(x.shape[0], -1)
     eps = eps.reshape(eps.shape[0], -1)
-
     noise_augmented = a * x + np.sqrt(var) * eps
-
     return noise_augmented.reshape(x_shape)
-
 
 def get_timestep_embedding(timesteps, embedding_dim: int, dtype=np.float32):
     """Build sinusoidal embeddings (from Fairseq)."""

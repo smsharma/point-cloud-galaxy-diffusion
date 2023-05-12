@@ -7,58 +7,33 @@ import jax.numpy as np
 import numpyro
 import numpyro.distributions as dist
 
-def get_loss(vdm, params, rng, x, conditioning, mask, steps=500, unroll_loop=True):
+def elbo(vdm, params, rng, x, conditioning, mask, steps=10, unroll_loop=False):
     rng, spl = jax.random.split(rng)
     cond = vdm.apply(params, conditioning, method=vdm.embed)
     f = vdm.apply(params, x, conditioning, method=vdm.encode)
     loss_recon = vdm.apply(params, x, f, conditioning, rngs={"sample": rng}, method=vdm.recon_loss)
     loss_klz = vdm.apply(params, f, method=vdm.latent_loss)
+    
     if not unroll_loop:
-
+        
         def body_fun(i, val):
             loss, rng = val
             rng, spl = jax.random.split(rng)
-            new_loss = vdm.apply(
-                params,
-                np.array([i / steps]),
-                f,
-                cond,
-                mask,
-                rngs={"sample": spl},
-                method=vdm.diffusion_loss,
-            )
+            new_loss = vdm.apply(params, np.array([i / steps]), f, cond, mask, rngs={"sample": spl}, method=vdm.diffusion_loss)
             return (loss + (new_loss * mask[..., None]).sum((-1, -2)) / steps, rng)
 
         loss_diff, rng = jax.lax.fori_loop(0, steps, body_fun, (np.zeros(x.shape[0]), rng))
+
     else:
+        
         loss_diff, rng = (np.zeros(x.shape[0]), rng)
+
         for i in range(steps):
             rng, spl = jax.random.split(rng)
-            new_loss = vdm.apply(
-                params,
-                np.array([i / steps]),
-                f,
-                cond,
-                mask,
-                rngs={"sample": spl},
-                method=vdm.diffusion_loss,
-            )
-            loss_diff = loss_diff + (new_loss * mask[..., None]).sum((-1, -2)) / steps
-    return loss_recon, loss_klz, loss_diff
-
-def elbo(vdm, params, rng, x, conditioning, mask, steps=500, unroll_loop=True):
-    loss_recon, loss_klz, loss_diff = get_loss(
-        vdm=vdm,
-        params=params,
-        rng=rng,
-        x=x,
-        conditioning=conditioning,
-        mask=mask,
-        steps=steps,
-        unroll_loop=unroll_loop
-        
-    )
-    return (loss_recon * mask[..., None]).sum((-1, -2)) + (loss_klz * mask[..., None]).sum((-1, -2)) + loss_diff
+            new_loss = vdm.apply(params, np.array([i / steps]), f, cond, mask, rngs={"sample": spl}, method=vdm.diffusion_loss)
+            loss_diff =  loss_diff + (new_loss * mask[..., None]).sum((-1, -2)) / steps
+    
+    return ((loss_recon * mask[..., None]).sum((-1, -2)) + (loss_klz * mask[..., None]).sum((-1, -2)) + loss_diff)
 
 
 def prior_cube(u):
@@ -104,7 +79,7 @@ def get_model(
     restored_state_params,
     rng,
 ):
-    def model(x_test, n_samples=2, steps=20,):
+    def model(x_test, n_samples=2, steps=10,):
         # Omega_m and sigma_8 prior distributions
         omega_m = numpyro.sample("omega_m", dist.Uniform(0.1, 0.5))
         sigma_8 = numpyro.sample("sigma_8", dist.Uniform(0.6, 1.0))
