@@ -22,7 +22,7 @@ def get_config():
     vdm.noise_schedule = "learned_linear"
     vdm.noise_scale = 1e-3
     vdm.timesteps = 0  # 0 for continuous-time VLB
-    vdm.embed_context = True 
+    vdm.embed_context = False 
     vdm.d_context_embedding = 16
     vdm.n_classes = 0
     vdm.use_encdec = False
@@ -50,14 +50,14 @@ def get_config():
     # # Graph score model
     config.score = score = ml_collections.ConfigDict()
     score.score = "graph"
-    score.k = 30
+    score.k = 20
     score.n_pos_features = 3
     score.num_mlp_layers = 4
     score.latent_size = 64
-    score.hidden_size = 512
+    score.hidden_size = 64
     score.skip_connections = True
     score.message_passing_steps = 4
-    score.attention = True
+    score.attention = False 
 
     # # Equivariant score model
     # config.score = score = ml_collections.ConfigDict()
