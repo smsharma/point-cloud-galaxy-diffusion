@@ -283,7 +283,6 @@ class VariationalDiffusionModel(nn.Module):
             )
         return (z_unnormed - coord_mean) / coord_std
 
-
     def diffusion_loss(self, t, f, cond, mask):
         """The diffusion loss measures the gap in the intermediate steps."""
         # Sample z_t
