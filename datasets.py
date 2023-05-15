@@ -45,6 +45,8 @@ def get_nbody_data(
     n_features,
     n_particles,
     split: str = "train",
+    normalize: bool = False,
+    standarize: bool = True,
 ):
     DATA_DIR = Path("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/")
     x, conditioning = get_halo_data(
@@ -59,11 +61,19 @@ def get_nbody_data(
             n_particles=n_particles,
             split="train",
         )
-    # Standardize per-feature (over datasets and particles)
-    x_mean = x_train.mean(axis=(0, 1))
-    x_std = x_train.std(axis=(0, 1))
-    x = (x - x_mean + EPS) / (x_std + EPS)
-    norm_dict = {"mean": x_mean, "std": x_std}
+    if normalize and standarize:
+        raise ValueError("Cannot normalize and standarize at the same time")
+    if standarize:
+        # Standardize per-feature (over datasets and particles)
+        x_mean = x_train.mean(axis=(0, 1))
+        x_std = x_train.std(axis=(0, 1))
+        x = (x - x_mean + EPS) / (x_std + EPS)
+        norm_dict = {"mean": x_mean, "std": x_std}
+    elif normalize:
+        x_min = x_train.min(axis=(0, 1))
+        x_max = x_train.max(axis=(0, 1))
+        x = (x - x_min) / (x_max - x_min)
+        norm_dict = {"min": x_min, "max": x_max}
     # Finalize
     mask = np.ones((x.shape[0], n_particles))  # No mask
     conditioning = conditioning[:, [0, -1]]  # Select only omega_m and sigma_8
@@ -77,11 +87,15 @@ def nbody_dataset(
     seed,
     split: str = "train",
     shuffle: bool = True,
+    normalize: bool = False,
+    standarize: bool = True,
 ):
     x, mask, conditioning, norm_dict = get_nbody_data(
         n_features,
         n_particles,
         split=split,
+        normalize=normalize,
+        standarize=standarize,
     )
     ds = make_dataloader(
         x,

@@ -259,17 +259,17 @@ class VariationalDiffusionModel(nn.Module):
             return True
         return False
 
-    def wrap_z_in_periodic_box(self, z, alpha,):
-        rescaled_box_size = np.squeeze(alpha * self.norm_dict['box_size'])
+    def wrap_z_in_periodic_box(self, z,):
+        box_size = self.norm_dict['box_size']
         coord_mean = np.array(self.norm_dict["x_mean"])
         coord_std = np.array(self.norm_dict["x_std"])
         unit_cell = np.array(self.norm_dict['unit_cell'])
         z_unnormed = z * coord_std + coord_mean
-        if np.isscalar(rescaled_box_size) or rescaled_box_size.ndim == 0:
+        if np.isscalar(box_size) or box_size.ndim == 0:
             z_unnormed = z_unnormed.at[...,:self.n_pos_features].set(
                 wrap_positions_to_periodic_box(
                     z_unnormed[...,:self.n_pos_features],
-                    cell_matrix= rescaled_box_size * unit_cell,
+                    cell_matrix= box_size* unit_cell,
                 )
             )
         else:
@@ -278,7 +278,7 @@ class VariationalDiffusionModel(nn.Module):
                     wrap_positions_to_periodic_box
                 )(
                     z_unnormed[...,:self.n_pos_features],
-                    np.expand_dims(rescaled_box_size, (-1,-2))*unit_cell
+                    np.expand_dims(box_size, (-1,-2))*unit_cell
                 )
             )
         return (z_unnormed - coord_mean) / coord_std
@@ -291,16 +291,21 @@ class VariationalDiffusionModel(nn.Module):
         z_t = variance_preserving_map(f, g_t[:, None], eps) 
         if self.apply_pbcs:
             z_t = self.wrap_z_in_periodic_box(
-                z=z_t, alpha=alpha(g_t), 
+                z=z_t, 
             )
         # Compute predicted noise
-        eps_hat = self.score_model(z_t, g_t, cond, mask, alpha=alpha(g_t)) 
+        eps_hat = self.score_model(
+            z_t, 
+            g_t, 
+            cond, 
+            mask, 
+            box_size = self.norm_dict['box_size'],
+        )
         if self.apply_pbcs:
             # If PBCs, allow for equivalent noise in periodic box
-            rescaled_box_size = (
-                alpha(g_t) / np.sqrt(sigma2(g_t)) * self.norm_dict["box_size"]
+            rescaled_box_size = np.squeeze(
+                self.norm_dict['box_size'] / np.sqrt(sigma2(g_t)) 
             )
-            rescaled_box_size = np.squeeze(rescaled_box_size)
             x_std = np.array(self.norm_dict["x_std"])
             unit_cell = np.array(self.norm_dict['unit_cell'])
             deps = (eps - eps_hat) * x_std
@@ -429,9 +434,7 @@ class VariationalDiffusionModel(nn.Module):
         else:
             if self.apply_pbcs:
                 # If PBCs, allow for equivalent noise in periodic box
-                rescaled_box_size = (
-                    alpha(0.0) / np.sqrt(sigma2(0.0)) * self.norm_dict["box_size"]
-                )
+                rescaled_box_size = self.norm_dict['box_size'] / np.sqrt(sigma2(0.0)) 
                 return PeriodicNormal(
                     unit_cell=np.array(self.norm_dict['unit_cell']),
                     coord_std=np.array(self.norm_dict["x_std"]),
@@ -451,15 +454,14 @@ class VariationalDiffusionModel(nn.Module):
 
         g_s = self.gamma(s)
         g_t = self.gamma(t)
-        alpha_t = alpha(g_t)
-
         cond = self.embed(conditioning)
         if self.apply_pbcs:
             z_t = self.wrap_z_in_periodic_box(
-                z=z_t, alpha=alpha_t,
+                z=z_t, 
             )
         eps_hat_cond = self.score_model(
-            z_t, g_t * np.ones((z_t.shape[0],), z_t.dtype), cond, mask, alpha=alpha_t
+            z_t, g_t * np.ones((z_t.shape[0],), z_t.dtype), cond, mask, 
+            box_size = self.norm_dict['box_size'],
         )
         a = nn.sigmoid(g_s)
         b = nn.sigmoid(g_t)
@@ -470,3 +472,12 @@ class VariationalDiffusionModel(nn.Module):
             + np.sqrt((1.0 - a) * c) * eps
         )
         return z_s
+
+    def evaluate_score(self, z_t, g_t, cond, mask, box_size,):
+        return self.score_model(
+            z=z_t,
+            t=g_t,
+            conditioning=cond,
+            mask=mask,
+            box_size = box_size,
+        )

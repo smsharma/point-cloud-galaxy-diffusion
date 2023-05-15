@@ -30,7 +30,7 @@ class TransformerScoreNet(nn.Module):
     )
 
     @nn.compact
-    def __call__(self, z, t, conditioning, mask, alpha=None):
+    def __call__(self, z, t, conditioning, mask, box_size=None):
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
         t = t * np.ones(z.shape[0])  # Ensure t is a vector
 
@@ -82,7 +82,7 @@ class GraphScoreNet(nn.Module):
     )
 
     @nn.compact
-    def __call__(self, z, t, conditioning, mask, alpha=None,):
+    def __call__(self, z, t, conditioning, mask, box_size=None,):
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
         t = t * np.ones(z.shape[0])  # Ensure t is a vector
 
@@ -103,20 +103,18 @@ class GraphScoreNet(nn.Module):
         cond = MLP([d_cond * 4, d_cond * 4, d_cond])(cond)
         k = self.score_dict["k"]
         n_pos_features = self.score_dict["n_pos_features"]
-        box_size = self.norm_dict["box_size"]
         if box_size is not None:
-            unit_cell = np.array(self.norm_dict['unit_cell'])
-            rescaled_box_size = np.squeeze(alpha * box_size)
             coord_mean = np.array(self.norm_dict["x_mean"])
             coord_std = np.array(self.norm_dict["x_std"])
-            z_unnormed = z * coord_std + coord_mean
-            if np.isscalar(rescaled_box_size) or rescaled_box_size.ndim == 0:
+            z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
+            unit_cell = np.array(self.norm_dict['unit_cell'])
+            if np.isscalar(box_size) or box_size.ndim == 0:
                 sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
-                    z_unnormed[...,:n_pos_features], k, rescaled_box_size, unit_cell, mask,
+                    z_unnormed[...,:n_pos_features], k, box_size, unit_cell, mask,
                 )
             else:
                 sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, 0, None, 0))(
-                    z_unnormed[...,:n_pos_features], k, rescaled_box_size, unit_cell, mask,
+                    z_unnormed[...,:n_pos_features], k, box_size, unit_cell, mask,
                 )
         else:
             sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
@@ -142,7 +140,6 @@ class GraphScoreNet(nn.Module):
         h = jax.vmap(GraphConvNet(**score_dict))(graph)
         pos_update = graph.nodes - h.nodes
         return pos_update
-        #return z + h.nodes
 
 
 
