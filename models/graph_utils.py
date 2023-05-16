@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as np
 import jraph
-from jax_md import space, partition
+#from jax_md import space, partition
 
 from functools import partial
 from models.periodic_boundary_utils import apply_pbc
@@ -48,7 +48,7 @@ def nearest_neighbors(
     sources = indices[:, 0].repeat(k)
     targets = indices.reshape(n_nodes * (k))
 
-    return (sources, targets)
+    return (sources, targets, np.sqrt(distance_matrix[sources, targets]))
 
 
 @partial(jax.jit, static_argnums=(1,))

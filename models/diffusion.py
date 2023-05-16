@@ -362,7 +362,6 @@ class VariationalDiffusionModel(nn.Module):
             t = np.mod(t0 + np.arange(0.0, 1.0, step=1.0 / d_batch), 1.0)
         else:
             t = jax.random.uniform(rng1, shape=(d_batch,))
-
         # Discretize time steps if we're working with discrete time
         T = self.timesteps
         if T > 0:

@@ -44,7 +44,7 @@ def get_node_mlp_updates(mlp_feature_sizes: int) -> Callable:
     return update_fn
 
 
-def get_edge_mlp_updates(mlp_feature_sizes: int) -> Callable:
+def get_edge_mlp_updates(mlp_feature_sizes: int, use_edges_only: bool=False,) -> Callable:
     """Get an edge MLP update function
 
     Args:
@@ -72,7 +72,10 @@ def get_edge_mlp_updates(mlp_feature_sizes: int) -> Callable:
             jnp.ndarray: updated edge features
         """
         if edges is not None:
-            inputs = jnp.concatenate([edges, senders, receivers, globals], axis=1)
+            if use_edges_only:
+                inputs = jnp.concatenate([edges, globals], axis=1)
+            else:
+                inputs = jnp.concatenate([edges, senders, receivers, globals], axis=1)
         else:
             inputs = jnp.concatenate([senders, receivers, globals], axis=1)
         return MLP(mlp_feature_sizes)(inputs)
@@ -103,6 +106,7 @@ class GraphConvNet(nn.Module):
     skip_connections: bool = True
     layer_norm: bool = True
     attention: bool = False
+    use_edges_only: bool = False
 
     @nn.compact
     def __call__(self, graphs: jraph.GraphsTuple) -> jraph.GraphsTuple:
@@ -115,7 +119,6 @@ class GraphConvNet(nn.Module):
             jraph.GraphsTuple: updated graph object
         """
         in_features = graphs.nodes.shape[-1]
-
         # We will first linearly project the original node features as 'embeddings'.
         embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.latent_size))
         processed_graphs = embedder(graphs)
@@ -126,11 +129,13 @@ class GraphConvNet(nn.Module):
         mlp_feature_sizes = [self.hidden_size] * self.num_mlp_layers + [
             self.latent_size
         ]
-        update_node_fn = get_node_mlp_updates(mlp_feature_sizes)
-        update_edge_fn = get_edge_mlp_updates(mlp_feature_sizes)
-
         # Now, we will apply the GCN once for each message-passing round.
-        for _ in range(self.message_passing_steps):
+        update_node_fn = get_node_mlp_updates(mlp_feature_sizes)
+        for step in range(self.message_passing_steps):
+            update_edge_fn = get_edge_mlp_updates(
+                mlp_feature_sizes, 
+                use_edges_only=True if self.use_edges_only and step == 0 else False,
+            )
             graph_net = jraph.GraphNetwork(
                 update_node_fn=update_node_fn,
                 update_edge_fn=update_edge_fn,

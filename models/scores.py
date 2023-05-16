@@ -71,6 +71,7 @@ class GraphScoreNet(nn.Module):
             "skip_connections": True,
             "message_passing_steps": 4,
             "n_pos_features": 3,
+            "use_edges_only": False,
         }
     )
     norm_dict: dict = dataclasses.field(
@@ -101,6 +102,7 @@ class GraphScoreNet(nn.Module):
         # I'm not sure this is really necessary
         d_cond = cond.shape[-1]  # Dimension of conditioning context
         cond = MLP([d_cond * 4, d_cond * 4, d_cond])(cond)
+        use_edges_only = self.score_dict.get("use_edges_only",False)
         k = self.score_dict["k"]
         n_pos_features = self.score_dict["n_pos_features"]
         if box_size is not None:
@@ -109,15 +111,18 @@ class GraphScoreNet(nn.Module):
             z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
             unit_cell = np.array(self.norm_dict['unit_cell'])
             if np.isscalar(box_size) or box_size.ndim == 0:
-                sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
+                sources, targets, distances = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
                     z_unnormed[...,:n_pos_features], k, box_size, unit_cell, mask,
                 )
+                distances /= self.norm_dict['box_size']/10. #TODO: can we estimate max distance for k?
+
             else:
-                sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, 0, None, 0))(
+                sources, targets, distances = jax.vmap(nearest_neighbors, in_axes=(0, None, 0, None, 0))(
                     z_unnormed[...,:n_pos_features], k, box_size, unit_cell, mask,
                 )
+                distances /= self.norm_dict['box_size']/10.
         else:
-            sources, targets = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
+            sources, targets, distances = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
                 z[..., :n_pos_features], k, None, None, mask
             )
         n_batch = z.shape[0]
@@ -125,7 +130,7 @@ class GraphScoreNet(nn.Module):
             n_node=(mask.sum(-1)[:, None]).astype(np.int32),
             n_edge=np.array(n_batch * [[k]]),
             nodes=z,
-            edges=None,
+            edges=np.expand_dims(distances, axis=-1) if use_edges_only else None,
             globals=cond,
             senders=sources,
             receivers=targets,
