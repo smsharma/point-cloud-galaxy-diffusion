@@ -107,6 +107,7 @@ class GraphConvNet(nn.Module):
     layer_norm: bool = True
     attention: bool = False
     use_edges_only: bool = False
+    in_features: int = 3
 
     @nn.compact
     def __call__(self, graphs: jraph.GraphsTuple) -> jraph.GraphsTuple:
@@ -118,10 +119,12 @@ class GraphConvNet(nn.Module):
         Returns:
             jraph.GraphsTuple: updated graph object
         """
-        in_features = graphs.nodes.shape[-1]
-        # We will first linearly project the original node features as 'embeddings'.
-        embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.latent_size))
-        processed_graphs = embedder(graphs)
+        if self.use_edges_only:
+            processed_graphs = graphs
+        else:
+            # We will first linearly project the original node features as 'embeddings'.
+            embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.latent_size))
+            processed_graphs = embedder(graphs)
         # Keep "batch" index of globals, flatten the rest
         processed_graphs = processed_graphs._replace(
             globals=processed_graphs.globals.reshape(1, -1),
@@ -132,9 +135,10 @@ class GraphConvNet(nn.Module):
         # Now, we will apply the GCN once for each message-passing round.
         update_node_fn = get_node_mlp_updates(mlp_feature_sizes)
         for step in range(self.message_passing_steps):
+            use_edges_only = True if self.use_edges_only and step == 0 else False
             update_edge_fn = get_edge_mlp_updates(
                 mlp_feature_sizes, 
-                use_edges_only=True if self.use_edges_only and step == 0 else False,
+                use_edges_only=use_edges_only,
             )
             graph_net = jraph.GraphNetwork(
                 update_node_fn=update_node_fn,
@@ -142,7 +146,7 @@ class GraphConvNet(nn.Module):
                 attention_logit_fn=attention_logit_fn if self.attention else None,
                 attention_reduce_fn=attention_reduce_fn if self.attention else None,
             )
-            if self.skip_connections:
+            if self.skip_connections and not use_edges_only:
                 processed_graphs = add_graphs_tuples(
                     graph_net(processed_graphs), processed_graphs
                 )
@@ -153,5 +157,5 @@ class GraphConvNet(nn.Module):
                 processed_graphs = processed_graphs._replace(
                     nodes=nn.LayerNorm()(processed_graphs.nodes)
                 )
-        decoder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(in_features))
+        decoder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.in_features))
         return decoder(processed_graphs)

@@ -259,7 +259,15 @@ class VariationalDiffusionModel(nn.Module):
             return True
         return False
 
-    def wrap_z_in_periodic_box(self, z,):
+    def wrap_z_in_periodic_box(self, z: np.array,)->np.array:
+        """ Wrap the latent variable z inside a periodic box
+
+        Args:
+            z (np.array): standarized latent variable z 
+
+        Returns:
+            np.array: wrapped z 
+        """
         box_size = self.norm_dict['box_size']
         coord_mean = np.array(self.norm_dict["x_mean"])
         coord_std = np.array(self.norm_dict["x_std"])
@@ -283,6 +291,37 @@ class VariationalDiffusionModel(nn.Module):
             )
         return (z_unnormed - coord_mean) / coord_std
 
+    def wrap_errors_in_periodic_box(self, errors: np.array, sigma_t: Union[np.array,float])->np.array:
+        """ Wrap the errors inside a periodic box
+
+        Args:
+            errors (np.array): errors to be wrapped 
+            sigma_t (float): standard deviation of the noise
+
+        Returns:
+            np.array: wrapped errors 
+        """
+        box_size = self.norm_dict['box_size']
+        box_size = box_size / sigma_t
+        coord_std = np.array(self.norm_dict["x_std"])
+        errors *= coord_std
+        unit_cell = np.array(self.norm_dict['unit_cell'])
+        if np.isscalar(box_size) or box_size.ndim == 0:
+            errors = errors.at[...,:self.n_pos_features].set(
+                apply_pbc(
+                    errors[...,:self.n_pos_features],
+                    box_size * unit_cell
+                )
+            )
+        else:
+            errors = errors.at[...,:self.n_pos_features].set(
+                jax.vmap(apply_pbc)(
+                    errors[...,:self.n_pos_features],
+                    np.expand_dims(box_size, (-1, -2)) * unit_cell
+                )
+            )
+        return errors/coord_std
+
     def diffusion_loss(self, t, f, cond, mask):
         """The diffusion loss measures the gap in the intermediate steps."""
         # Sample z_t
@@ -301,31 +340,12 @@ class VariationalDiffusionModel(nn.Module):
             mask, 
             box_size = self.norm_dict['box_size'],
         )
+        deps = eps - eps_hat
         if self.apply_pbcs:
-            # If PBCs, allow for equivalent noise in periodic box
-            rescaled_box_size = np.squeeze(
-                self.norm_dict['box_size'] / np.sqrt(sigma2(g_t)) 
+            deps = self.wrap_errors_in_periodic_box(
+                errors=deps,
+                sigma_t=np.sqrt(sigma2(g_t))
             )
-            x_std = np.array(self.norm_dict["x_std"])
-            unit_cell = np.array(self.norm_dict['unit_cell'])
-            deps = (eps - eps_hat) * x_std
-            if np.isscalar(rescaled_box_size) or rescaled_box_size.ndim ==0:
-                deps = deps.at[...,:self.n_pos_features].set(
-                    apply_pbc(
-                        deps[...,:self.n_pos_features],
-                        rescaled_box_size * unit_cell
-                    )
-                )
-            else:
-                deps = deps.at[...,:self.n_pos_features].set(
-                    jax.vmap(apply_pbc)(
-                        deps[...,:self.n_pos_features],
-                        np.expand_dims(rescaled_box_size, (-1, -2)) * unit_cell
-                    )
-                )
-            deps /= x_std
-        else:
-            deps = eps - eps_hat
         loss_diff_mse = np.square(deps)  # Compute MSE of predicted noise
         T = self.timesteps
         # NOTE: retain dimension here so that mask can be applied later (hence dummy dims)

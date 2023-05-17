@@ -82,6 +82,29 @@ class GraphScoreNet(nn.Module):
         }
     )
 
+    def get_graph_edges(self, z, n_pos_features, k, mask, box_size,):
+        if box_size is None:
+            return jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
+                z[..., :n_pos_features], k, None, None, mask
+            )
+        coord_mean = np.array(self.norm_dict["x_mean"])
+        coord_std = np.array(self.norm_dict["x_std"])
+        z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
+        unit_cell = np.array(self.norm_dict['unit_cell'])
+        if np.isscalar(box_size) or box_size.ndim == 0:
+            sources, targets, distances = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
+                z_unnormed[...,:n_pos_features], k, box_size, unit_cell, mask,
+            )
+            distances /= self.norm_dict['x_std']
+
+        else:
+            sources, targets, distances = jax.vmap(nearest_neighbors, in_axes=(0, None, 0, None, 0))(
+                z_unnormed[...,:n_pos_features], k, box_size, unit_cell, mask,
+            )
+            distances /= self.norm_dict['x_std']
+        return sources, targets, distances
+
+
     @nn.compact
     def __call__(self, z, t, conditioning, mask, box_size=None,):
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
@@ -105,31 +128,14 @@ class GraphScoreNet(nn.Module):
         use_edges_only = self.score_dict.get("use_edges_only",False)
         k = self.score_dict["k"]
         n_pos_features = self.score_dict["n_pos_features"]
-        if box_size is not None:
-            coord_mean = np.array(self.norm_dict["x_mean"])
-            coord_std = np.array(self.norm_dict["x_std"])
-            z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
-            unit_cell = np.array(self.norm_dict['unit_cell'])
-            if np.isscalar(box_size) or box_size.ndim == 0:
-                sources, targets, distances = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
-                    z_unnormed[...,:n_pos_features], k, box_size, unit_cell, mask,
-                )
-                distances /= self.norm_dict['box_size']/10. #TODO: can we estimate max distance for k?
-
-            else:
-                sources, targets, distances = jax.vmap(nearest_neighbors, in_axes=(0, None, 0, None, 0))(
-                    z_unnormed[...,:n_pos_features], k, box_size, unit_cell, mask,
-                )
-                distances /= self.norm_dict['box_size']/10.
-        else:
-            sources, targets, distances = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
-                z[..., :n_pos_features], k, None, None, mask
-            )
+        sources, targets, distances = self.get_graph_edges(
+            z=z, k=k, n_pos_features=n_pos_features, mask=mask, box_size=box_size
+        )
         n_batch = z.shape[0]
         graph = jraph.GraphsTuple(
             n_node=(mask.sum(-1)[:, None]).astype(np.int32),
             n_edge=np.array(n_batch * [[k]]),
-            nodes=z,
+            nodes=np.zeros_like(z) if use_edges_only else z,
             edges=np.expand_dims(distances, axis=-1) if use_edges_only else None,
             globals=cond,
             senders=sources,
@@ -142,9 +148,12 @@ class GraphScoreNet(nn.Module):
         score_dict.pop("score", None)
         score_dict.pop("n_pos_features", None)
 
-        h = jax.vmap(GraphConvNet(**score_dict))(graph)
-        pos_update = graph.nodes - h.nodes
-        return pos_update
+        h = jax.vmap(GraphConvNet(**score_dict, in_features=z.shape[-1]))(graph)
+        if use_edges_only:
+            return h.nodes
+        else:
+            pos_update = graph.nodes - h.nodes
+            return pos_update
 
 
 
