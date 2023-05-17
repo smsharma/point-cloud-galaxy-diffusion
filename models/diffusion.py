@@ -344,7 +344,7 @@ class VariationalDiffusionModel(nn.Module):
         if self.apply_pbcs:
             deps = self.wrap_errors_in_periodic_box(
                 errors=deps,
-                sigma_t=np.sqrt(sigma2(g_t))
+                sigma_t=np.sqrt(sigma2(g_t)),
             )
         loss_diff_mse = np.square(deps)  # Compute MSE of predicted noise
         T = self.timesteps

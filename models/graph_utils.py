@@ -48,7 +48,7 @@ def nearest_neighbors(
     sources = indices[:, 0].repeat(k)
     targets = indices.reshape(n_nodes * (k))
 
-    return (sources, targets, np.sqrt(distance_matrix[sources, targets]))
+    return (sources, targets, dr[sources, targets])
 
 
 @partial(jax.jit, static_argnums=(1,))
