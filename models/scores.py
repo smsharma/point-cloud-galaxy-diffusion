@@ -95,13 +95,11 @@ class GraphScoreNet(nn.Module):
             sources, targets, distances = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
                 z_unnormed[...,:n_pos_features], k, box_size, unit_cell, mask,
             )
-            distances /= coord_std
-
         else:
             sources, targets, distances = jax.vmap(nearest_neighbors, in_axes=(0, None, 0, None, 0))(
                 z_unnormed[...,:n_pos_features], k, box_size, unit_cell, mask,
             )
-            distances /= coord_std
+        distances /= coord_std
         return sources, targets, distances
 
 
@@ -135,7 +133,7 @@ class GraphScoreNet(nn.Module):
         graph = jraph.GraphsTuple(
             n_node=(mask.sum(-1)[:, None]).astype(np.int32),
             n_edge=np.array(n_batch * [[k]]),
-            nodes=np.zeros_like(z) if use_edges_only else z,
+            nodes=z,
             edges=distances if use_edges_only else None,
             globals=cond,
             senders=sources,

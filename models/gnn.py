@@ -106,7 +106,6 @@ class GraphConvNet(nn.Module):
     skip_connections: bool = True
     layer_norm: bool = True
     attention: bool = False
-    use_edges_only: bool = False
     in_features: int = 3
 
     @nn.compact
@@ -119,12 +118,9 @@ class GraphConvNet(nn.Module):
         Returns:
             jraph.GraphsTuple: updated graph object
         """
-        if self.use_edges_only:
-            processed_graphs = graphs
-        else:
-            # We will first linearly project the original node features as 'embeddings'.
-            embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.latent_size))
-            processed_graphs = embedder(graphs)
+        # We will first linearly project the original node features as 'embeddings'.
+        embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.latent_size))
+        processed_graphs = embedder(graphs)
         # Keep "batch" index of globals, flatten the rest
         processed_graphs = processed_graphs._replace(
             globals=processed_graphs.globals.reshape(1, -1),
@@ -134,19 +130,17 @@ class GraphConvNet(nn.Module):
         ]
         # Now, we will apply the GCN once for each message-passing round.
         update_node_fn = get_node_mlp_updates(mlp_feature_sizes)
-        for step in range(self.message_passing_steps):
-            use_edges_only = True if self.use_edges_only and step == 0 else False
-            update_edge_fn = get_edge_mlp_updates(
-                mlp_feature_sizes, 
-                use_edges_only=use_edges_only,
-            )
+        update_edge_fn = get_edge_mlp_updates(
+            mlp_feature_sizes, 
+        )
+        for _ in range(self.message_passing_steps):
             graph_net = jraph.GraphNetwork(
                 update_node_fn=update_node_fn,
                 update_edge_fn=update_edge_fn,
                 attention_logit_fn=attention_logit_fn if self.attention else None,
                 attention_reduce_fn=attention_reduce_fn if self.attention else None,
             )
-            if self.skip_connections and not use_edges_only:
+            if self.skip_connections:
                 processed_graphs = add_graphs_tuples(
                     graph_net(processed_graphs), processed_graphs
                 )
