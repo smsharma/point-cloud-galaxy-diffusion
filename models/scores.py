@@ -123,7 +123,7 @@ class GraphScoreNet(nn.Module):
         # I'm not sure this is really necessary
         d_cond = cond.shape[-1]  # Dimension of conditioning context
         cond = MLP([d_cond * 4, d_cond * 4, d_cond])(cond)
-        use_edges_only = self.score_dict.get("use_edges_only",False)
+        use_edges = self.score_dict.get("use_edges",False)
         k = self.score_dict["k"]
         n_pos_features = self.score_dict["n_pos_features"]
         sources, targets, distances = self.get_graph_edges(
@@ -134,7 +134,7 @@ class GraphScoreNet(nn.Module):
             n_node=(mask.sum(-1)[:, None]).astype(np.int32),
             n_edge=np.array(n_batch * [[k]]),
             nodes=z,
-            edges=distances if use_edges_only else None,
+            edges=distances if use_edges else None,
             globals=cond,
             senders=sources,
             receivers=targets,
@@ -144,14 +144,12 @@ class GraphScoreNet(nn.Module):
         score_dict = dict(self.score_dict)
         score_dict.pop("k", None)
         score_dict.pop("score", None)
+        score_dict.pop("use_edges", None)
         score_dict.pop("n_pos_features", None)
 
         h = jax.vmap(GraphConvNet(**score_dict, in_features=z.shape[-1]))(graph)
-        if use_edges_only:
-            return h.nodes
-        else:
-            pos_update = graph.nodes - h.nodes
-            return pos_update
+        pos_update = graph.nodes - h.nodes
+        return pos_update
 
 
 

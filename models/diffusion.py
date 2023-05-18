@@ -463,7 +463,7 @@ class VariationalDiffusionModel(nn.Module):
                     n_pos_features=self.n_pos_features,
                 )
             return tfd.Normal(loc=z0, scale=self.noise_scale)
-
+    
     def sample_step(self, rng, i, T, z_t, conditioning=None, mask=None):
         """Sample a single step of the diffusion process."""
         rng_body = jax.random.fold_in(rng, i)

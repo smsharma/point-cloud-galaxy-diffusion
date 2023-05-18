@@ -75,7 +75,7 @@ def get_config():
     training.warmup_steps = 5_000
     training.log_every_steps = 100
     training.eval_every_steps = 2_000  # training.n_train_steps + 1  # Turn off eval for now
-    training.save_every_steps = 20_000
+    training.save_every_steps = 2_000
 
     # Data
     config.data = data = ml_collections.ConfigDict()
