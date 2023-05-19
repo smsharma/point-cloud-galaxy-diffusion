@@ -79,12 +79,15 @@ def get_edge_mlp_updates(mlp_feature_sizes: int) -> Callable:
 
     return update_fn
 
+
 def attention_logit_fn(senders, receivers, edges):
     feat = jnp.concatenate((senders, receivers), axis=-1)
     return jax.nn.leaky_relu(MLP(1)(feat))
 
+
 def attention_reduce_fn(edge_features, weights):
     return edge_features[0] * weights
+
 
 class GraphConvNet(nn.Module):
     """A simple graph convolutional network"""
@@ -122,21 +125,17 @@ class GraphConvNet(nn.Module):
         # Now, we will apply the GCN once for each message-passing round.
         for _ in range(self.message_passing_steps):
             graph_net = jraph.GraphNetwork(
-                update_node_fn=update_node_fn, 
+                update_node_fn=update_node_fn,
                 update_edge_fn=update_edge_fn,
-                attention_logit_fn = attention_logit_fn if self.attention else None,
-                attention_reduce_fn = attention_reduce_fn if self.attention else None,
+                attention_logit_fn=attention_logit_fn if self.attention else None,
+                attention_reduce_fn=attention_reduce_fn if self.attention else None,
             )
             if self.skip_connections:
-                processed_graphs = add_graphs_tuples(
-                    graph_net(processed_graphs), processed_graphs
-                )
+                processed_graphs = add_graphs_tuples(graph_net(processed_graphs), processed_graphs)
             else:
                 processed_graphs = graph_net(processed_graphs)
 
             if self.layer_norm:
-                processed_graphs = processed_graphs._replace(
-                    nodes=nn.LayerNorm()(processed_graphs.nodes)
-                )
+                processed_graphs = processed_graphs._replace(nodes=nn.LayerNorm()(processed_graphs.nodes))
         decoder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(in_features))
         return decoder(processed_graphs)
