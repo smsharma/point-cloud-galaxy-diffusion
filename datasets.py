@@ -6,6 +6,7 @@ import numpy as vnp
 from pathlib import Path
 import pandas as pd
 from absl import logging
+from models.graph_utils import get_rotated_box
 
 try:
     from jetnet.datasets import JetNet
@@ -45,8 +46,6 @@ def get_nbody_data(
     n_features,
     n_particles,
     split: str = "train",
-    normalize: bool = False,
-    standarize: bool = True,
 ):
     DATA_DIR = Path("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/")
     x, conditioning = get_halo_data(
@@ -61,22 +60,14 @@ def get_nbody_data(
             n_particles=n_particles,
             split="train",
         )
-    if normalize and standarize:
-        raise ValueError("Cannot normalize and standarize at the same time")
-    if standarize:
-        # Standardize per-feature (over datasets and particles)
-        x_mean = x_train.mean(axis=(0, 1))
-        x_std = x_train.std(axis=(0, 1))
-        x = (x - x_mean + EPS) / (x_std + EPS)
-        norm_dict = {"mean": x_mean, "std": x_std}
-    elif normalize:
-        x_min = x_train.min(axis=(0, 1))
-        x_max = x_train.max(axis=(0, 1))
-        x = (x - x_min) / (x_max - x_min)
-        norm_dict = {"min": x_min, "max": x_max}
-    # Finalize
-    mask = np.ones((x.shape[0], n_particles))  # No mask
+    # Standardize per-feature (over datasets and particles)
+    x_mean = x_train.mean(axis=(0, 1))
+    x_std = x_train.std(axis=(0, 1))
+    norm_dict = {"mean": x_mean, "std": x_std}
     conditioning = conditioning[:, [0, -1]]  # Select only omega_m and sigma_8
+    mask = np.ones((x.shape[0], n_particles))  # No mask
+    x = (x - x_mean + EPS) / (x_std + EPS)
+    # Finalize
     return x, mask, conditioning, norm_dict
 
 
@@ -87,15 +78,11 @@ def nbody_dataset(
     seed,
     split: str = "train",
     shuffle: bool = True,
-    normalize: bool = False,
-    standarize: bool = True,
 ):
     x, mask, conditioning, norm_dict = get_nbody_data(
         n_features,
         n_particles,
         split=split,
-        normalize=normalize,
-        standarize=standarize,
     )
     ds = make_dataloader(
         x,
@@ -180,7 +167,9 @@ def jetnet_dataset(
 
 def load_data(dataset, n_features, n_particles, batch_size, seed, shuffle, split, **kwargs):
     if dataset == "nbody":
-        train_ds, norm_dict = nbody_dataset(n_features, n_particles, batch_size, seed, shuffle=shuffle, split=split,)
+        train_ds, norm_dict = nbody_dataset(n_features, n_particles, batch_size, seed, shuffle=shuffle, split=split,
+                                            **kwargs,
+                                            ) 
     elif dataset == "jetnet":
         train_ds, norm_dict = jetnet_dataset(
             n_features, n_particles, batch_size, seed, **kwargs
@@ -189,3 +178,94 @@ def load_data(dataset, n_features, n_particles, batch_size, seed, shuffle, split
         raise ValueError("Unknown dataset: {}".format(dataset))
 
     return train_ds, norm_dict
+
+def augment_with_translations(
+    x,
+    conditioning,
+    mask,
+    rng,
+    norm_dict,
+    n_pos_dim=3,
+    box_size: float = 1000.0,
+):
+    rng, _ = jax.random.split(rng)
+    x = x * norm_dict["std"] + norm_dict["mean"]
+    # draw N random translations
+    translations = jax.random.uniform(
+        rng, minval=-box_size / 2, maxval=box_size / 2, shape=(*x.shape[:2], 3)
+    )
+    x = x.at[..., :n_pos_dim].set(
+        (x[..., :n_pos_dim] + translations[..., None, :]) % box_size
+    )
+    x = (x - norm_dict["mean"]) / norm_dict["std"]
+    return x, conditioning, mask
+
+
+def random_symmetry_matrix(key):
+    # 8 possible sign combinations for reflections
+    signs = np.array(
+        [
+            [-1, -1, -1],
+            [-1, -1, 1],
+            [-1, 1, -1],
+            [-1, 1, 1],
+            [1, -1, -1],
+            [1, -1, 1],
+            [1, 1, -1],
+            [1, 1, 1],
+        ]
+    )
+
+    # 6 permutations for axis swapping
+    perms = np.array([[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]])
+
+    # Randomly select one sign combination and one permutation
+    sign = signs[jax.random.randint(key, (), 0, 8)]
+    perm = perms[jax.random.randint(key, (), 0, 6)]
+
+    # Combine them to form the random symmetry matrix
+    matrix = np.eye(3)[perm] * sign
+    return matrix
+
+
+def augment_with_symmetries(
+    x,
+    conditioning,
+    mask,
+    rng,
+    norm_dict,
+    n_pos_dim=3,
+    box_size: float = 1000.0,
+):
+    rng, _ = jax.random.split(rng)
+    # rotations and reflections that respect boundary conditions
+    matrix = random_symmetry_matrix(rng)
+    x = x.at[..., :n_pos_dim].set(np.dot(x[..., :n_pos_dim], matrix.T))
+    if x.shape[-1] > n_pos_dim:
+        # rotate velocities too
+        x = x.at[..., n_pos_dim : n_pos_dim + 3].set(
+            np.dot(x[..., n_pos_dim : n_pos_dim + 3], matrix.T)
+        )
+    return x, conditioning, mask
+
+
+def augment_data(x, conditioning, mask, rng, norm_dict, n_pos_dim=3, box_size: float = 1000.,):
+    x, conditioning, mask = augment_with_symmetries(
+        x=x,
+        mask=mask,
+        conditioning=conditioning,
+        rng=rng,
+        norm_dict=norm_dict,
+        n_pos_dim=n_pos_dim,
+        box_size=box_size,
+    )    
+    x, conditioning, mask = augment_with_translations(
+        x=x,
+        mask=mask,
+        conditioning=conditioning,
+        rng=rng,
+        norm_dict=norm_dict,
+        n_pos_dim=n_pos_dim,
+        box_size=box_size,
+    )
+    return x, conditioning, mask

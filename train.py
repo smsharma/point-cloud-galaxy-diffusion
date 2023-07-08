@@ -33,7 +33,7 @@ from models.train_utils import (
     to_wandb_config,
 )
 
-from datasets import load_data
+from datasets import load_data, augment_data
 
 replicate = flax.jax_utils.replicate
 unreplicate = flax.jax_utils.unreplicate
@@ -79,7 +79,7 @@ def train(
         config.seed,
         shuffle=True,
         split="train",
-        **config.data.kwargs,
+        #**config.data.kwargs,
     )
 
     batches = create_input_iter(train_ds)
@@ -97,7 +97,7 @@ def train(
     x_mean = tuple(map(float, norm_dict["mean"]))
     x_std = tuple(map(float, norm_dict["std"]))
     box_size = config.data.box_size
-    unit_cell = tuple(map(tuple, config.data.unit_cell)) if box_size is not None else None
+    unit_cell = tuple(map(tuple, config.data.unit_cell)) if config.data.apply_pbcs else None
     norm_dict_input = FrozenDict(
         {
             "x_mean": x_mean,
@@ -122,6 +122,7 @@ def train(
         encoder_dict=encoder_dict,
         decoder_dict=decoder_dict,
         norm_dict=norm_dict_input,
+        apply_pbcs = config.data.apply_pbcs,
     )
 
     rng = jax.random.PRNGKey(config.seed)
@@ -162,9 +163,19 @@ def train(
                 rng, num=jax.local_device_count() + 1
             )
             train_step_rng = np.asarray(train_step_rng)
-
+            x, conditioning, mask = next(batches)
+            if config.data.add_augmentations:
+                x, conditioning, mask = augment_data(
+                    x=x_batch,
+                    mask=mask_batch,
+                    conditioning=conditioning_batch,
+                    rng=rng,
+                    norm_dict=norm_dict,
+                    n_pos_dim=config.data.n_pos_features,
+                    box_size=config.data.box_size,
+                )
             pstate, metrics = train_step(
-                pstate, next(batches), train_step_rng, vdm, loss_vdm
+                pstate, (x, conditioning, mask), train_step_rng, vdm, loss_vdm
             )
             steps.set_postfix(val=unreplicate(metrics["loss"]))
             train_metrics.append(metrics)
@@ -199,7 +210,7 @@ def train(
                     pstate=unreplicate(pstate),
                     rng=rng,
                     n_samples=config.training.batch_size,
-                    n_particles=config.data.n_particles,
+                    n_particles=x_batch.shape[-2],#config.data.n_particles,
                     true_samples=x_batch.reshape((-1, *x_batch.shape[2:])),
                     conditioning=conditioning_batch.reshape(
                         (-1, *conditioning_batch.shape[2:])

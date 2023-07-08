@@ -122,8 +122,11 @@ class GraphConvNet(nn.Module):
         embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.latent_size))
         processed_graphs = embedder(graphs)
         # Keep "batch" index of globals, flatten the rest
+        #processed_graphs = processed_graphs._replace(
+        #    globals=processed_graphs.globals.reshape(1, -1),
+        #)
         processed_graphs = processed_graphs._replace(
-            globals=processed_graphs.globals.reshape(1, -1),
+            globals=processed_graphs.globals.reshape(processed_graphs.globals.shape[0], -1),
         )
         mlp_feature_sizes = [self.hidden_size] * self.num_mlp_layers + [
             self.latent_size

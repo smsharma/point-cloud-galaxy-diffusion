@@ -85,6 +85,7 @@ class VariationalDiffusionModel(nn.Module):
         }
     )
     n_pos_features: int = 3
+    apply_pbcs: bool = False
 
     @classmethod
     def from_path_to_model(
@@ -143,6 +144,7 @@ class VariationalDiffusionModel(nn.Module):
             encoder_dict=encoder_dict,
             decoder_dict=decoder_dict,
             norm_dict = norm_dict_input,
+            apply_pbcs = config.data.apply_pbcs,
         )
         rng = jax.random.PRNGKey(42)
         x_dummy = jax.random.normal(
@@ -195,6 +197,7 @@ class VariationalDiffusionModel(nn.Module):
                 d_t_embedding=self.d_t_embedding,
                 score_dict=self.score_dict,
                 norm_dict=self.norm_dict,
+                apply_pbcs=self.apply_pbcs,
             )
         elif self.score == "egnn":
             self.score_model = EGNNScoreNet(
@@ -248,16 +251,6 @@ class VariationalDiffusionModel(nn.Module):
         loss_klz = 0.5 * (mean1_sqr + var_1 - np.log(var_1) - 1.0)
         return loss_klz
     
-    @property
-    def apply_pbcs(self,)->bool:
-        """ whether to apply periodic boundary conditions to the generated data
-
-        Returns:
-            bool: True if periodic boundary conditions are applied 
-        """
-        if self.norm_dict['box_size'] is not None:
-            return True
-        return False
 
     def wrap_z_in_periodic_box(self, z: np.array,)->np.array:
         """ Wrap the latent variable z inside a periodic box

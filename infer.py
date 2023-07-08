@@ -20,10 +20,11 @@ from inference.inference_utils import get_model
 
 if __name__ == "__main__":
     use_test_set = True 
+    generated_samples = False 
     split='test' if use_test_set else 'train'
     print("{} devices visible".format(jax.device_count()))
-    #run_name = 'chocolate-cloud-122' #'eternal-oath-121'
-    run_name = 'confused-gorge-138'
+    #run_name = 'misunderstood-night-203' #'chocolate-cloud-122' #'eternal-oath-121'
+    run_name = 'blooming-puddle-230'
     path_to_model = Path(
         f"/n/home11/ccuestalazaro/set-diffuser/logging/cosmology/{run_name}"
     )
@@ -42,15 +43,18 @@ if __name__ == "__main__":
     num_samples = 10_000
     lr = 1e-2
 
-    min_fit_idx = 0
-    max_fit_idx = 10 
-    x, _, conditioning, _ = get_nbody_data(
+    min_fit_idx = 0  
+    max_fit_idx = 100 
+    x, _, conditioning, norm_dict = get_nbody_data(
         n_features=config.data.n_features,
         n_particles = config.data.n_particles,
         split=split,
     )
+    if generated_samples:
+        x = np.load(path_to_posteriors.parent.parent / f'samples/{run_name}/generated_test_samples_500_steps.npy')
+        x = x.reshape((-1,config.data.n_particles,3))
+        x = (x - norm_dict['mean']) / norm_dict['std']
     test_idx = np.array(range(min_fit_idx, max_fit_idx))
-    print(conditioning[test_idx])
     x = x[test_idx]
 
     rng = jax.random.PRNGKey(42)
@@ -81,6 +85,10 @@ if __name__ == "__main__":
         posterior_dict = guide.sample_posterior(
             rng_key=rng, params=svi_results.params, sample_shape=(num_samples,)
         )
-        with open(path_to_posteriors / f'chain_{split}_{idx}_steps10.pkl', 'wb') as f:
+        if generated_samples:
+            filename = f'generated_chain_{split}_{idx}_steps10.pkl'
+        else:
+            filename = f'chain_{split}_{idx}_steps10.pkl'
+        with open(path_to_posteriors /  filename, 'wb') as f:
             pickle.dump(posterior_dict, f)
         print(f'Finished chain {idx} in {time.time() - t0:.2f} seconds')

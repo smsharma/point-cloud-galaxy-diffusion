@@ -81,9 +81,10 @@ class GraphScoreNet(nn.Module):
             "box_size": None,
         }
     )
+    apply_pbcs: bool= False
 
     def get_graph_edges(self, z, n_pos_features, k, mask, box_size,):
-        if box_size is None:
+        if not self.apply_pbcs:
             return jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
                 z[..., :n_pos_features], k, None, None, mask
             )
@@ -93,11 +94,11 @@ class GraphScoreNet(nn.Module):
         unit_cell = np.array(self.norm_dict['unit_cell'])
         if np.isscalar(box_size) or box_size.ndim == 0:
             sources, targets, distances = jax.vmap(nearest_neighbors, in_axes=(0, None, None, None, 0))(
-                z_unnormed[...,:n_pos_features], k, box_size, unit_cell, mask,
+                z_unnormed[...,:n_pos_features], k, box_size, unit_cell, mask, apply_pbcs=self.apply_pbcs,
             )
         else:
             sources, targets, distances = jax.vmap(nearest_neighbors, in_axes=(0, None, 0, None, 0))(
-                z_unnormed[...,:n_pos_features], k, box_size, unit_cell, mask,
+                z_unnormed[...,:n_pos_features], k, box_size, unit_cell, mask, apply_pbcs=self.apply_pbcs,
             )
         distances /= coord_std
         return sources, targets, distances
