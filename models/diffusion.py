@@ -114,12 +114,11 @@ class VariationalDiffusionModel(nn.Module):
                 config.seed,
                 shuffle=True,
                 split='train',
-                **config.data.kwargs,
             )
         x_mean = tuple(map(float, norm_dict["mean"]))
         x_std = tuple(map(float, norm_dict["std"]))
         box_size = config.data.box_size
-        unit_cell = tuple(map(tuple, config.data.unit_cell)) if box_size is not None else None
+        unit_cell = tuple(map(tuple, config.data.unit_cell)) if config.data.apply_pbcs else None
         norm_dict_input = FrozenDict(
             {
                 "x_mean": x_mean,
