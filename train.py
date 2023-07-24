@@ -81,6 +81,7 @@ def train(
         split="train",
         #**config.data.kwargs,
     )
+    add_augmentations = True if config.data.add_rotations or config.data.add_translations else False
 
     batches = create_input_iter(train_ds)
 
@@ -164,7 +165,7 @@ def train(
             )
             train_step_rng = np.asarray(train_step_rng)
             x, conditioning, mask = next(batches)
-            if config.data.add_augmentations:
+            if add_augmentations:
                 x, conditioning, mask = augment_data(
                     x=x_batch,
                     mask=mask_batch,
@@ -173,6 +174,8 @@ def train(
                     norm_dict=norm_dict,
                     n_pos_dim=config.data.n_pos_features,
                     box_size=config.data.box_size,
+                    rotations=config.data.add_rotations,
+                    translations=config.data.add_translations,
                 )
             pstate, metrics = train_step(
                 pstate, (x, conditioning, mask), train_step_rng, vdm, loss_vdm

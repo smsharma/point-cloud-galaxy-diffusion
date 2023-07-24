@@ -249,23 +249,25 @@ def augment_with_symmetries(
     return x, conditioning, mask
 
 
-def augment_data(x, conditioning, mask, rng, norm_dict, n_pos_dim=3, box_size: float = 1000.,):
-    x, conditioning, mask = augment_with_symmetries(
-        x=x,
-        mask=mask,
-        conditioning=conditioning,
-        rng=rng,
-        norm_dict=norm_dict,
-        n_pos_dim=n_pos_dim,
-        box_size=box_size,
-    )    
-    x, conditioning, mask = augment_with_translations(
-        x=x,
-        mask=mask,
-        conditioning=conditioning,
-        rng=rng,
-        norm_dict=norm_dict,
-        n_pos_dim=n_pos_dim,
-        box_size=box_size,
-    )
+def augment_data(x, conditioning, mask, rng, norm_dict, rotations: bool = True, translations: bool = True, n_pos_dim=3, box_size: float = 1000.,):
+    if rotations:
+        x, conditioning, mask = augment_with_symmetries(
+            x=x,
+            mask=mask,
+            conditioning=conditioning,
+            rng=rng,
+            norm_dict=norm_dict,
+            n_pos_dim=n_pos_dim,
+            box_size=box_size,
+        )    
+    if translations:
+        x, conditioning, mask = augment_with_translations(
+            x=x,
+            mask=mask,
+            conditioning=conditioning,
+            rng=rng,
+            norm_dict=norm_dict,
+            n_pos_dim=n_pos_dim,
+            box_size=box_size,
+        )
     return x, conditioning, mask
