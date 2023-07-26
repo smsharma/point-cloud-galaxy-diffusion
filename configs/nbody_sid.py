@@ -3,7 +3,6 @@ import ml_collections
 
 
 def get_config():
-
     config = ml_collections.ConfigDict()
 
     # Wandb logging
@@ -49,13 +48,12 @@ def get_config():
 
     # # Graph score model
     config.score = score = ml_collections.ConfigDict()
-    score.score = "egnn"
+    score.score = "graph"
     score.k = 20
     score.n_pos_features = 3
-    score.d_hidden = 64
-    score.n_layers = 3
-    score.norm_layer = True
-    score.skip_connections = False
+    score.num_mlp_layers = 4
+    score.latent_size = 64
+    score.skip_connections = True
     score.message_passing_steps = 4
 
     # # Equivariant score model

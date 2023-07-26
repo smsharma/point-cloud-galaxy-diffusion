@@ -82,7 +82,6 @@ def get_edge_mlp_updates(mlp_feature_sizes: int, use_edges_only: bool=False,) ->
 
     return update_fn
 
-
 def attention_logit_fn(
     edges, sent_attributes, received_attributes, global_edge_attributes
 ):
@@ -91,10 +90,8 @@ def attention_logit_fn(
     )
     return jax.nn.sigmoid(MLP([1])(feat))
 
-
 def attention_reduce_fn(edge_features, weights):
     return edge_features * weights
-
 
 class GraphConvNet(nn.Module):
     """A simple graph convolutional network"""
@@ -144,9 +141,7 @@ class GraphConvNet(nn.Module):
                 attention_reduce_fn=attention_reduce_fn if self.attention else None,
             )
             if self.skip_connections:
-                processed_graphs = add_graphs_tuples(
-                    graph_net(processed_graphs), processed_graphs
-                )
+                processed_graphs = add_graphs_tuples(graph_net(processed_graphs), processed_graphs)
             else:
                 processed_graphs = graph_net(processed_graphs)
 
@@ -155,4 +150,5 @@ class GraphConvNet(nn.Module):
                     nodes=nn.LayerNorm()(processed_graphs.nodes)
                 )
         decoder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.in_features))
+
         return decoder(processed_graphs)
