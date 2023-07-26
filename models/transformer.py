@@ -68,10 +68,12 @@ class Transformer(nn.Module):
     n_input: int
     d_model: int = 128
     d_mlp: int = 512
+    d_conditioning: int = 128
     n_layers: int = 4
     n_heads: int = 4
     induced_attention: bool = False
     n_inducing_points: int = 32
+    concat_conditioning: bool = False
 
     @nn.compact
     def __call__(self, x: np.ndarray, conditioning: np.ndarray = None, mask=None):
@@ -81,12 +83,16 @@ class Transformer(nn.Module):
 
         # Add conditioning
         if conditioning is not None:
-            conditioning = nn.Dense(int(self.d_model))(conditioning)  # (batch, d_model)
-            x += conditioning[:, None, :]  # (batch, seq_len, d_model)
+            conditioning = nn.Dense(int(self.d_conditioning))(conditioning)  # (batch, d_model)
+            if self.concat_conditioning:
+                conditioning = np.repeat(conditioning[:, np.newaxis, :], x.shape[1], axis=1)
+                x = np.concatenate([x, conditioning], axis=-1)  
+                x = nn.Dense(int(self.d_model))(x)  
 
         # Transformer layers
         for _ in range(self.n_layers):
-
+            if conditioning is not None and not self.concat_conditioning:
+                x += conditioning[:, None, :]  # (batch, seq_len, d_model)
             if not self.induced_attention:  # Vanilla self-attention
                 mask_attn = None if mask is None else mask[..., None] * mask[..., None, :]
                 x = MultiHeadAttentionBlock(n_heads=self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp)(x, x, mask_attn)
@@ -94,11 +100,8 @@ class Transformer(nn.Module):
                 h = PoolingByMultiHeadAttention(self.n_inducing_points, self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp)(x, mask)
                 mask_attn = None if mask is None else mask[..., None]
                 x = MultiHeadAttentionBlock(n_heads=self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp)(x, h, mask_attn)
-
         # Final LN as in pre-LN configuration
         x = nn.LayerNorm()(x)
-
         # Unembed; zero init kernel to propagate zero residual initially before training
         x = nn.Dense(self.n_input, kernel_init=jax.nn.initializers.zeros)(x)
-
         return x

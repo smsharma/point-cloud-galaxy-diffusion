@@ -42,16 +42,11 @@ def alpha(gamma):
 def variance_preserving_map(x, gamma, eps):
     a = alpha(gamma)
     var = sigma2(gamma)
-
     x_shape = x.shape
-
     x = x.reshape(x.shape[0], -1)
     eps = eps.reshape(eps.shape[0], -1)
-
     noise_augmented = a * x + np.sqrt(var) * eps
-
     return noise_augmented.reshape(x_shape)
-
 
 def get_timestep_embedding(timesteps, embedding_dim: int, dtype=np.float32):
     """Build sinusoidal embeddings (from Fairseq)."""
@@ -89,7 +84,6 @@ def generate(vdm, params, rng, shape, conditioning=None, mask=None, steps=None):
 
     # If using a latent projection, use embedding size; otherwise, use feature size
     zt = jax.random.normal(spl, shape + (vdm.encdec_dict["d_embedding"] if vdm.use_encdec else vdm.d_feature,))
-
     if vdm.timesteps == 0:
         if steps is None:
             raise Exception("Need to specify steps argument for continuous-time VLB")

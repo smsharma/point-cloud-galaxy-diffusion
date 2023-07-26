@@ -23,8 +23,9 @@ from models.scores import (
     EGNNScoreNet,
     NEQUIPScoreNet,
 )
-from models.graph_utils import apply_pbc
+from models.periodic_boundary_utils import apply_pbc, wrap_positions_to_periodic_box, PeriodicNormal
 from models.mlp import MLPEncoder, MLPDecoder
+from datasets import load_data
 
 tfd = tfp.distributions
 
@@ -76,11 +77,17 @@ class VariationalDiffusionModel(nn.Module):
             "x_mean": 0.0,
             "x_std": 1.0,
             "box_size": None,
+            "unit_cell": None,
         }
     )
+    n_pos_features: int = 3
+    apply_pbcs: bool = False
 
     @classmethod
-    def from_path_to_model(cls, path_to_model: Union[str, Path]) -> "VariationalDiffusionModel":
+    def from_path_to_model(
+        cls, path_to_model: Union[str, Path], norm_dict: dict=None,
+    ) -> "VariationalDiffusionModel":
+
         """load model from path where it is stored
 
         Args:
@@ -95,6 +102,28 @@ class VariationalDiffusionModel(nn.Module):
         score_dict = FrozenDict(config.score)
         encoder_dict = FrozenDict(config.encoder)
         decoder_dict = FrozenDict(config.decoder)
+        if norm_dict is None:
+            _, norm_dict = load_data(
+                config.data.dataset,
+                config.data.n_features,
+                config.data.n_particles,
+                config.training.batch_size,
+                config.seed,
+                shuffle=True,
+                split='train',
+            )
+        x_mean = tuple(map(float, norm_dict["mean"]))
+        x_std = tuple(map(float, norm_dict["std"]))
+        box_size = config.data.box_size
+        unit_cell = tuple(map(tuple, config.data.unit_cell)) if config.data.apply_pbcs else None
+        norm_dict_input = FrozenDict(
+            {
+                "x_mean": x_mean,
+                "x_std": x_std,
+                "box_size": box_size,
+                "unit_cell": unit_cell,
+            }
+        )
         vdm = VariationalDiffusionModel(
             d_feature=config.data.n_features,
             timesteps=config.vdm.timesteps,
@@ -110,9 +139,18 @@ class VariationalDiffusionModel(nn.Module):
             use_encdec=config.vdm.use_encdec,
             encoder_dict=encoder_dict,
             decoder_dict=decoder_dict,
+            norm_dict = norm_dict_input,
+            apply_pbcs = config.data.apply_pbcs,
         )
         rng = jax.random.PRNGKey(42)
-        x_dummy = jax.random.normal(rng, (config.training.batch_size, config.data.n_particles, config.data.n_features))
+        x_dummy = jax.random.normal(
+            rng,
+            (
+                config.training.batch_size,
+                config.data.n_particles,
+                config.data.n_features,
+            ),
+        )
         conditioning_dummy = jax.random.normal(rng, (config.training.batch_size, 2))
         mask_dummy = np.ones((config.training.batch_size, config.data.n_particles))
         _, params = vdm.init_with_output({"sample": rng, "params": rng}, x_dummy, conditioning_dummy, mask_dummy)
@@ -145,6 +183,8 @@ class VariationalDiffusionModel(nn.Module):
                 d_t_embedding=self.d_t_embedding,
                 score_dict=self.score_dict,
                 norm_dict=self.norm_dict,
+                apply_pbcs=self.apply_pbcs,
+
             )
         elif self.score == "egnn":
             self.score_model = EGNNScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict)
@@ -156,7 +196,12 @@ class VariationalDiffusionModel(nn.Module):
         # Optional encoder/decoder for latent diffusion
         if self.use_encdec:
             self.encoder = MLPEncoder(**self.encoder_dict)
-            self.decoder = MLPDecoder(d_output=self.d_feature, noise_scale=self.noise_scale, **self.decoder_dict)
+
+            self.decoder = MLPDecoder(
+                d_output=self.d_feature,
+                noise_scale=self.noise_scale,
+                **self.decoder_dict,
+            )
 
         # Embedding for class and context
         if self.n_classes > 0:
@@ -187,28 +232,98 @@ class VariationalDiffusionModel(nn.Module):
         mean1_sqr = (1.0 - var_1) * np.square(f)
         loss_klz = 0.5 * (mean1_sqr + var_1 - np.log(var_1) - 1.0)
         return loss_klz
+    
+
+    def wrap_z_in_periodic_box(self, z: np.array,)->np.array:
+        """ Wrap the latent variable z inside a periodic box
+
+        Args:
+            z (np.array): standarized latent variable z 
+
+        Returns:
+            np.array: wrapped z 
+        """
+        box_size = self.norm_dict['box_size']
+        coord_mean = np.array(self.norm_dict["x_mean"])
+        coord_std = np.array(self.norm_dict["x_std"])
+        unit_cell = np.array(self.norm_dict['unit_cell'])
+        z_unnormed = z * coord_std + coord_mean
+        if np.isscalar(box_size) or box_size.ndim == 0:
+            z_unnormed = z_unnormed.at[...,:self.n_pos_features].set(
+                wrap_positions_to_periodic_box(
+                    z_unnormed[...,:self.n_pos_features],
+                    cell_matrix= box_size* unit_cell,
+                )
+            )
+        else:
+            z_unnormed = z_unnormed.at[...,:self.n_pos_features].set(
+                jax.vmap(
+                    wrap_positions_to_periodic_box
+                )(
+                    z_unnormed[...,:self.n_pos_features],
+                    np.expand_dims(box_size, (-1,-2))*unit_cell
+                )
+            )
+        return (z_unnormed - coord_mean) / coord_std
+
+    def wrap_errors_in_periodic_box(self, errors: np.array, sigma_t: Union[np.array,float])->np.array:
+        """ Wrap the errors inside a periodic box
+
+        Args:
+            errors (np.array): errors to be wrapped 
+            sigma_t (float): standard deviation of the noise
+
+        Returns:
+            np.array: wrapped errors 
+        """
+        box_size = self.norm_dict['box_size']
+        box_size = box_size / sigma_t
+        coord_std = np.array(self.norm_dict["x_std"])
+        errors *= coord_std
+        unit_cell = np.array(self.norm_dict['unit_cell'])
+        if np.isscalar(box_size) or box_size.ndim == 0:
+            errors = errors.at[...,:self.n_pos_features].set(
+                apply_pbc(
+                    errors[...,:self.n_pos_features],
+                    box_size * unit_cell
+                )
+            )
+        else:
+            errors = errors.at[...,:self.n_pos_features].set(
+                jax.vmap(apply_pbc)(
+                    errors[...,:self.n_pos_features],
+                    np.expand_dims(box_size, (-1, -2)) * unit_cell
+                )
+            )
+        return errors/coord_std
 
     def diffusion_loss(self, t, f, cond, mask):
         """The diffusion loss measures the gap in the intermediate steps."""
-
         # Sample z_t
         g_t = self.gamma(t)
         eps = jax.random.normal(self.make_rng("sample"), shape=f.shape)
-        z_t = variance_preserving_map(f, g_t[:, None], eps)
-
-        eps_hat = self.score_model(z_t, g_t, cond, mask)  # Compute predicted noise
-        if self.norm_dict["box_size"] is None:
-            deps = eps - eps_hat
-        else:
-            x_std = np.array(self.norm_dict["x_std"])
-            deps = (eps - eps_hat) * x_std
-            unit_cell = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-            deps = apply_pbc(deps, self.norm_dict["box_size"] * unit_cell) / x_std  # Apply periodic boundary conditions
+        z_t = variance_preserving_map(f, g_t[:, None], eps) 
+        if self.apply_pbcs:
+            z_t = self.wrap_z_in_periodic_box(
+                z=z_t, 
+            )
+        # Compute predicted noise
+        eps_hat = self.score_model(
+            z_t, 
+            g_t, 
+            cond, 
+            mask, 
+            box_size = self.norm_dict['box_size'],
+        )
+        deps = eps - eps_hat
+        if self.apply_pbcs:
+            deps = self.wrap_errors_in_periodic_box(
+                errors=deps,
+                sigma_t=np.sqrt(sigma2(g_t)),
+            )
 
         loss_diff_mse = np.square(deps)  # Compute MSE of predicted noise
-
         T = self.timesteps
-
         # NOTE: retain dimension here so that mask can be applied later (hence dummy dims)
         # NOTE: opposite sign convention to official VDM repo!
         if T == 0:
@@ -243,7 +358,6 @@ class VariationalDiffusionModel(nn.Module):
             t = np.mod(t0 + np.arange(0.0, 1.0, step=1.0 / d_batch), 1.0)
         else:
             t = jax.random.uniform(rng1, shape=(d_batch,))
-
         # Discretize time steps if we're working with discrete time
         T = self.timesteps
         if T > 0:
@@ -289,7 +403,12 @@ class VariationalDiffusionModel(nn.Module):
         else:
             return x
 
-    def decode(self, z0, conditioning=None, mask=None):
+    def decode(
+        self,
+        z0,
+        conditioning=None,
+        mask=None,
+    ):
         """Decode a latent sample z0."""
 
         # Decode if using encoder-decoder; otherwise just return last latent distribution
@@ -300,8 +419,19 @@ class VariationalDiffusionModel(nn.Module):
                 cond = None
             return self.decoder(z0, cond, mask)
         else:
+            if self.apply_pbcs:
+                # If PBCs, allow for equivalent noise in periodic box
+                rescaled_box_size = self.norm_dict['box_size'] / np.sqrt(sigma2(0.0)) 
+                return PeriodicNormal(
+                    unit_cell=np.array(self.norm_dict['unit_cell']),
+                    coord_std=np.array(self.norm_dict["x_std"]),
+                    box_size=rescaled_box_size,
+                    loc=z0,
+                    scale=self.noise_scale,
+                    n_pos_features=self.n_pos_features,
+                )
             return tfd.Normal(loc=z0, scale=self.noise_scale)
-
+    
     def sample_step(self, rng, i, T, z_t, conditioning=None, mask=None):
         """Sample a single step of the diffusion process."""
         rng_body = jax.random.fold_in(rng, i)
@@ -311,15 +441,32 @@ class VariationalDiffusionModel(nn.Module):
 
         g_s = self.gamma(s)
         g_t = self.gamma(t)
-
         cond = self.embed(conditioning)
-
-        eps_hat_cond = self.score_model(z_t, g_t * np.ones((z_t.shape[0],), z_t.dtype), cond, mask)
+        if self.apply_pbcs:
+            z_t = self.wrap_z_in_periodic_box(
+                z=z_t, 
+            )
+        eps_hat_cond = self.score_model(
+            z_t, g_t * np.ones((z_t.shape[0],), z_t.dtype), cond, mask, 
+            box_size = self.norm_dict['box_size'],
+        )
 
         a = nn.sigmoid(g_s)
         b = nn.sigmoid(g_t)
         c = -np.expm1(g_t - g_s)
         sigma_t = np.sqrt(sigma2(g_t))
-        z_s = np.sqrt(a / b) * (z_t - sigma_t * c * eps_hat_cond) + np.sqrt((1.0 - a) * c) * eps
+        z_s = (
+            np.sqrt(a / b) * (z_t - sigma_t * c * eps_hat_cond)
+            + np.sqrt((1.0 - a) * c) * eps
+        )
 
         return z_s
+
+    def evaluate_score(self, z_t, g_t, cond, mask, box_size,):
+        return self.score_model(
+            z=z_t,
+            t=g_t,
+            conditioning=cond,
+            mask=mask,
+            box_size = box_size,
+        )

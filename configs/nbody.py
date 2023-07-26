@@ -22,7 +22,7 @@ def get_config():
     vdm.noise_schedule = "learned_linear"
     vdm.noise_scale = 1e-3
     vdm.timesteps = 0  # 0 for continuous-time VLB
-    vdm.embed_context = False
+    vdm.embed_context = False 
     vdm.d_context_embedding = 16
     vdm.n_classes = 0
     vdm.use_encdec = False
@@ -54,8 +54,10 @@ def get_config():
     score.n_pos_features = 3
     score.num_mlp_layers = 4
     score.latent_size = 64
+    score.hidden_size = 64
     score.skip_connections = True
     score.message_passing_steps = 4
+    score.attention = False 
 
     # # Equivariant score model
     # config.score = score = ml_collections.ConfigDict()
@@ -68,7 +70,7 @@ def get_config():
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
-    training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
+    training.batch_size = 16 # Must be divisible by number of devices; this is the total batch size, not per-device
     training.n_train_steps = 501_000
     training.warmup_steps = 5_000
     training.log_every_steps = 100
@@ -81,7 +83,10 @@ def get_config():
     data.n_particles = 5000  # Select the first n_particles particles
     data.n_features = 3  # Select the first n_features features
     data.n_pos_features = 3  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
-    data.box_size = 1000.
+    data.box_size = None #1000.
+    data.unit_cell = None #[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    data.apply_pbcs = False
+    data.add_augmentations = False
     data.kwargs = {}
 
     # Optimizer (AdamW)

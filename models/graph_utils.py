@@ -1,37 +1,11 @@
 import jax
 import jax.numpy as np
 import jraph
-from jax_md import space, partition
+
+# from jax_md import space, partition
 
 from functools import partial
-
-def wrap_positions_to_periodic_box(positions: np.array, cell_matrix: np.array)->np.array:
-    """
-    Apply periodic boundary conditions to a set of positions.
-
-    Args:
-        positions (np.array): An array of shape (N, 3) containing the particle positions.
-        cell_matrix (np.array): A 3x3 matrix describing the box dimensions and orientation.
-
-    Returns:
-        numpy.ndarray: An array of shape (N, 3) containing the wrapped particle positions.
-    """
-    inv_cell_matrix = np.linalg.inv(cell_matrix)
-    fractional_positions = np.matmul(positions, inv_cell_matrix)
-    fractional_positions = np.mod(fractional_positions, 1.0)
-    return np.matmul(fractional_positions, cell_matrix)
-
-def apply_pbc(dr: np.array, cell: np.array) -> np.array:
-    """Apply periodic boundary conditions to a displacement vector, dr, given a cell.
-
-    Args:
-        dr (np.array): An array of shape (N,3) containing the displacement vector
-        cell_matrix (np.array): A 3x3 matrix describing the box dimensions and orientation.
-
-    Returns:
-        np.array: displacement vector with periodic boundary conditions applied
-    """
-    return dr - np.round(dr.dot(np.linalg.inv(cell))).dot(cell)
+from models.periodic_boundary_utils import apply_pbc
 
 
 @partial(jax.jit, static_argnums=(1,))
@@ -41,6 +15,7 @@ def nearest_neighbors(
     boxsize: float = None,
     unit_cell: np.array = None,
     mask: np.array = None,
+    pbc=False,
 ):
     """Returns the nearest neighbors of each node in x.
 
@@ -60,7 +35,7 @@ def nearest_neighbors(
     n_nodes = x.shape[0]
     # Compute the vector difference between positions accounting for PBC
     dr = x[:, None, :] - x[None, :, :]
-    if boxsize is not None:
+    if pbc:
         dr = apply_pbc(
             dr=dr,
             cell=boxsize * unit_cell,
@@ -76,7 +51,7 @@ def nearest_neighbors(
     sources = indices[:, 0].repeat(k)
     targets = indices.reshape(n_nodes * (k))
 
-    return (sources, targets)
+    return (sources, targets, dr[sources, targets])
 
 
 @partial(jax.jit, static_argnums=(1,))
@@ -159,10 +134,8 @@ def rotation_matrix(angle_deg, axis):
     """Return the rotation matrix associated with counterclockwise rotation of `angle_deg` degrees around the given axis."""
     angle_rad = np.radians(angle_deg)
     axis = axis / np.linalg.norm(axis)
-
     a = np.cos(angle_rad / 2)
     b, c, d = -axis * np.sin(angle_rad / 2)
-
     return np.array(
         [
             [a * a + b * b - c * c - d * d, 2 * (b * c - a * d), 2 * (b * d + a * c)],
@@ -175,12 +148,66 @@ def rotation_matrix(angle_deg, axis):
 def rotate_representation(data, angle_deg, axis):
     """Rotate `data` by `angle_deg` degrees around `axis`."""
     rot_mat = rotation_matrix(angle_deg, axis)
-
+    if data.shape[1] == 3:
+        return np.matmul(rot_mat, data.T).T
     positions = data[:, :3]
     velocities = data[:, 3:6]
     scalars = data[:, 6:]
 
     rotated_positions = np.matmul(rot_mat, positions.T).T
     rotated_velocities = np.matmul(rot_mat, velocities.T).T
-
     return np.concatenate([rotated_positions, rotated_velocities, scalars], axis=1)
+
+
+def replicate_box(
+    features,
+    box_size,
+    n_pos_dim=3,
+):
+    n_replications = np.array([1, 1, 1])
+    indices = np.indices(2 * n_replications + 1).reshape(3, -1).T
+    displacements = indices * box_size - n_replications * box_size
+    positions = features[:, :n_pos_dim]
+    replicated_positions = positions[:, np.newaxis, :] + displacements[np.newaxis, :, :]
+    replicated_features = np.repeat(features, indices.shape[0], axis=0)
+    unfolded_positions = replicated_positions.reshape(-1, 3)
+    replicated_features = replicated_features.at[:, :n_pos_dim].set(unfolded_positions)
+    return replicated_features
+
+
+def get_rotated_box(
+    features, rotation_axis, rotation_angle, n_pos_dim=3, box_size: float = 1000.0
+):
+    unfolded_features = replicate_box(features, box_size)
+    rotated_features = rotate_representation(
+        unfolded_features,
+        rotation_angle,
+        rotation_axis,
+    )
+    mask_in_box = np.all(
+        (rotated_features[:, :n_pos_dim] >= 0)
+        & (rotated_features[:, :n_pos_dim] <= box_size),
+        axis=1,
+    )
+    return rotated_features[mask_in_box]
+
+
+def augment_with_random_rotations():
+    rotation_axis = jax.random.uniform(
+        rng,
+        minval=-1, 
+        maxval=1., 
+        shape=(3,),
+    )
+    rotation_angle = jax.random.uniform(
+        rng, 
+        minval=0., 
+        maxval=0.8 * 90.,
+    )
+    x_aug = get_rotated_box(
+        x[i], 
+        rotation_axis=rotation_axis, 
+        rotation_angle=rotation_angle, 
+        n_pos_dim=n_pos_dim, 
+        box_size=box_size,
+    ) 

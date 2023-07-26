@@ -20,7 +20,6 @@ import optax
 import flax
 from flax.core import FrozenDict
 from flax.training import checkpoints, common_utils, train_state
-from jax.config import config
 
 import tensorflow as tf
 
@@ -34,7 +33,7 @@ from models.train_utils import (
     to_wandb_config,
 )
 
-from datasets import load_data
+from datasets import load_data, augment_data
 
 replicate = flax.jax_utils.replicate
 unreplicate = flax.jax_utils.unreplicate
@@ -80,8 +79,9 @@ def train(
         config.seed,
         shuffle=True,
         split="train",
-        **config.data.kwargs,
+        #**config.data.kwargs,
     )
+    add_augmentations = True if config.data.add_rotations or config.data.add_translations else False
 
     batches = create_input_iter(train_ds)
 
@@ -98,11 +98,13 @@ def train(
     x_mean = tuple(map(float, norm_dict["mean"]))
     x_std = tuple(map(float, norm_dict["std"]))
     box_size = config.data.box_size
+    unit_cell = tuple(map(tuple, config.data.unit_cell)) if config.data.apply_pbcs else None
     norm_dict_input = FrozenDict(
         {
             "x_mean": x_mean,
             "x_std": x_std,
             "box_size": box_size,
+            "unit_cell": unit_cell,
         }
     )
     vdm = VariationalDiffusionModel(
@@ -121,6 +123,7 @@ def train(
         encoder_dict=encoder_dict,
         decoder_dict=decoder_dict,
         norm_dict=norm_dict_input,
+        apply_pbcs = config.data.apply_pbcs,
     )
 
     rng = jax.random.PRNGKey(config.seed)
@@ -161,9 +164,21 @@ def train(
                 rng, num=jax.local_device_count() + 1
             )
             train_step_rng = np.asarray(train_step_rng)
-
+            x, conditioning, mask = next(batches)
+            if add_augmentations:
+                x, conditioning, mask = augment_data(
+                    x=x_batch,
+                    mask=mask_batch,
+                    conditioning=conditioning_batch,
+                    rng=rng,
+                    norm_dict=norm_dict,
+                    n_pos_dim=config.data.n_pos_features,
+                    box_size=config.data.box_size,
+                    rotations=config.data.add_rotations,
+                    translations=config.data.add_translations,
+                )
             pstate, metrics = train_step(
-                pstate, next(batches), train_step_rng, vdm, loss_vdm
+                pstate, (x, conditioning, mask), train_step_rng, vdm, loss_vdm
             )
             steps.set_postfix(val=unreplicate(metrics["loss"]))
             train_metrics.append(metrics)
@@ -198,7 +213,7 @@ def train(
                     pstate=unreplicate(pstate),
                     rng=rng,
                     n_samples=config.training.batch_size,
-                    n_particles=config.data.n_particles,
+                    n_particles=x_batch.shape[-2],#config.data.n_particles,
                     true_samples=x_batch.reshape((-1, *x_batch.shape[2:])),
                     conditioning=conditioning_batch.reshape(
                         (-1, *conditioning_batch.shape[2:])
