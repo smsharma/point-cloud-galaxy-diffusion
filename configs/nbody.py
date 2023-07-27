@@ -62,7 +62,7 @@ def get_config():
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
-    training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
+    training.batch_size = 64  # Must be divisible by number of devices; this is the total batch size, not per-device
     training.n_train_steps = 101_000
     training.warmup_steps = 5_000
     training.log_every_steps = 100
