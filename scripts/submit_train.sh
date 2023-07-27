@@ -3,24 +3,23 @@
 #SBATCH --job-name=train
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
-#SBATCH --mem=300GB
+#SBATCH --mem=80GB
 #SBATCH --time=96:00:00
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:2
 #SBATCH --account=iaifi_lab
 #SBATCH -p iaifi_gpu
 
-source ~/.bashrc
+export TF_CPP_MIN_LOG_LEVEL="2"
 
-module load Anaconda3/2022.05
-module load gcc/8.2.0-fasrc01
-module load cuda/11.7.1-fasrc01
-module load glib/2.56.1-fasrc01
-module load openmpi/4.0.1-fasrc01
-module load git/2.17.0-fasrc01
-module load node/6.10.1-fasrc01
-module load OpenBLAS/0.3.7-fasrc01
+# Load modules
+module load python/3.10.9-fasrc01
+module load cuda/12.0.1-fasrc01
+module load gcc/12.2.0-fasrc01
+module load openmpi/4.1.4-fasrc01
 
+# Activate env
+mamba activate jax
+
+# Go to dir and train
 cd /n/holystore01/LABS/iaifi_lab/Users/smsharma/set-diffuser/
-
 python -u train.py --config ./configs/nbody.py
-# python -u train.py --config ./configs/jets.py

@@ -9,7 +9,7 @@ def get_config():
     config.wandb = wandb = ml_collections.ConfigDict()
     wandb.entity = None
     wandb.project = "set-diffusion"
-    wandb.group = "cosmology"
+    wandb.group = "cosmology-augmentations"
     wandb.job_type = "training"
     wandb.name = None
     wandb.log_train = True
@@ -21,8 +21,9 @@ def get_config():
     vdm.noise_schedule = "learned_linear"
     vdm.noise_scale = 1e-3
     vdm.timesteps = 0  # 0 for continuous-time VLB
-    vdm.embed_context = False
+    vdm.embed_context = True
     vdm.d_context_embedding = 16
+    vdm.d_t_embedding = 32  # Timestep embedding dimension
     vdm.n_classes = 0
     vdm.use_encdec = False
 
@@ -53,7 +54,7 @@ def get_config():
     score.n_pos_features = 3
     score.num_mlp_layers = 4
     score.latent_size = 64
-    score.hidden_size = 64
+    score.hidden_size = 128
     score.skip_connections = True
     score.message_passing_steps = 4
     score.attention = False
@@ -62,7 +63,7 @@ def get_config():
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
     training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
-    training.n_train_steps = 501_000
+    training.n_train_steps = 101_000
     training.warmup_steps = 5_000
     training.log_every_steps = 100
     training.eval_every_steps = 2_000  # training.n_train_steps + 1  # Turn off eval for now
@@ -76,7 +77,7 @@ def get_config():
     data.n_pos_features = 3  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
     data.box_size = 1000.0  # Need to know the box size for augmentations
     data.add_augmentations = True
-    data.add_rotations = True
+    data.add_rotations = False
     data.add_translations = True
     data.kwargs = {}
 
@@ -85,6 +86,6 @@ def get_config():
     optim.learning_rate = 6e-4
     optim.weight_decay = 1e-4
 
-    config.seed = 44
+    config.seed = 42
 
     return config

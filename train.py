@@ -102,6 +102,7 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
         timesteps=config.vdm.timesteps,
         noise_schedule=config.vdm.noise_schedule,
         noise_scale=config.vdm.noise_scale,
+        d_t_embedding=config.vdm.d_t_embedding,
         gamma_min=config.vdm.gamma_min,
         gamma_max=config.vdm.gamma_max,
         score=config.score.score,

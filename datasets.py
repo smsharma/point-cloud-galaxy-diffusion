@@ -116,7 +116,8 @@ def augment_with_translations(
 ):
     rng, _ = jax.random.split(rng)
     x = x * norm_dict["std"] + norm_dict["mean"]
-    # draw N random translations
+
+    # Draw N random translations
     translations = jax.random.uniform(rng, minval=-box_size / 2, maxval=box_size / 2, shape=(*x.shape[:2], 3))
     x = x.at[..., :n_pos_dim].set((x[..., :n_pos_dim] + translations[..., None, :]) % box_size)
     x = (x - norm_dict["mean"]) / norm_dict["std"]
@@ -160,11 +161,11 @@ def augment_with_symmetries(
     box_size: float = 1000.0,
 ):
     rng, _ = jax.random.split(rng)
-    # rotations and reflections that respect boundary conditions
+    # Rotations and reflections that respect boundary conditions
     matrix = random_symmetry_matrix(rng)
     x = x.at[..., :n_pos_dim].set(np.dot(x[..., :n_pos_dim], matrix.T))
     if x.shape[-1] > n_pos_dim:
-        # rotate velocities too
+        # Rotate velocities too
         x = x.at[..., n_pos_dim : n_pos_dim + 3].set(np.dot(x[..., n_pos_dim : n_pos_dim + 3], matrix.T))
     return x, conditioning, mask
 
