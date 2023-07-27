@@ -34,9 +34,7 @@ colors = [
 ]
 
 
-def plot_pointclouds_3D(
-    generated_samples: np.array, true_samples: np.array, idx_to_plot: int = 0
-) -> plt.figure:
+def plot_pointclouds_3D(generated_samples: np.array, true_samples: np.array, idx_to_plot: int = 0) -> plt.figure:
     """Plot pointcloud in three dimensions
 
     Args:
@@ -50,9 +48,7 @@ def plot_pointclouds_3D(
     s = 4
     alpha = 0.5
     color = "firebrick"
-    fig, (ax1, ax2) = plt.subplots(
-        1, 2, figsize=(20, 12), subplot_kw={"projection": "3d"}
-    )
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 12), subplot_kw={"projection": "3d"})
     ax1.scatter(
         generated_samples[idx_to_plot, :, 0],
         generated_samples[idx_to_plot, :, 1],
@@ -81,9 +77,7 @@ def plot_pointclouds_3D(
     return fig
 
 
-def plot_pointclouds_2D(
-    generated_samples: np.array, true_samples: np.array, idx_to_plot: int = 0
-):
+def plot_pointclouds_2D(generated_samples: np.array, true_samples: np.array, idx_to_plot: int = 0):
     """Plot pointcloud in two dimensions
 
     Args:
@@ -174,9 +168,7 @@ def plot_knns(
             c = plt.plot(
                 r_bins,
                 true_knn[k],
-                label=rf"$\Omega_m={conditioning[i][0]:.2f} \,\,\sigma_8={conditioning[i][-1]:.2f}$"
-                if (k == 1 and conditioning is not None)
-                else None,
+                label=rf"$\Omega_m={conditioning[i][0]:.2f} \,\,\sigma_8={conditioning[i][-1]:.2f}$" if (k == 1 and conditioning is not None) else None,
                 ls="-",
                 alpha=0.75,
                 lw=1,
@@ -243,7 +235,9 @@ def compute_2pcf(
         n_threads=2,
         boxsize=boxsize,
         los="z",
-    )(ells=[0])[0]
+    )(
+        ells=[0]
+    )[0]
 
 
 def compute_2pcf_rsd(
@@ -284,9 +278,7 @@ def compute_2pcf_rsd(
     )(ells=[0, 2])
 
 
-def plot_2pcf(
-    generated_samples: np.array, true_samples: np.array, boxsize: float
-) -> plt.figure:
+def plot_2pcf(generated_samples: np.array, true_samples: np.array, boxsize: float) -> plt.figure:
     """Plot the two point correlation function
 
     Args:
@@ -301,9 +293,7 @@ def plot_2pcf(
     r_bins = np.linspace(0.5, 120.0, 60)
     r = 0.5 * (r_bins[1:] + r_bins[:-1])
     for idx in range(len(generated_samples)):
-        generated_2pcfs.append(
-            compute_2pcf(generated_samples[idx][..., :3], boxsize, r_bins)
-        )
+        generated_2pcfs.append(compute_2pcf(generated_samples[idx][..., :3], boxsize, r_bins))
         true_2pcfs.append(compute_2pcf(true_samples[idx][..., :3], boxsize, r_bins))
 
     fig, _ = plt.subplots()
@@ -598,12 +588,11 @@ def eval_generation(
         generated_masses = None
         true_velocities = None
         true_masses = None
-    fig = plot_pointclouds_2D(
-        generated_samples=generated_positions, true_samples=true_positions
-    )
+    fig = plot_pointclouds_2D(generated_samples=generated_positions, true_samples=true_positions)
     if log_wandb:
-        wandb.log({"eval/pointcloud": fig})
-    '''
+        # wandb.log({"eval/pointcloud": fig})
+        wandb.log({"eval/pointcloud": wandb.Image(plt)})
+    """
     fig = plot_knns(
         generated_samples=generated_positions,
         true_samples=true_positions,
@@ -613,7 +602,7 @@ def eval_generation(
     )
     if log_wandb:
         wandb.log({"eval/knn": fig})
-    '''
+    """
 
     fig = plot_2pcf(
         generated_samples=generated_positions,
@@ -646,7 +635,12 @@ def eval_generation(
         fig = plot_hmf(
             generated_masses=generated_masses,
             true_masses=true_masses,
-            idx_to_plot=[0, 1, 2, 3,],
+            idx_to_plot=[
+                0,
+                1,
+                2,
+                3,
+            ],
         )
         if log_wandb:
             wandb.log({"eval/mass": fig})
@@ -676,9 +670,7 @@ def generate_samples(
     generated_samples = generated_samples.mean()
     generated_samples = generated_samples * norm_dict["std"] + norm_dict["mean"]
     # make sure generated samples are inside boxsize
-    generated_samples = generated_samples.at[..., :3].set(
-        generated_samples[..., :3] % boxsize
-    )
+    generated_samples = generated_samples.at[..., :3].set(generated_samples[..., :3] % boxsize)
     return generated_samples
 
 
@@ -686,7 +678,7 @@ def generate_test_samples_from_model_folder(
     path_to_model: Path,
     steps: int = 500,
     batch_size: int = 20,
-    boxsize: float = 1000.,
+    boxsize: float = 1000.0,
     n_test: int = 200,
 ):
     with open(path_to_model / "config.yaml", "r") as file:
@@ -712,6 +704,7 @@ def generate_test_samples_from_model_folder(
         boxsize=boxsize,
     )
 
+
 def generate_samples_for_dataset(
     ds,
     norm_dict,
@@ -720,13 +713,11 @@ def generate_samples_for_dataset(
     path_to_model: Path,
     steps: int = 500,
     batch_size: int = 20,
-    boxsize: float = 1000.,
+    boxsize: float = 1000.0,
 ):
     batches = create_input_iter(ds)
     x_batch, conditioning_batch, mask_batch = next(batches)
-    vdm, params = VariationalDiffusionModel.from_path_to_model(
-        path_to_model=path_to_model
-    )
+    vdm, params = VariationalDiffusionModel.from_path_to_model(path_to_model=path_to_model)
     rng = jax.random.PRNGKey(42)
     n_batches = n_total_samples // batch_size
     true_samples, generated_samples, conditioning_samples = [], [], []
@@ -736,34 +727,35 @@ def generate_samples_for_dataset(
         true_samples.append(x_batch[0] * norm_dict["std"] + norm_dict["mean"])
         generated_samples.append(
             generate_samples(
-                    vdm=vdm,
-                    params=params,
-                    rng=rng,
-                    n_samples=batch_size,
-                    n_particles=n_particles,
-                    conditioning=conditioning_batch[0],
-                    mask=mask_batch[0],
-                    steps=steps,
-                    norm_dict=norm_dict,
-                    boxsize=boxsize,
-                )
-        ) 
-        conditioning_samples.append(conditioning_batch[0]) 
-        print(f'Iteration {i} takes {time.time() - t0} seconds')
+                vdm=vdm,
+                params=params,
+                rng=rng,
+                n_samples=batch_size,
+                n_particles=n_particles,
+                conditioning=conditioning_batch[0],
+                mask=mask_batch[0],
+                steps=steps,
+                norm_dict=norm_dict,
+                boxsize=boxsize,
+            )
+        )
+        conditioning_samples.append(conditioning_batch[0])
+        print(f"Iteration {i} takes {time.time() - t0} seconds")
     return np.array(true_samples), np.array(generated_samples), np.array(conditioning_samples)
+
 
 if __name__ == "__main__":
     t0 = time.time()
-    run_name ='blooming-puddle-230'# 'misunderstood-night-203' #'confused-gorge-138' #'chocolate-cloud-122'
-    path_to_samples = Path(f'/n/holystore01/LABS/itc_lab/Users/ccuestalazaro/set_diffuser/samples/{run_name}')
+    run_name = "blooming-puddle-230"  # 'misunderstood-night-203' #'confused-gorge-138' #'chocolate-cloud-122'
+    path_to_samples = Path(f"/n/holystore01/LABS/itc_lab/Users/ccuestalazaro/set_diffuser/samples/{run_name}")
     path_to_samples.mkdir(exist_ok=True)
     path_to_model = Path(f"/n/home11/ccuestalazaro/set-diffuser/logging/cosmology/{run_name}")
     steps = 500
     true_samples, generated_samples, conditioninig_samples = generate_test_samples_from_model_folder(
-        path_to_model=path_to_model, 
+        path_to_model=path_to_model,
         steps=steps,
     )
-    np.save(path_to_samples / f'true_test_samples.npy', true_samples)
-    np.save(path_to_samples / f'generated_test_samples_{steps}_steps.npy', generated_samples)
-    np.save(path_to_samples / f'cond_test_samples_{steps}_steps.npy', conditioninig_samples)
+    np.save(path_to_samples / f"true_test_samples.npy", true_samples)
+    np.save(path_to_samples / f"generated_test_samples_{steps}_steps.npy", generated_samples)
+    np.save(path_to_samples / f"cond_test_samples_{steps}_steps.npy", conditioninig_samples)
     print(f"It takes {time.time() - t0} seconds to generate samples")
