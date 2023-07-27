@@ -155,9 +155,9 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
             x, conditioning, mask = next(batches)
             if add_augmentations:
                 x, conditioning, mask = augment_data(
-                    x=x_batch,
-                    mask=mask_batch,
-                    conditioning=conditioning_batch,
+                    x=x,
+                    mask=mask,
+                    conditioning=conditioning,
                     rng=rng,
                     norm_dict=norm_dict,
                     n_pos_dim=config.data.n_pos_features,
