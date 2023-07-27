@@ -226,7 +226,6 @@ class VariationalDiffusionModel(nn.Module):
             g_t,
             cond,
             mask,
-            box_size=self.norm_dict["box_size"],
         )
         deps = eps - eps_hat
         loss_diff_mse = np.square(deps)  # Compute MSE of predicted noise
@@ -343,7 +342,6 @@ class VariationalDiffusionModel(nn.Module):
             g_t * np.ones((z_t.shape[0],), z_t.dtype),
             cond,
             mask,
-            box_size=self.norm_dict["box_size"],
         )
 
         a = nn.sigmoid(g_s)
@@ -360,12 +358,10 @@ class VariationalDiffusionModel(nn.Module):
         g_t,
         cond,
         mask,
-        box_size,
     ):
         return self.score_model(
             z=z_t,
             t=g_t,
             conditioning=cond,
             mask=mask,
-            box_size=box_size,
         )
