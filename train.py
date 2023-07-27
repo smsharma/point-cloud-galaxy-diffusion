@@ -113,7 +113,6 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
         encoder_dict=encoder_dict,
         decoder_dict=decoder_dict,
         norm_dict=norm_dict_input,
-        apply_pbcs=config.data.apply_pbcs,
     )
 
     rng = jax.random.PRNGKey(config.seed)
@@ -192,6 +191,8 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
                     conditioning=conditioning_batch.reshape((-1, *conditioning_batch.shape[2:])),
                     mask=mask_batch.reshape((-1, *mask_batch.shape[2:])),
                     norm_dict=norm_dict,
+                    steps=500,
+                    boxsize=config.data.box_size,
                 )
 
             # Save checkpoints periodically

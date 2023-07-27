@@ -712,36 +712,6 @@ def generate_test_samples_from_model_folder(
         boxsize=boxsize,
     )
 
-def generate_fiducial_samples_from_model_folder(
-    path_to_model: Path,
-    steps: int = 500,
-    batch_size: int = 20,
-    boxsize: float = 1000.,
-    n_test: int = 200,
-):
-    with open(path_to_model / "config.yaml", "r") as file:
-        config = yaml.safe_load(file)
-    config = ConfigDict(config)
-    # get conditioning for test set
-    _, norm_dict = nbody_dataset(
-        n_features=config.data.n_features,
-        n_particles=config.data.n_particles,
-        batch_size=batch_size,
-        seed=config.seed,
-        shuffle=False,
-        split="test",
-    )
-    #fiducial_ds = 
-    return generate_samples_for_dataset(
-        ds=fiducial_ds,
-        norm_dict=norm_dict,
-        n_total_samples=n_test,
-        path_to_model=path_to_model,
-        steps=steps,
-        batch_size=batch_size,
-        boxsize=boxsize,
-    )
-
 def generate_samples_for_dataset(
     ds,
     norm_dict,

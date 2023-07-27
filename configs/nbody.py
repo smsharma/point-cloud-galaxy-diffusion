@@ -3,7 +3,6 @@ import ml_collections
 
 
 def get_config():
-
     config = ml_collections.ConfigDict()
 
     # Wandb logging
@@ -13,7 +12,7 @@ def get_config():
     wandb.group = "cosmology"
     wandb.job_type = "training"
     wandb.name = None
-    wandb.log_train = True 
+    wandb.log_train = True
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
@@ -22,7 +21,7 @@ def get_config():
     vdm.noise_schedule = "learned_linear"
     vdm.noise_scale = 1e-3
     vdm.timesteps = 0  # 0 for continuous-time VLB
-    vdm.embed_context = False 
+    vdm.embed_context = False
     vdm.d_context_embedding = 16
     vdm.n_classes = 0
     vdm.use_encdec = False
@@ -38,14 +37,14 @@ def get_config():
     decoder.n_layers = 4
 
     # Transformer score model
-    #config.score = score = ml_collections.ConfigDict()
-    #score.score = "transformer"
-    #score.induced_attention = False
-    #score.n_inducing_points = 200
-    #score.d_model = 256
-    #score.d_mlp = 512
-    #score.n_layers = 4
-    #score.n_heads = 2
+    # config.score = score = ml_collections.ConfigDict()
+    # score.score = "transformer"
+    # score.induced_attention = False
+    # score.n_inducing_points = 200
+    # score.d_model = 256
+    # score.d_mlp = 512
+    # score.n_layers = 4
+    # score.n_heads = 2
 
     # # Graph score model
     config.score = score = ml_collections.ConfigDict()
@@ -57,20 +56,12 @@ def get_config():
     score.hidden_size = 64
     score.skip_connections = True
     score.message_passing_steps = 4
-    score.attention = False 
-
-    # # Equivariant score model
-    # config.score = score = ml_collections.ConfigDict()
-    # score.score = "equivariant"
-    # score.k = 20
-    # score.n_pos_features = 3
-    # score.d_hidden = 32
-    # score.n_layers = 2
+    score.attention = False
 
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
-    training.batch_size = 16 # Must be divisible by number of devices; this is the total batch size, not per-device
+    training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
     training.n_train_steps = 501_000
     training.warmup_steps = 5_000
     training.log_every_steps = 100
@@ -83,10 +74,10 @@ def get_config():
     data.n_particles = 5000  # Select the first n_particles particles
     data.n_features = 3  # Select the first n_features features
     data.n_pos_features = 3  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
-    data.box_size = None #1000.
-    data.unit_cell = None #[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-    data.apply_pbcs = False
-    data.add_augmentations = False
+    data.box_size = 1000.0  # Need to know the box size for augmentations
+    data.add_augmentations = True
+    data.add_rotations = True
+    data.add_translations = True
     data.kwargs = {}
 
     # Optimizer (AdamW)
