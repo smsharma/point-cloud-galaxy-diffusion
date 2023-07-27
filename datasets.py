@@ -48,9 +48,7 @@ def get_nbody_data(
     split: str = "train",
 ):
     DATA_DIR = Path("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/")
-    x, conditioning = get_halo_data(
-        data_dir=DATA_DIR, n_features=n_features, n_particles=n_particles, split=split
-    )
+    x, conditioning = get_halo_data(data_dir=DATA_DIR, n_features=n_features, n_particles=n_particles, split=split)
     if split == "train":
         x_train = x
     else:
@@ -118,9 +116,7 @@ def jetnet_dataset(
         train_ds, norm_dict: Training iterator and normalization dictionary (mean, std keys)
     """
 
-    particle_data, jet_data = JetNet.getData(
-        jet_type=jet_type, data_dir="./data/", num_particles=n_particles
-    )
+    particle_data, jet_data = JetNet.getData(jet_type=jet_type, data_dir="./data/", num_particles=n_particles)
 
     # Normalize everything BUT the jet class and number of particles (first and last elements of `jet_data`)
     mean_jet = jet_data[:, 1:-1].mean(axis=(0,))
@@ -137,9 +133,7 @@ def jetnet_dataset(
     particle_data = particle_data[:, :, :n_features]
 
     # Create a masked array for the data excluding the last feature (mask)
-    masked_data = vnp.ma.array(
-        particle_data, mask=np.tile(~mask[:, :, None], (1, 1, n_features))
-    )
+    masked_data = vnp.ma.array(particle_data, mask=np.tile(~mask[:, :, None], (1, 1, n_features)))
 
     # Calculate the mean and std of valid particles (axis=(0, 1) to compute mean and std across batches and particles)
     mean_particle = masked_data.mean(axis=(0, 1))
@@ -167,17 +161,22 @@ def jetnet_dataset(
 
 def load_data(dataset, n_features, n_particles, batch_size, seed, shuffle, split, **kwargs):
     if dataset == "nbody":
-        train_ds, norm_dict = nbody_dataset(n_features, n_particles, batch_size, seed, shuffle=shuffle, split=split,
-                                            **kwargs,
-                                            ) 
-    elif dataset == "jetnet":
-        train_ds, norm_dict = jetnet_dataset(
-            n_features, n_particles, batch_size, seed, **kwargs
+        train_ds, norm_dict = nbody_dataset(
+            n_features,
+            n_particles,
+            batch_size,
+            seed,
+            shuffle=shuffle,
+            split=split,
+            **kwargs,
         )
+    elif dataset == "jetnet":
+        train_ds, norm_dict = jetnet_dataset(n_features, n_particles, batch_size, seed, **kwargs)
     else:
         raise ValueError("Unknown dataset: {}".format(dataset))
 
     return train_ds, norm_dict
+
 
 def augment_with_translations(
     x,
@@ -191,12 +190,8 @@ def augment_with_translations(
     rng, _ = jax.random.split(rng)
     x = x * norm_dict["std"] + norm_dict["mean"]
     # draw N random translations
-    translations = jax.random.uniform(
-        rng, minval=-box_size / 2, maxval=box_size / 2, shape=(*x.shape[:2], 3)
-    )
-    x = x.at[..., :n_pos_dim].set(
-        (x[..., :n_pos_dim] + translations[..., None, :]) % box_size
-    )
+    translations = jax.random.uniform(rng, minval=-box_size / 2, maxval=box_size / 2, shape=(*x.shape[:2], 3))
+    x = x.at[..., :n_pos_dim].set((x[..., :n_pos_dim] + translations[..., None, :]) % box_size)
     x = (x - norm_dict["mean"]) / norm_dict["std"]
     return x, conditioning, mask
 
@@ -243,13 +238,21 @@ def augment_with_symmetries(
     x = x.at[..., :n_pos_dim].set(np.dot(x[..., :n_pos_dim], matrix.T))
     if x.shape[-1] > n_pos_dim:
         # rotate velocities too
-        x = x.at[..., n_pos_dim : n_pos_dim + 3].set(
-            np.dot(x[..., n_pos_dim : n_pos_dim + 3], matrix.T)
-        )
+        x = x.at[..., n_pos_dim : n_pos_dim + 3].set(np.dot(x[..., n_pos_dim : n_pos_dim + 3], matrix.T))
     return x, conditioning, mask
 
 
-def augment_data(x, conditioning, mask, rng, norm_dict, rotations: bool = True, translations: bool = True, n_pos_dim=3, box_size: float = 1000.,):
+def augment_data(
+    x,
+    conditioning,
+    mask,
+    rng,
+    norm_dict,
+    rotations: bool = True,
+    translations: bool = True,
+    n_pos_dim=3,
+    box_size: float = 1000.0,
+):
     if rotations:
         x, conditioning, mask = augment_with_symmetries(
             x=x,
@@ -259,7 +262,7 @@ def augment_data(x, conditioning, mask, rng, norm_dict, rotations: bool = True, 
             norm_dict=norm_dict,
             n_pos_dim=n_pos_dim,
             box_size=box_size,
-        )    
+        )
     if translations:
         x, conditioning, mask = augment_with_translations(
             x=x,

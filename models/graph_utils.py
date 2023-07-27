@@ -5,25 +5,19 @@ import jraph
 # from jax_md import space, partition
 
 from functools import partial
-from models.periodic_boundary_utils import apply_pbc
 
 
 @partial(jax.jit, static_argnums=(1,))
 def nearest_neighbors(
     x: np.array,
     k: int,
-    boxsize: float = None,
-    unit_cell: np.array = None,
     mask: np.array = None,
-    pbc=False,
 ):
     """Returns the nearest neighbors of each node in x.
 
     Args:
         x (np.array): positions of nodes
         k (int): number of nearest neighbors to find
-        boxsize (float, optional): size of box if perdioc boundary conditions. Defaults to None.
-        unit_cell (np.array, optional): unit cell for applying periodic boundary conditions. Defaults to None.
         mask (np.array, optional): node mask. Defaults to None.
 
     Returns:
@@ -33,14 +27,10 @@ def nearest_neighbors(
         mask = np.ones((x.shape[0],), dtype=np.int32)
 
     n_nodes = x.shape[0]
-    # Compute the vector difference between positions accounting for PBC
+    # Compute the vector difference between positions
     dr = x[:, None, :] - x[None, :, :]
-    if pbc:
-        dr = apply_pbc(
-            dr=dr,
-            cell=boxsize * unit_cell,
-        )
-    # Calculate the distance matrix accounting for PBC
+
+    # Calculate the distance matrix
     distance_matrix = np.sum(dr**2, axis=-1)
 
     distance_matrix = np.where(mask[:, None], distance_matrix, np.inf)
@@ -67,67 +57,9 @@ def nearest_neighbors_ann(x, k):
     return (sources, targets)
 
 
-def add_graphs_tuples(
-    graphs: jraph.GraphsTuple, other_graphs: jraph.GraphsTuple
-) -> jraph.GraphsTuple:
+def add_graphs_tuples(graphs: jraph.GraphsTuple, other_graphs: jraph.GraphsTuple) -> jraph.GraphsTuple:
     """Adds the nodes, edges and global features from other_graphs to graphs."""
     return graphs._replace(nodes=graphs.nodes + other_graphs.nodes)
-
-
-class RadiusSearch:
-    """Jittable radius graph"""
-
-    def __init__(self, box_size, cutoff, boundary_cond="free", capacity_multiplier=1.5):
-        self.box_size = np.array(box_size)
-
-        if boundary_cond == "free":
-            self.displacement_fn, _ = space.free()
-        elif boundary_cond == "periodic":
-            self.displacement_fn, _ = space.periodic(self.box_size)
-        else:
-            raise NotImplementedError
-
-        self.disp = jax.vmap(self.displacement_fn)
-        self.dist = jax.vmap(space.metric(self.displacement_fn))
-        self.cutoff = cutoff
-        self.neighbor_list_fn = partition.neighbor_list(
-            self.displacement_fn,
-            self.box_size,
-            cutoff,
-            format=partition.Sparse,
-            dr_threshold=cutoff / 6.0,
-            mask_self=False,
-            capacity_multiplier=capacity_multiplier,
-        )
-
-        self.neighbor_list_fn_jit = jax.jit(self.neighbor_list_fn)
-        self.neighbor_dist_jit = self.displacement_fn
-
-        # Each time number of neighbours buffer overflows, reallocate
-        self.n_times_reallocated = 0
-
-    def init_neighbor_lst(self, pos):
-        """Allocate initial neighbour list."""
-        pos = np.mod(pos, self.box_size)
-        nbr = self.neighbor_list_fn.allocate(pos)
-        return nbr
-
-    def update_neighbor_lst(self, pos, nbr):
-        """Update neighbour list. If buffer overflows, reallocate (re-jit)."""
-        pos = np.mod(pos, self.box_size)
-        nbr_update = jax.vmap(self.neighbor_list_fn_jit.update, in_axes=(0, None))(
-            pos, nbr
-        )
-
-        # If buffer overflows, update capacity of neighbours.
-        # NOTE: This reallocation strategy might be more efficient: https://github.com/jax-md/jax-md/issues/192#issuecomment-1114002995
-        if np.any(nbr_update.did_buffer_overflow):
-            nbr = self.neighbor_list_fn.allocate(
-                pos[0], extra_capacity=2**self.n_times_reallocated
-            )
-            self.n_times_reallocated += 1
-
-        return nbr_update, nbr
 
 
 def rotation_matrix(angle_deg, axis):
@@ -175,9 +107,7 @@ def replicate_box(
     return replicated_features
 
 
-def get_rotated_box(
-    features, rotation_axis, rotation_angle, n_pos_dim=3, box_size: float = 1000.0
-):
+def get_rotated_box(features, rotation_axis, rotation_angle, n_pos_dim=3, box_size: float = 1000.0):
     unfolded_features = replicate_box(features, box_size)
     rotated_features = rotate_representation(
         unfolded_features,
@@ -185,29 +115,7 @@ def get_rotated_box(
         rotation_axis,
     )
     mask_in_box = np.all(
-        (rotated_features[:, :n_pos_dim] >= 0)
-        & (rotated_features[:, :n_pos_dim] <= box_size),
+        (rotated_features[:, :n_pos_dim] >= 0) & (rotated_features[:, :n_pos_dim] <= box_size),
         axis=1,
     )
     return rotated_features[mask_in_box]
-
-
-def augment_with_random_rotations():
-    rotation_axis = jax.random.uniform(
-        rng,
-        minval=-1, 
-        maxval=1., 
-        shape=(3,),
-    )
-    rotation_angle = jax.random.uniform(
-        rng, 
-        minval=0., 
-        maxval=0.8 * 90.,
-    )
-    x_aug = get_rotated_box(
-        x[i], 
-        rotation_axis=rotation_axis, 
-        rotation_angle=rotation_angle, 
-        n_pos_dim=n_pos_dim, 
-        box_size=box_size,
-    ) 

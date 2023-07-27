@@ -41,9 +41,7 @@ unreplicate = flax.jax_utils.unreplicate
 logging.set_verbosity(logging.INFO)
 
 
-def train(
-    config: ml_collections.ConfigDict, workdir: str = "./logging/"
-) -> train_state.TrainState:
+def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> train_state.TrainState:
     # Set up wandb run
     if config.wandb.log_train and jax.process_index() == 0:
         wandb_config = to_wandb_config(config)
@@ -54,9 +52,7 @@ def train(
             group=config.wandb.group,
             config=wandb_config,
         )
-        wandb.define_metric(
-            "*", step_metric="train/step"
-        )  # Set default x-axis as 'train/step'
+        wandb.define_metric("*", step_metric="train/step")  # Set default x-axis as 'train/step'
         workdir = os.path.join(workdir, run.group, run.name)
 
         # Recursively create workdir
@@ -66,9 +62,7 @@ def train(
     with open(os.path.join(workdir, "config.yaml"), "w") as f:
         yaml.dump(config.to_dict(), f)
 
-    writer = metric_writers.create_default_writer(
-        logdir=workdir, just_logging=jax.process_index() != 0
-    )
+    writer = metric_writers.create_default_writer(logdir=workdir, just_logging=jax.process_index() != 0)
 
     # Load the dataset
     train_ds, norm_dict = load_data(
@@ -79,7 +73,7 @@ def train(
         config.seed,
         shuffle=True,
         split="train",
-        #**config.data.kwargs,
+        # **config.data.kwargs,
     )
     add_augmentations = True if config.data.add_rotations or config.data.add_translations else False
 
@@ -97,14 +91,10 @@ def train(
     # Diffusion model
     x_mean = tuple(map(float, norm_dict["mean"]))
     x_std = tuple(map(float, norm_dict["std"]))
-    box_size = config.data.box_size
-    unit_cell = tuple(map(tuple, config.data.unit_cell)) if config.data.apply_pbcs else None
     norm_dict_input = FrozenDict(
         {
             "x_mean": x_mean,
             "x_std": x_std,
-            "box_size": box_size,
-            "unit_cell": unit_cell,
         }
     )
     vdm = VariationalDiffusionModel(
@@ -123,7 +113,7 @@ def train(
         encoder_dict=encoder_dict,
         decoder_dict=decoder_dict,
         norm_dict=norm_dict_input,
-        apply_pbcs = config.data.apply_pbcs,
+        apply_pbcs=config.data.apply_pbcs,
     )
 
     rng = jax.random.PRNGKey(config.seed)
@@ -160,9 +150,7 @@ def train(
     train_metrics = []
     with trange(config.training.n_train_steps) as steps:
         for step in steps:
-            rng, *train_step_rng = jax.random.split(
-                rng, num=jax.local_device_count() + 1
-            )
+            rng, *train_step_rng = jax.random.split(rng, num=jax.local_device_count() + 1)
             train_step_rng = np.asarray(train_step_rng)
             x, conditioning, mask = next(batches)
             if add_augmentations:
@@ -177,23 +165,14 @@ def train(
                     rotations=config.data.add_rotations,
                     translations=config.data.add_translations,
                 )
-            pstate, metrics = train_step(
-                pstate, (x, conditioning, mask), train_step_rng, vdm, loss_vdm
-            )
+            pstate, metrics = train_step(pstate, (x, conditioning, mask), train_step_rng, vdm, loss_vdm)
             steps.set_postfix(val=unreplicate(metrics["loss"]))
             train_metrics.append(metrics)
 
             # Log periodically
-            if (
-                (step % config.training.log_every_steps == 0)
-                and (step != 0)
-                and (jax.process_index() == 0)
-            ):
+            if (step % config.training.log_every_steps == 0) and (step != 0) and (jax.process_index() == 0):
                 train_metrics = common_utils.get_metrics(train_metrics)
-                summary = {
-                    f"train/{k}": v
-                    for k, v in jax.tree_map(lambda x: x.mean(), train_metrics).items()
-                }
+                summary = {f"train/{k}": v for k, v in jax.tree_map(lambda x: x.mean(), train_metrics).items()}
 
                 writer.write_scalars(step, summary)
                 train_metrics = []
@@ -202,32 +181,21 @@ def train(
                     wandb.log({"train/step": step, **summary})
 
             # Eval periodically
-            if (
-                (step % config.training.eval_every_steps == 0)
-                and (step != 0)
-                and (jax.process_index() == 0)
-                and (config.wandb.log_train)
-            ):
+            if (step % config.training.eval_every_steps == 0) and (step != 0) and (jax.process_index() == 0) and (config.wandb.log_train):
                 eval_generation(
                     vdm=vdm,
                     pstate=unreplicate(pstate),
                     rng=rng,
                     n_samples=config.training.batch_size,
-                    n_particles=x_batch.shape[-2],#config.data.n_particles,
+                    n_particles=x_batch.shape[-2],  # config.data.n_particles,
                     true_samples=x_batch.reshape((-1, *x_batch.shape[2:])),
-                    conditioning=conditioning_batch.reshape(
-                        (-1, *conditioning_batch.shape[2:])
-                    ),
+                    conditioning=conditioning_batch.reshape((-1, *conditioning_batch.shape[2:])),
                     mask=mask_batch.reshape((-1, *mask_batch.shape[2:])),
                     norm_dict=norm_dict,
                 )
 
             # Save checkpoints periodically
-            if (
-                (step % config.training.save_every_steps == 0)
-                and (step != 0)
-                and (jax.process_index() == 0)
-            ):
+            if (step % config.training.save_every_steps == 0) and (step != 0) and (jax.process_index() == 0):
                 state_ckpt = unreplicate(pstate)
                 checkpoints.save_checkpoint(
                     ckpt_dir=workdir,
