@@ -5,9 +5,9 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=80GB
 #SBATCH --time=23:00:00
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:1
 #SBATCH --account=iaifi_lab
-#SBATCH -p gpu_requeue
+#SBATCH -p iaifi_gpu
 
 export TF_CPP_MIN_LOG_LEVEL="2"
 

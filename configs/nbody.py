@@ -54,7 +54,7 @@ def get_config():
     score.n_pos_features = 3
     score.num_mlp_layers = 4
     score.latent_size = 64
-    score.hidden_size = 128
+    score.hidden_size = 64
     score.skip_connections = True
     score.message_passing_steps = 4
     score.attention = False
@@ -62,8 +62,8 @@ def get_config():
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
-    training.batch_size = 64  # Must be divisible by number of devices; this is the total batch size, not per-device
-    training.n_train_steps = 101_000
+    training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
+    training.n_train_steps = 301_000
     training.warmup_steps = 5_000
     training.log_every_steps = 100
     training.eval_every_steps = 2_000  # training.n_train_steps + 1  # Turn off eval for now
@@ -77,7 +77,7 @@ def get_config():
     data.n_pos_features = 3  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
     data.box_size = 1000.0  # Need to know the box size for augmentations
     data.add_augmentations = True
-    data.add_rotations = False
+    data.add_rotations = True
     data.add_translations = True
     data.kwargs = {}
 
