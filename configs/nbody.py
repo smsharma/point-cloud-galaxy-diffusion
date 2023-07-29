@@ -23,7 +23,7 @@ def get_config():
     vdm.timesteps = 0  # 0 for continuous-time VLB
     vdm.embed_context = True
     vdm.d_context_embedding = 16
-    vdm.d_t_embedding = 32  # Timestep embedding dimension
+    vdm.d_t_embedding = 16  # Timestep embedding dimension
     vdm.n_classes = 0
     vdm.use_encdec = False
 
@@ -53,8 +53,8 @@ def get_config():
     score.k = 50
     score.n_pos_features = 3
     score.num_mlp_layers = 4
-    score.latent_size = 64
-    score.hidden_size = 64
+    score.latent_size = 32
+    score.hidden_size = 128
     score.skip_connections = True
     score.message_passing_steps = 4
     score.attention = False
@@ -84,7 +84,7 @@ def get_config():
     # Optimizer (AdamW)
     config.optim = optim = ml_collections.ConfigDict()
     optim.learning_rate = 6e-4
-    optim.weight_decay = 1e-4
+    optim.weight_decay = 1e-5
 
     config.seed = 42
 
