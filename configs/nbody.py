@@ -58,7 +58,7 @@ def get_config():
     score.latent_size = 32
     score.hidden_size = 128
     score.skip_connections = True
-    score.message_passing_steps = 4
+    score.message_passing_steps = 6
     score.attention = False
 
     # Training
