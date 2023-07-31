@@ -37,29 +37,29 @@ def get_config():
     decoder.d_hidden = 256
     decoder.n_layers = 4
 
-    # Transformer score model
-    config.score = score = ml_collections.ConfigDict()
-    score.score = "transformer"
-    score.induced_attention = False
-    score.n_inducing_points = 200
-    score.d_model = 256
-    score.d_mlp = 1024
-    score.n_layers = 6
-    score.n_heads = 4
-    score.concat_conditioning = False
-    score.d_conditioning = 256
-
-    # # Graph score model
+    # # Transformer score model
     # config.score = score = ml_collections.ConfigDict()
-    # score.score = "graph"
-    # score.k = 50
-    # score.n_pos_features = 3
-    # score.num_mlp_layers = 4
-    # score.latent_size = 32
-    # score.hidden_size = 128
-    # score.skip_connections = True
-    # score.message_passing_steps = 4
-    # score.attention = False
+    # score.score = "transformer"
+    # score.induced_attention = False
+    # score.n_inducing_points = 200
+    # score.d_model = 256
+    # score.d_mlp = 1024
+    # score.n_layers = 6
+    # score.n_heads = 4
+    # score.concat_conditioning = False
+    # score.d_conditioning = 256
+
+    # Graph score model
+    config.score = score = ml_collections.ConfigDict()
+    score.score = "graph"
+    score.k = 100
+    score.n_pos_features = 3
+    score.num_mlp_layers = 4
+    score.latent_size = 32
+    score.hidden_size = 128
+    score.skip_connections = True
+    score.message_passing_steps = 4
+    score.attention = False
 
     # Training
     config.training = training = ml_collections.ConfigDict()
