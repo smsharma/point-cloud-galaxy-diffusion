@@ -52,11 +52,11 @@ def get_config():
     # Graph score model
     config.score = score = ml_collections.ConfigDict()
     score.score = "graph"
-    score.k = 100
+    score.k = 50
     score.n_pos_features = 3
     score.num_mlp_layers = 4
     score.latent_size = 32
-    score.hidden_size = 256
+    score.hidden_size = 128
     score.skip_connections = True
     score.message_passing_steps = 4
     score.attention = False
@@ -85,7 +85,7 @@ def get_config():
 
     # Optimizer (AdamW)
     config.optim = optim = ml_collections.ConfigDict()
-    optim.learning_rate = 6e-4
+    optim.learning_rate = 3e-4
     optim.weight_decay = 1e-5
 
     config.seed = 42

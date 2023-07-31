@@ -44,7 +44,10 @@ def get_node_mlp_updates(mlp_feature_sizes: int) -> Callable:
     return update_fn
 
 
-def get_edge_mlp_updates(mlp_feature_sizes: int, use_edges_only: bool=False,) -> Callable:
+def get_edge_mlp_updates(
+    mlp_feature_sizes: int,
+    use_edges_only: bool = False,
+) -> Callable:
     """Get an edge MLP update function
 
     Args:
@@ -82,16 +85,15 @@ def get_edge_mlp_updates(mlp_feature_sizes: int, use_edges_only: bool=False,) ->
 
     return update_fn
 
-def attention_logit_fn(
-    edges, sent_attributes, received_attributes, global_edge_attributes
-):
-    feat = jnp.concatenate(
-        (edges, sent_attributes, received_attributes, global_edge_attributes), axis=-1
-    )
+
+def attention_logit_fn(edges, sent_attributes, received_attributes, global_edge_attributes):
+    feat = jnp.concatenate((edges, sent_attributes, received_attributes, global_edge_attributes), axis=-1)
     return jax.nn.sigmoid(MLP([1])(feat))
+
 
 def attention_reduce_fn(edge_features, weights):
     return edge_features * weights
+
 
 class GraphConvNet(nn.Module):
     """A simple graph convolutional network"""
@@ -118,20 +120,14 @@ class GraphConvNet(nn.Module):
         # We will first linearly project the original node features as 'embeddings'.
         embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.latent_size))
         processed_graphs = embedder(graphs)
-        # Keep "batch" index of globals, flatten the rest
-        #processed_graphs = processed_graphs._replace(
-        #    globals=processed_graphs.globals.reshape(1, -1),
-        #)
         processed_graphs = processed_graphs._replace(
             globals=processed_graphs.globals.reshape(processed_graphs.globals.shape[0], -1),
         )
-        mlp_feature_sizes = [self.hidden_size] * self.num_mlp_layers + [
-            self.latent_size
-        ]
+        mlp_feature_sizes = [self.hidden_size] * self.num_mlp_layers + [self.latent_size]
         # Now, we will apply the GCN once for each message-passing round.
         update_node_fn = get_node_mlp_updates(mlp_feature_sizes)
         update_edge_fn = get_edge_mlp_updates(
-            mlp_feature_sizes, 
+            mlp_feature_sizes,
         )
         for _ in range(self.message_passing_steps):
             graph_net = jraph.GraphNetwork(
@@ -146,9 +142,7 @@ class GraphConvNet(nn.Module):
                 processed_graphs = graph_net(processed_graphs)
 
             if self.layer_norm:
-                processed_graphs = processed_graphs._replace(
-                    nodes=nn.LayerNorm()(processed_graphs.nodes)
-                )
+                processed_graphs = processed_graphs._replace(nodes=nn.LayerNorm()(processed_graphs.nodes))
         decoder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.in_features))
 
         return decoder(processed_graphs)
