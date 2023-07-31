@@ -56,7 +56,7 @@ def get_config():
     score.n_pos_features = 3
     score.num_mlp_layers = 4
     score.latent_size = 32
-    score.hidden_size = 128
+    score.hidden_size = 256
     score.skip_connections = True
     score.message_passing_steps = 4
     score.attention = False
@@ -64,7 +64,7 @@ def get_config():
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
-    training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
+    training.batch_size = 32  # Must be divisible by number of devices; this is the total batch size, not per-device
     training.n_train_steps = 301_000
     training.warmup_steps = 5_000
     training.log_every_steps = 100
