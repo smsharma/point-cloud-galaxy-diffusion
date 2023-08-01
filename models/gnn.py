@@ -46,7 +46,6 @@ def get_node_mlp_updates(mlp_feature_sizes: int) -> Callable:
 
 def get_edge_mlp_updates(
     mlp_feature_sizes: int,
-    use_edges_only: bool = False,
 ) -> Callable:
     """Get an edge MLP update function
 
@@ -75,10 +74,7 @@ def get_edge_mlp_updates(
             jnp.ndarray: updated edge features
         """
         if edges is not None:
-            if use_edges_only:
-                inputs = jnp.concatenate([edges, globals], axis=1)
-            else:
-                inputs = jnp.concatenate([edges, senders, receivers, globals], axis=1)
+            inputs = jnp.concatenate([edges, senders, receivers, globals], axis=1)
         else:
             inputs = jnp.concatenate([senders, receivers, globals], axis=1)
         return MLP(mlp_feature_sizes)(inputs)
