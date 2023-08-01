@@ -57,11 +57,6 @@ def nearest_neighbors_ann(x, k):
     return (sources, targets)
 
 
-def add_graphs_tuples(graphs: jraph.GraphsTuple, other_graphs: jraph.GraphsTuple) -> jraph.GraphsTuple:
-    """Adds the nodes, edges and global features from other_graphs to graphs."""
-    return graphs._replace(nodes=graphs.nodes + other_graphs.nodes)
-
-
 def rotation_matrix(angle_deg, axis):
     """Return the rotation matrix associated with counterclockwise rotation of `angle_deg` degrees around the given axis."""
     angle_rad = np.radians(angle_deg)
