@@ -82,7 +82,7 @@ def get_edge_mlp_updates(mlp_feature_sizes: int, name: str = None) -> Callable:
     return update_fn
 
 
-def get_attention_logit_fn(num_heads: int = 1, name: str = None) -> Callable:
+def get_attention_logit_fn(name: str = None) -> Callable:
     """Get an attention logits function for each edge
 
     Args:
@@ -95,7 +95,7 @@ def get_attention_logit_fn(num_heads: int = 1, name: str = None) -> Callable:
     def attention_logit_fn(edges, senders, receivers, globals):
         """Returns the attention logits for each edge."""
         inputs = jnp.concatenate([edges, senders, receivers, globals], axis=-1)
-        pre_activations = MLP([num_heads], name=name)(inputs)
+        pre_activations = MLP([1], name=name)(inputs)
         return nn.gelu(pre_activations)  # Apply activation to get attention logits
 
     return attention_logit_fn
@@ -103,12 +103,7 @@ def get_attention_logit_fn(num_heads: int = 1, name: str = None) -> Callable:
 
 def attention_reduce_fn(edges, weights):
     """Applies attention weights to the edge features."""
-    # `edges`` has shape (n_edges, n_edges_features).
-    # `weights`` has shape (n_edges, n_attention_heads).
-    # Do an outer product over the last dim
-    edges = jnp.einsum("ef,eh->efh", edges, weights)
-    # Concatenate attention heads together
-    edges = rearrange(edges, "e f h -> e (f h)")
+    edges = edges * weights
     return edges
 
 
@@ -122,7 +117,6 @@ class GraphConvNet(nn.Module):
     skip_connections: bool = True
     layer_norm: bool = True
     attention: bool = False
-    num_heads: int = 1
     in_features: int = 3
     shared_weights: bool = False  # GNN shares weights across message passing steps
 
@@ -154,7 +148,7 @@ class GraphConvNet(nn.Module):
 
                 update_node_fn = get_node_mlp_updates(mlp_feature_sizes, name=f"update_node_fn_{suffix}")
                 update_edge_fn = get_edge_mlp_updates(mlp_feature_sizes, name=f"update_edge_fn_{suffix}")
-                attention_logit_fn = get_attention_logit_fn(self.num_heads, name=f"attention_logit_fn_{suffix}") if self.attention else None
+                attention_logit_fn = get_attention_logit_fn(name=f"attention_logit_fn_{suffix}") if self.attention else None
 
                 # Update nodes and edges; no need to update globals as they only condition
                 graph_net = jraph.GraphNetwork(

@@ -58,8 +58,9 @@ def get_config():
     score.latent_size = 32
     score.hidden_size = 128
     score.skip_connections = True
-    score.message_passing_steps = 6
-    score.attention = False
+    score.message_passing_steps = 4
+    score.attention = True
+    score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work
 
     # Training
     config.training = training = ml_collections.ConfigDict()
