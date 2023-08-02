@@ -61,6 +61,7 @@ def get_config():
     score.message_passing_steps = 4
     score.attention = True
     score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work
+    score.use_edges = True
 
     # Training
     config.training = training = ml_collections.ConfigDict()

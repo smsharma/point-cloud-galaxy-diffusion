@@ -1,9 +1,5 @@
 import jax
 import jax.numpy as np
-import jraph
-
-# from jax_md import space, partition
-
 from functools import partial
 
 
@@ -26,22 +22,27 @@ def nearest_neighbors(
     if mask is None:
         mask = np.ones((x.shape[0],), dtype=np.int32)
 
+    mask = np.bool_(mask)
+
     n_nodes = x.shape[0]
+
     # Compute the vector difference between positions
     dr = x[:, None, :] - x[None, :, :]
 
     # Calculate the distance matrix
     distance_matrix = np.sum(dr**2, axis=-1)
 
-    distance_matrix = np.where(mask[:, None], distance_matrix, np.inf)
-    distance_matrix = np.where(mask[None, :], distance_matrix, np.inf)
+    # Apply the mask to distance matrix
+    distance_matrix = np.where(mask[:, None] & mask[None, :], distance_matrix, np.inf)
 
+    # Get indices of nearest neighbors
     indices = np.argsort(distance_matrix, axis=-1)[:, :k]
 
-    sources = indices[:, 0].repeat(k)
-    targets = indices.reshape(n_nodes * (k))
+    # Create sources and targets arrays
+    sources = np.repeat(np.arange(n_nodes), k)
+    targets = indices.ravel()
 
-    return (sources, targets, dr[sources, targets])
+    return sources, targets, distance_matrix[sources, targets]
 
 
 @partial(jax.jit, static_argnums=(1,))
