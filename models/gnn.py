@@ -3,16 +3,16 @@ import jax
 import flax.linen as nn
 import jax.numpy as jnp
 import jraph
-
-from models.graph_utils import add_graphs_tuples
+from einops import rearrange
 from models.mlp import MLP
 
 
-def get_node_mlp_updates(mlp_feature_sizes: int) -> Callable:
+def get_node_mlp_updates(mlp_feature_sizes: int, name: str = None) -> Callable:
     """Get a node MLP update  function
 
     Args:
         mlp_feature_sizes (int): number of features in the MLP
+        name (str, optional): name of the update function. Defaults to None.
 
     Returns:
         Callable: update function
@@ -39,19 +39,17 @@ def get_node_mlp_updates(mlp_feature_sizes: int) -> Callable:
             inputs = jnp.concatenate([nodes, received_attributes, globals], axis=1)
         else:  # If lone node
             inputs = jnp.concatenate([nodes, globals], axis=1)
-        return MLP(mlp_feature_sizes)(inputs)
+        return MLP(mlp_feature_sizes, name=name)(inputs)
 
     return update_fn
 
 
-def get_edge_mlp_updates(
-    mlp_feature_sizes: int,
-    use_edges_only: bool = False,
-) -> Callable:
+def get_edge_mlp_updates(mlp_feature_sizes: int, name: str = None) -> Callable:
     """Get an edge MLP update function
 
     Args:
         mlp_feature_sizes (int): number of features in the MLP
+        name (str, optional): name of the update function. Defaults to None.
 
     Returns:
         Callable: update function
@@ -74,25 +72,39 @@ def get_edge_mlp_updates(
         Returns:
             jnp.ndarray: updated edge features
         """
+        # If there are no edges in the initial layer
         if edges is not None:
-            if use_edges_only:
-                inputs = jnp.concatenate([edges, globals], axis=1)
-            else:
-                inputs = jnp.concatenate([edges, senders, receivers, globals], axis=1)
+            inputs = jnp.concatenate([edges, senders, receivers, globals], axis=1)
         else:
             inputs = jnp.concatenate([senders, receivers, globals], axis=1)
-        return MLP(mlp_feature_sizes)(inputs)
+        return MLP(mlp_feature_sizes, name=name)(inputs)
 
     return update_fn
 
 
-def attention_logit_fn(edges, sent_attributes, received_attributes, global_edge_attributes):
-    feat = jnp.concatenate((edges, sent_attributes, received_attributes, global_edge_attributes), axis=-1)
-    return jax.nn.sigmoid(MLP([1])(feat))
+def get_attention_logit_fn(name: str = None) -> Callable:
+    """Get an attention logits function for each edge
+
+    Args:
+        name (str, optional): name of the function. Defaults to None.
+
+    Returns:
+        Callable: update function
+    """
+
+    def attention_logit_fn(edges, senders, receivers, globals):
+        """Returns the attention logits for each edge."""
+        inputs = jnp.concatenate([edges, senders, receivers, globals], axis=-1)
+        pre_activations = MLP([1], name=name)(inputs)
+        return nn.gelu(pre_activations)  # Apply activation to get attention logits
+
+    return attention_logit_fn
 
 
-def attention_reduce_fn(edge_features, weights):
-    return edge_features * weights
+def attention_reduce_fn(edges, weights):
+    """Applies attention weights to the edge features."""
+    edges = edges * weights
+    return edges
 
 
 class GraphConvNet(nn.Module):
@@ -106,9 +118,10 @@ class GraphConvNet(nn.Module):
     layer_norm: bool = True
     attention: bool = False
     in_features: int = 3
+    shared_weights: bool = False  # GNN shares weights across message passing steps
 
     @nn.compact
-    def __call__(self, graphs: jraph.GraphsTuple) -> jraph.GraphsTuple:
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         """Do message passing on graph
 
         Args:
@@ -117,32 +130,48 @@ class GraphConvNet(nn.Module):
         Returns:
             jraph.GraphsTuple: updated graph object
         """
-        # We will first linearly project the original node features as 'embeddings'.
+
+        # First linearly project the original node features as 'embeddings'.
         embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.latent_size))
-        processed_graphs = embedder(graphs)
-        processed_graphs = processed_graphs._replace(
-            globals=processed_graphs.globals.reshape(processed_graphs.globals.shape[0], -1),
+        graph = embedder(graph)
+        graph = graph._replace(
+            globals=graph.globals.reshape(graph.globals.shape[0], -1),
         )
         mlp_feature_sizes = [self.hidden_size] * self.num_mlp_layers + [self.latent_size]
-        # Now, we will apply the GCN once for each message-passing round.
-        update_node_fn = get_node_mlp_updates(mlp_feature_sizes)
-        update_edge_fn = get_edge_mlp_updates(
-            mlp_feature_sizes,
-        )
-        for _ in range(self.message_passing_steps):
-            graph_net = jraph.GraphNetwork(
-                update_node_fn=update_node_fn,
-                update_edge_fn=update_edge_fn,
-                attention_logit_fn=attention_logit_fn if self.attention else None,
-                attention_reduce_fn=attention_reduce_fn if self.attention else None,
-            )
-            if self.skip_connections:
-                processed_graphs = add_graphs_tuples(graph_net(processed_graphs), processed_graphs)
-            else:
-                processed_graphs = graph_net(processed_graphs)
 
+        # Apply GCN once for each message-passing round.
+        for step in range(self.message_passing_steps):
+            # Initialize update functions with shared weights if specified;
+            # otherwise, initialize new weights for each step
+            if step == 0 or not self.shared_weights:
+                suffix = "shared" if self.shared_weights else step
+
+                update_node_fn = get_node_mlp_updates(mlp_feature_sizes, name=f"update_node_fn_{suffix}")
+                update_edge_fn = get_edge_mlp_updates(mlp_feature_sizes, name=f"update_edge_fn_{suffix}")
+                attention_logit_fn = get_attention_logit_fn(name=f"attention_logit_fn_{suffix}") if self.attention else None
+
+                # Update nodes and edges; no need to update globals as they only condition
+                graph_net = jraph.GraphNetwork(
+                    update_node_fn=update_node_fn,
+                    update_edge_fn=update_edge_fn,
+                    attention_logit_fn=attention_logit_fn,
+                    attention_reduce_fn=attention_reduce_fn if self.attention else None,
+                )
+
+            # Update graph, optionally with residual connection
+            if self.skip_connections:
+                new_graph = graph_net(graph)
+                graph = graph._replace(
+                    nodes=graph.nodes + new_graph.nodes,
+                    edges=new_graph.edges if graph.edges is None else graph.edges + new_graph.edges,
+                )
+            else:
+                graph = graph_net(graph)
+
+            # Optional layer norm
             if self.layer_norm:
-                processed_graphs = processed_graphs._replace(nodes=nn.LayerNorm()(processed_graphs.nodes))
+                graph = graph._replace(nodes=nn.LayerNorm()(graph.nodes))
+
         decoder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.in_features))
 
-        return decoder(processed_graphs)
+        return decoder(graph)
