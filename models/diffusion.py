@@ -189,6 +189,16 @@ class VariationalDiffusionModel(nn.Module):
             self.embedding_class = nn.Embed(self.n_classes, self.d_context_embedding)
         self.embedding_context = nn.Dense(self.d_context_embedding)
 
+    def score_eval(self, z, t, conditioning, mask):
+        """Evaluate the score model."""
+        cond = self.embed(conditioning)
+        return self.score_model(
+            z=z,
+            t=t,
+            conditioning=cond,
+            mask=mask,
+        )
+
     def gammat(self, t):
         return self.gamma(t)
 
