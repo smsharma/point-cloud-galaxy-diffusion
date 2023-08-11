@@ -72,7 +72,7 @@ def get_config():
     training.log_every_steps = 100
     training.eval_every_steps = 2_000  # training.n_train_steps + 1  # Turn off eval for now
     training.save_every_steps = 20_000
-    training.unconditional_dropout = True  # Set to True to use unconditional dropout (randomly zero out conditioning vectors)
+    training.unconditional_dropout = False  # Set to True to use unconditional dropout (randomly zero out conditioning vectors)
     training.p_uncond = 0.2  # Fraction of conditioning vectors to zero out if unconditional_dropout is True
 
     # Data
