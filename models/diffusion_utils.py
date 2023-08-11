@@ -3,9 +3,60 @@ import jax.numpy as np
 import flax.linen as nn
 
 
+class NoiseScheduleNet(nn.Module):
+    gamma_min: float = -6.0
+    gamma_max: float = 7.0
+    n_features: int = 1024
+    nonlinear: bool = True
+
+    def setup(self):
+        init_bias = self.gamma_max
+        init_scale = self.gamma_min - init_bias
+
+        self.l1 = DenseMonotone(1, kernel_init=nn.initializers.constant(init_scale), bias_init=nn.initializers.constant(init_bias))
+        if self.nonlinear:
+            self.l2 = DenseMonotone(self.n_features, kernel_init=nn.initializers.normal())
+            self.l3 = DenseMonotone(1, kernel_init=nn.initializers.normal(), use_bias=False)
+
+    @nn.compact
+    def __call__(self, t):
+        assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
+
+        if np.isscalar(t) or len(t.shape) == 0:
+            t = t * np.ones((1, 1))
+        else:
+            t = np.reshape(t, (-1, 1))
+
+        h = self.l1(t)
+        if self.nonlinear:
+            _h = 2.0 * (t - 0.5)  # Scale input to [-1, +1]
+            _h = self.l2(_h)
+            _h = 2 * (nn.sigmoid(_h) - 0.5)
+            _h = self.l3(_h) / self.n_features
+            h += _h
+
+        return np.squeeze(h, axis=-1)
+
+
+class DenseMonotone(nn.Dense):
+    """Strictly increasing Dense layer."""
+
+    @nn.compact
+    def __call__(self, inputs):
+        inputs = np.asarray(inputs, self.dtype)
+        kernel = self.param("kernel", self.kernel_init, (inputs.shape[-1], self.features))
+        kernel = abs(np.asarray(kernel, self.dtype))
+        y = jax.lax.dot_general(inputs, kernel, (((inputs.ndim - 1,), (0,)), ((), ())), precision=self.precision)
+        if self.use_bias:
+            bias = self.param("bias", self.bias_init, (self.features,))
+            bias = np.asarray(bias, self.dtype)
+            y = y + bias
+        return y
+
+
 class NoiseScheduleScalar(nn.Module):
     gamma_min: float = -6.0
-    gamma_max: float = 6.0
+    gamma_max: float = 7.0
 
     def setup(self):
         init_bias = self.gamma_max
@@ -15,6 +66,7 @@ class NoiseScheduleScalar(nn.Module):
 
     @nn.compact
     def __call__(self, t):
+        # gamma = self.gamma_max - |self.gamma_min - self.gamma_max| * t
         return self.b + -abs(self.w) * t
 
 
@@ -47,6 +99,7 @@ def variance_preserving_map(x, gamma, eps):
     eps = eps.reshape(eps.shape[0], -1)
     noise_augmented = a * x + np.sqrt(var) * eps
     return noise_augmented.reshape(x_shape)
+
 
 def get_timestep_embedding(timesteps, embedding_dim: int, dtype=np.float32):
     """Build sinusoidal embeddings (from Fairseq)."""
