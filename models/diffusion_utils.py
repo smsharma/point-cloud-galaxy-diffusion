@@ -2,8 +2,6 @@ import jax
 import jax.numpy as np
 import flax.linen as nn
 
-jnp = np
-
 
 class NoiseScheduleNet(nn.Module):
     gamma_min: float = -6.0
@@ -34,7 +32,7 @@ class NoiseScheduleNet(nn.Module):
             _h = 2.0 * (t - 0.5)  # Scale input to [-1, +1]
             _h = self.l2(_h)
             _h = 2 * (nn.sigmoid(_h) - 0.5)
-            _h = self.l3(_h)  # / self.n_features
+            _h = self.l3(_h) / self.n_features
             h += _h
 
         return np.squeeze(h, axis=-1)
