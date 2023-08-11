@@ -165,7 +165,7 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
                     rotations=config.data.add_rotations,
                     translations=config.data.add_translations,
                 )
-            pstate, metrics = train_step(pstate, (x, conditioning, mask), train_step_rng, vdm, loss_vdm)
+            pstate, metrics = train_step(pstate, (x, conditioning, mask), train_step_rng, vdm, loss_vdm, config.training.unconditional_dropout, config.training.p_uncond)
             steps.set_postfix(val=unreplicate(metrics["loss"]))
             train_metrics.append(metrics)
 

@@ -1,21 +1,9 @@
 import jax
 import jax.numpy as np
 import flax
-import optax
 from ml_collections import ConfigDict
 
 from functools import partial
-from typing import Any
-
-
-@flax.struct.dataclass
-class StateStore:
-    """A simple state store for training."""
-
-    params: np.ndarray
-    state: Any
-    rng: Any
-    step: int = 0
 
 
 def create_input_iter(ds):
@@ -34,9 +22,22 @@ def create_input_iter(ds):
 
 
 @partial(jax.pmap, axis_name="batch", static_broadcasted_argnums=(3, 4))
-def train_step(state, batch, rng, model, loss_fn):
+def train_step(state, batch, rng, model, loss_fn, unconditional_dropout=False, p_uncond=0.0):
     """Train for a single step."""
     x, conditioning, mask = batch
+
+    # Unconditional dropout rng
+    rng, rng_uncond = jax.random.split(rng)
+
+    # Set a fraction p_uncond of conditioning vectors to zero if unconditional_dropout is True
+    if conditioning is not None and unconditional_dropout:
+        conditioning = jax.lax.cond(
+            jax.random.uniform(rng_uncond, (1,)) < p_uncond,
+            lambda _: np.zeros_like(conditioning),
+            lambda _: conditioning,
+            operand=None,
+        )
+
     loss, grads = jax.value_and_grad(loss_fn)(state.params, model, rng, x, conditioning, mask)
     grads = jax.lax.pmean(grads, "batch")
     new_state = state.apply_gradients(grads=grads)
