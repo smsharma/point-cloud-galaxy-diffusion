@@ -54,26 +54,14 @@ class VariationalDiffusionModel(nn.Module):
     noise_scale: float = 1.0e-3
     d_t_embedding: int = 32
     score: str = "transformer"  # "transformer", "graph"
-    score_dict: dict = dataclasses.field(
-        default_factory=lambda: {
-            "d_model": 256,
-            "d_mlp": 512,
-            "n_layers": 4,
-            "n_heads": 4,
-        }
-    )
+    score_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
     encoder_dict: dict = dataclasses.field(default_factory=lambda: {"d_embedding": 12, "d_hidden": 256, "n_layers": 4})
     decoder_dict: dict = dataclasses.field(default_factory=lambda: {"d_hidden": 256, "n_layers": 4})
     n_classes: int = 0
     embed_context: bool = False
     d_context_embedding: int = 32
     use_encdec: bool = True
-    norm_dict: dict = dataclasses.field(
-        default_factory=lambda: {
-            "x_mean": 0.0,
-            "x_std": 1.0,
-        }
-    )
+    norm_dict: dict = dataclasses.field(default_factory=lambda: {"x_mean": 0.0, "x_std": 1.0})
     n_pos_features: int = 3
 
     @classmethod
@@ -108,12 +96,7 @@ class VariationalDiffusionModel(nn.Module):
             )
         x_mean = tuple(map(float, norm_dict["mean"]))
         x_std = tuple(map(float, norm_dict["std"]))
-        norm_dict_input = FrozenDict(
-            {
-                "x_mean": x_mean,
-                "x_std": x_std,
-            }
-        )
+        norm_dict_input = FrozenDict({"x_mean": x_mean, "x_std": x_std})
         vdm = VariationalDiffusionModel(
             d_feature=config.data.n_features,
             timesteps=config.vdm.timesteps,
