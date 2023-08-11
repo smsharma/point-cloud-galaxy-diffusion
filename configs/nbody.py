@@ -9,7 +9,7 @@ def get_config():
     config.wandb = wandb = ml_collections.ConfigDict()
     wandb.entity = None
     wandb.project = "set-diffusion"
-    wandb.group = "cosmology-augmentations"
+    wandb.group = "cosmology-augmentations-schedules"
     wandb.job_type = "training"
     wandb.name = None
     wandb.log_train = True

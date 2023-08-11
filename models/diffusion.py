@@ -15,7 +15,7 @@ from flax.training import train_state, checkpoints
 from flax.core import FrozenDict
 
 from models.diffusion_utils import variance_preserving_map, alpha, sigma2
-from models.diffusion_utils import NoiseScheduleScalar, NoiseScheduleFixedLinear
+from models.diffusion_utils import NoiseScheduleScalar, NoiseScheduleFixedLinear, NoiseScheduleNet
 from models.scores import (
     TransformerScoreNet,
     GraphScoreNet,
@@ -50,7 +50,7 @@ class VariationalDiffusionModel(nn.Module):
     gamma_min: float = -8.0
     gamma_max: float = 14.0
     antithetic_time_sampling: bool = True
-    noise_schedule: str = "learned_linear"  # "learned_linear" or "scalar"
+    noise_schedule: str = "linear"  # "linear", "learned_linear", or "learner_net
     noise_scale: float = 1.0e-3
     d_t_embedding: int = 32
     score: str = "transformer"  # "transformer", "graph"
@@ -159,10 +159,14 @@ class VariationalDiffusionModel(nn.Module):
 
     def setup(self):
         # Noise schedule for diffusion
-        if self.noise_schedule == "learned_linear":
+        if self.noise_schedule == "linear":
             self.gamma = NoiseScheduleFixedLinear(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
-        elif self.noise_schedule == "scalar":
+        elif self.noise_schedule == "learned_linear":
             self.gamma = NoiseScheduleScalar(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
+        elif self.noise_schedule == "learned_net":
+            self.gamma = NoiseScheduleNet(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
+        else:
+            raise NotImplementedError(f"Unknown noise schedule {self.noise_schedule}")
 
         # Score model specification
         if self.score == "transformer":
@@ -173,6 +177,8 @@ class VariationalDiffusionModel(nn.Module):
                 score_dict=self.score_dict,
                 norm_dict=self.norm_dict,
             )
+        else:
+            raise NotImplementedError(f"Unknown score model {self.score}")
 
         # Optional encoder/decoder for latent diffusion
         if self.use_encdec:
