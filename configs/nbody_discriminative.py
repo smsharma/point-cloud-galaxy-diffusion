@@ -18,7 +18,7 @@ def get_config():
 
     # Likelihood
     config.likelihood = likelihood = ml_collections.ConfigDict()
-    likelihood.n_steps = 10
+    likelihood.n_steps = 5
     likelihood.n_samples = 1
 
     # Training
