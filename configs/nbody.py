@@ -56,11 +56,11 @@ def get_config():
     score.n_pos_features = 3
     score.num_mlp_layers = 4
     score.latent_size = 32
-    score.hidden_size = 128
+    score.hidden_size = 192
     score.skip_connections = True
-    score.message_passing_steps = 4
+    score.message_passing_steps = 6
     score.attention = True
-    score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work
+    score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
     score.use_edges = True
 
     # Training
@@ -92,6 +92,6 @@ def get_config():
     optim.learning_rate = 3e-4
     optim.weight_decay = 1e-5
 
-    config.seed = 42
+    config.seed = 48
 
     return config
