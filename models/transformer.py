@@ -12,7 +12,6 @@ class MultiHeadAttentionBlock(nn.Module):
 
     @nn.compact
     def __call__(self, x, y, mask=None):
-
         mask = None if mask is None else mask[..., None, :, :]
 
         # Multi-head attention
@@ -77,7 +76,6 @@ class Transformer(nn.Module):
 
     @nn.compact
     def __call__(self, x: np.ndarray, conditioning: np.ndarray = None, mask=None):
-
         # Input embedding
         x = nn.Dense(int(self.d_model))(x)  # (batch, seq_len, d_model)
 
@@ -86,8 +84,8 @@ class Transformer(nn.Module):
             conditioning = nn.Dense(int(self.d_conditioning))(conditioning)  # (batch, d_model)
             if self.concat_conditioning:
                 conditioning = np.repeat(conditioning[:, np.newaxis, :], x.shape[1], axis=1)
-                x = np.concatenate([x, conditioning], axis=-1)  
-                x = nn.Dense(int(self.d_model))(x)  
+                x = np.concatenate([x, conditioning], axis=-1)
+                x = nn.Dense(int(self.d_model))(x)
 
         # Transformer layers
         for _ in range(self.n_layers):

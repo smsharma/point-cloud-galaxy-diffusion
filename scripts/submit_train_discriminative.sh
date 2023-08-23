@@ -2,11 +2,11 @@
 
 #SBATCH --job-name=train
 #SBATCH --nodes=1
-#SBATCH --mem=200GB
-#SBATCH --time=48:00:00
-#SBATCH --gres=gpu:4
+#SBATCH --mem=300GB
+#SBATCH --time=23:00:00
+#SBATCH --gres=gpu:2
 #SBATCH --account=iaifi_lab
-#SBATCH -p iaifi_gpu
+#SBATCH -p gpu
 
 export TF_CPP_MIN_LOG_LEVEL="2"
 
@@ -21,4 +21,4 @@ mamba activate jax
 
 # Go to dir and train
 cd /n/holystore01/LABS/iaifi_lab/Users/smsharma/set-diffuser/
-python -u train.py --config ./configs/nbody.py
+python -u train_discriminative.py --config ./configs/nbody_discriminative.py

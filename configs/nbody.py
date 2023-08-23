@@ -9,7 +9,7 @@ def get_config():
     config.wandb = wandb = ml_collections.ConfigDict()
     wandb.entity = None
     wandb.project = "set-diffusion"
-    wandb.group = "cosmology-augmentations"
+    wandb.group = "cosmology-augmentations-guidance"
     wandb.job_type = "training"
     wandb.name = None
     wandb.log_train = True
@@ -23,7 +23,7 @@ def get_config():
     vdm.timesteps = 0  # 0 for continuous-time VLB
     vdm.embed_context = True
     vdm.d_context_embedding = 16
-    vdm.d_t_embedding = 32  # Timestep embedding dimension
+    vdm.d_t_embedding = 16  # Timestep embedding dimension
     vdm.n_classes = 0
     vdm.use_encdec = False
 
@@ -37,37 +37,43 @@ def get_config():
     decoder.d_hidden = 256
     decoder.n_layers = 4
 
-    # Transformer score model
+    # # Transformer score model
     # config.score = score = ml_collections.ConfigDict()
     # score.score = "transformer"
     # score.induced_attention = False
     # score.n_inducing_points = 200
     # score.d_model = 256
-    # score.d_mlp = 512
-    # score.n_layers = 4
-    # score.n_heads = 2
+    # score.d_mlp = 1024
+    # score.n_layers = 6
+    # score.n_heads = 4
+    # score.concat_conditioning = False
+    # score.d_conditioning = 256
 
-    # # Graph score model
+    # Graph score model
     config.score = score = ml_collections.ConfigDict()
     score.score = "graph"
-    score.k = 20
+    score.k = 50
     score.n_pos_features = 3
     score.num_mlp_layers = 4
-    score.latent_size = 64
-    score.hidden_size = 64
+    score.latent_size = 32
+    score.hidden_size = 192
     score.skip_connections = True
-    score.message_passing_steps = 4
-    score.attention = False
+    score.message_passing_steps = 6
+    score.attention = True
+    score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
+    score.use_edges = True
 
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
-    training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
+    training.batch_size = 32  # Must be divisible by number of devices; this is the total batch size, not per-device
     training.n_train_steps = 301_000
     training.warmup_steps = 5_000
     training.log_every_steps = 100
     training.eval_every_steps = 2_000  # training.n_train_steps + 1  # Turn off eval for now
     training.save_every_steps = 20_000
+    training.unconditional_dropout = False  # Set to True to use unconditional dropout (randomly zero out conditioning vectors)
+    training.p_uncond = 0.2  # Fraction of conditioning vectors to zero out if unconditional_dropout is True
 
     # Data
     config.data = data = ml_collections.ConfigDict()
@@ -83,9 +89,9 @@ def get_config():
 
     # Optimizer (AdamW)
     config.optim = optim = ml_collections.ConfigDict()
-    optim.learning_rate = 6e-4
-    optim.weight_decay = 1e-4
+    optim.learning_rate = 3e-4
+    optim.weight_decay = 1e-5
 
-    config.seed = 42
+    config.seed = 48
 
     return config

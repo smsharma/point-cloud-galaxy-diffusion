@@ -15,7 +15,7 @@ from flax.training import train_state, checkpoints
 from flax.core import FrozenDict
 
 from models.diffusion_utils import variance_preserving_map, alpha, sigma2
-from models.diffusion_utils import NoiseScheduleScalar, NoiseScheduleFixedLinear
+from models.diffusion_utils import NoiseScheduleScalar, NoiseScheduleFixedLinear, NoiseScheduleNet
 from models.scores import (
     TransformerScoreNet,
     GraphScoreNet,
@@ -50,30 +50,18 @@ class VariationalDiffusionModel(nn.Module):
     gamma_min: float = -8.0
     gamma_max: float = 14.0
     antithetic_time_sampling: bool = True
-    noise_schedule: str = "learned_linear"  # "learned_linear" or "scalar"
+    noise_schedule: str = "linear"  # "linear", "learned_linear", or "learner_net
     noise_scale: float = 1.0e-3
     d_t_embedding: int = 32
     score: str = "transformer"  # "transformer", "graph"
-    score_dict: dict = dataclasses.field(
-        default_factory=lambda: {
-            "d_model": 256,
-            "d_mlp": 512,
-            "n_layers": 4,
-            "n_heads": 4,
-        }
-    )
+    score_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
     encoder_dict: dict = dataclasses.field(default_factory=lambda: {"d_embedding": 12, "d_hidden": 256, "n_layers": 4})
     decoder_dict: dict = dataclasses.field(default_factory=lambda: {"d_hidden": 256, "n_layers": 4})
     n_classes: int = 0
     embed_context: bool = False
     d_context_embedding: int = 32
     use_encdec: bool = True
-    norm_dict: dict = dataclasses.field(
-        default_factory=lambda: {
-            "x_mean": 0.0,
-            "x_std": 1.0,
-        }
-    )
+    norm_dict: dict = dataclasses.field(default_factory=lambda: {"x_mean": 0.0, "x_std": 1.0})
     n_pos_features: int = 3
 
     @classmethod
@@ -108,12 +96,7 @@ class VariationalDiffusionModel(nn.Module):
             )
         x_mean = tuple(map(float, norm_dict["mean"]))
         x_std = tuple(map(float, norm_dict["std"]))
-        norm_dict_input = FrozenDict(
-            {
-                "x_mean": x_mean,
-                "x_std": x_std,
-            }
-        )
+        norm_dict_input = FrozenDict({"x_mean": x_mean, "x_std": x_std})
         vdm = VariationalDiffusionModel(
             d_feature=config.data.n_features,
             timesteps=config.vdm.timesteps,
@@ -159,10 +142,14 @@ class VariationalDiffusionModel(nn.Module):
 
     def setup(self):
         # Noise schedule for diffusion
-        if self.noise_schedule == "learned_linear":
+        if self.noise_schedule == "linear":
             self.gamma = NoiseScheduleFixedLinear(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
-        elif self.noise_schedule == "scalar":
+        elif self.noise_schedule == "learned_linear":
             self.gamma = NoiseScheduleScalar(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
+        elif self.noise_schedule == "learned_net":
+            self.gamma = NoiseScheduleNet(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
+        else:
+            raise NotImplementedError(f"Unknown noise schedule {self.noise_schedule}")
 
         # Score model specification
         if self.score == "transformer":
@@ -173,6 +160,8 @@ class VariationalDiffusionModel(nn.Module):
                 score_dict=self.score_dict,
                 norm_dict=self.norm_dict,
             )
+        else:
+            raise NotImplementedError(f"Unknown score model {self.score}")
 
         # Optional encoder/decoder for latent diffusion
         if self.use_encdec:
@@ -188,6 +177,16 @@ class VariationalDiffusionModel(nn.Module):
         if self.n_classes > 0:
             self.embedding_class = nn.Embed(self.n_classes, self.d_context_embedding)
         self.embedding_context = nn.Dense(self.d_context_embedding)
+
+    def score_eval(self, z, t, conditioning, mask):
+        """Evaluate the score model."""
+        cond = self.embed(conditioning)
+        return self.score_model(
+            z=z,
+            t=t,
+            conditioning=cond,
+            mask=mask,
+        )
 
     def gammat(self, t):
         return self.gamma(t)

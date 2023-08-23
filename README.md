@@ -5,6 +5,10 @@ Jax implementation of a transformer-guided variational diffusion model for class
 ![MNIST](./notebooks/plots/mnist_dark.png#gh-dark-mode-only)
 ![MNIST](./notebooks/plots/mnist_light.png#gh-light-mode-only)
 
+## NOTE
+
+The description below is likely to be out of date as the project is in active development.
+
 ## Description
 
 - The diffusion backbone is based on the implementation of a [variational diffusion model](https://github.com/google-research/vdm) ([blog post](https://blog.alexalemi.com/diffusion.html)). 
@@ -69,25 +73,3 @@ conditioning_sample = jax.random.normal(rng, (24, 6))
 x_samples = generate(vdm, params, rng, (24, 100), conditioning_sample, mask_sample)
 x_samples.mean().shape  # Mean of decoded Normal distribution -- (24, 100, 4)
 ```
-
-## TODO
-
-- [X] Add examples for ELBO-based likelihood inference
-- [X] Add continuous-time VLB formulation
-- [X] Make latent diffusion optional
-- [X] Move encoder and decoder specifications to a separate dict
-- [X] Fix encodims dims issues
-- [ ] Fix memory issues with SVI and reverse-mode autodiff
-- [ ] Move likelihood/elbo to script
-- [ ] [Chroma](https://generatebiomedicines.com/chroma). Random graphs?
-- [ ] Add 16-bit training
-- [ ] Log a likelihood profile?
-- [ ] Make it so we don't have to pass a whole batch through to init (slow)
-- [ ] Improve GNN model
-- [ ] Add eval for jets
-- [ ] Add unconditional dropout and generation?
-- [ ] Add guidance?
-- [ ] Try different conditioning strategies
-- [ ] Add SEGNN score model
-- [ ] Refactor dataset class
-- [ ] Add ability to restart runs

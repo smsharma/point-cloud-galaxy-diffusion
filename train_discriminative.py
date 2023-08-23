@@ -6,6 +6,7 @@ from absl import flags, logging
 from absl import logging
 import ml_collections
 from ml_collections import config_flags
+from ml_collections.config_dict import ConfigDict
 from clu import metric_writers
 import wandb
 
@@ -29,9 +30,10 @@ from models.diffusion_utils import loss_vdm
 from models.train_utils import (
     create_input_iter,
     param_count,
-    train_step,
     to_wandb_config,
 )
+
+from models.discriminative import train_step
 
 from datasets import load_data, augment_data
 
@@ -42,6 +44,9 @@ logging.set_verbosity(logging.INFO)
 
 
 def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> train_state.TrainState:
+    # Make a copy of the original workdir
+    workdir_og = workdir
+
     # Set up wandb run
     if config.wandb.log_train and jax.process_index() == 0:
         wandb_config = to_wandb_config(config)
@@ -64,29 +69,38 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
 
     writer = metric_writers.create_default_writer(logdir=workdir, just_logging=jax.process_index() != 0)
 
+    # Get base model config
+    config_base_file = "{}/{}/{}/config.yaml".format(workdir_og, config.wandb.base_run_group, config.wandb.base_run_name)
+    with open(config_base_file, "r") as file:
+        config_base = yaml.safe_load(file)
+
+    config_base = ConfigDict(config_base)
+
     # Load the dataset
     train_ds, norm_dict = load_data(
-        config.data.dataset,
-        config.data.n_features,
-        config.data.n_particles,
+        config_base.data.dataset,
+        config_base.data.n_features,
+        config_base.data.n_particles,
         config.training.batch_size,
         config.seed,
         shuffle=True,
         split="train",
-        # **config.data.kwargs,
+        # **config_base.data.kwargs,
     )
-    add_augmentations = True if config.data.add_rotations or config.data.add_translations else False
+
+    add_augmentations = True if config_base.data.add_rotations or config_base.data.add_translations else False
 
     batches = create_input_iter(train_ds)
 
-    logging.info("Loaded the %s dataset", config.data.dataset)
+    logging.info("Loaded the %s dataset", config_base.data.dataset)
 
     ## Model configuration
+    # Instantiate base model
 
     # Score and (optional) encoder model configs
-    score_dict = FrozenDict(config.score)
-    encoder_dict = FrozenDict(config.encoder)
-    decoder_dict = FrozenDict(config.decoder)
+    score_dict = FrozenDict(config_base.score)
+    encoder_dict = FrozenDict(config_base.encoder)
+    decoder_dict = FrozenDict(config_base.decoder)
 
     # Diffusion model
     x_mean = tuple(map(float, norm_dict["mean"]))
@@ -98,19 +112,19 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
         }
     )
     vdm = VariationalDiffusionModel(
-        d_feature=config.data.n_features,
-        timesteps=config.vdm.timesteps,
-        noise_schedule=config.vdm.noise_schedule,
-        noise_scale=config.vdm.noise_scale,
-        d_t_embedding=config.vdm.d_t_embedding,
-        gamma_min=config.vdm.gamma_min,
-        gamma_max=config.vdm.gamma_max,
-        score=config.score.score,
+        d_feature=config_base.data.n_features,
+        timesteps=config_base.vdm.timesteps,
+        noise_schedule=config_base.vdm.noise_schedule,
+        noise_scale=config_base.vdm.noise_scale,
+        d_t_embedding=config_base.vdm.d_t_embedding,
+        gamma_min=config_base.vdm.gamma_min,
+        gamma_max=config_base.vdm.gamma_max,
+        score=config_base.score.score,
         score_dict=score_dict,
-        embed_context=config.vdm.embed_context,
-        d_context_embedding=config.vdm.d_context_embedding,
-        n_classes=config.vdm.n_classes,
-        use_encdec=config.vdm.use_encdec,
+        embed_context=config_base.vdm.embed_context,
+        d_context_embedding=config_base.vdm.d_context_embedding,
+        n_classes=config_base.vdm.n_classes,
+        use_encdec=config_base.vdm.use_encdec,
         encoder_dict=encoder_dict,
         decoder_dict=decoder_dict,
         norm_dict=norm_dict_input,
@@ -143,9 +157,17 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
     tx = optax.adamw(learning_rate=schedule, weight_decay=config.optim.weight_decay)
 
     state = train_state.TrainState.create(apply_fn=vdm.apply, params=params, tx=tx)
-    pstate = replicate(state)
 
-    logging.info("Starting training...")
+    # Restore from checkpoint
+    ckpt_dir = "{}/{}/{}/".format(workdir_og, config.wandb.base_run_group, config.wandb.base_run_name)  # Load SLURM run
+    restored_state = checkpoints.restore_checkpoint(ckpt_dir=ckpt_dir, target=state)
+
+    if state is restored_state:
+        raise FileNotFoundError(f"Did not load checkpoint correctly")
+
+    pstate = replicate(restored_state)
+
+    logging.info("Restored checkpoint. Starting training...")
 
     train_metrics = []
     with trange(config.training.n_train_steps) as steps:
@@ -160,12 +182,12 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
                     conditioning=conditioning,
                     rng=rng,
                     norm_dict=norm_dict,
-                    n_pos_dim=config.data.n_pos_features,
-                    box_size=config.data.box_size,
-                    rotations=config.data.add_rotations,
-                    translations=config.data.add_translations,
+                    n_pos_dim=config_base.data.n_pos_features,
+                    box_size=config_base.data.box_size,
+                    rotations=config_base.data.add_rotations,
+                    translations=config_base.data.add_translations,
                 )
-            pstate, metrics = train_step(pstate, (x, conditioning, mask), train_step_rng, vdm, loss_vdm, config.training.unconditional_dropout, config.training.p_uncond)
+            pstate, metrics = train_step(pstate, (x, conditioning, mask), train_step_rng, vdm, config.likelihood.n_samples, config.likelihood.n_steps)
             steps.set_postfix(val=unreplicate(metrics["loss"]))
             train_metrics.append(metrics)
 
@@ -193,7 +215,7 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
                     mask=mask_batch.reshape((-1, *mask_batch.shape[2:])),
                     norm_dict=norm_dict,
                     steps=500,
-                    boxsize=config.data.box_size,
+                    boxsize=config_base.data.box_size,
                 )
 
             # Save checkpoints periodically

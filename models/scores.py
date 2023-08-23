@@ -74,23 +74,11 @@ class GraphScoreNet(nn.Module):
         }
     )
 
-    def get_graph_edges(
-        self,
-        z,
-        n_pos_features,
-        k,
-        mask,
-    ):
+    def get_graph_edges(self, z, n_pos_features, k, mask):
         return jax.vmap(nearest_neighbors, in_axes=(0, None, 0))(z[..., :n_pos_features], k, mask)
 
     @nn.compact
-    def __call__(
-        self,
-        z,
-        t,
-        conditioning,
-        mask,
-    ):
+    def __call__(self, z, t, conditioning, mask):
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
         t = t * np.ones(z.shape[0])  # Ensure t is a vector
 
@@ -114,7 +102,7 @@ class GraphScoreNet(nn.Module):
             n_node=(mask.sum(-1)[:, None]).astype(np.int32),
             n_edge=np.array(n_batch * [[k]]),
             nodes=z,
-            edges=distances if use_edges else None,
+            edges=distances[..., None] if use_edges else None,
             globals=cond,
             senders=sources,
             receivers=targets,
@@ -128,5 +116,7 @@ class GraphScoreNet(nn.Module):
         score_dict.pop("n_pos_features", None)
 
         h = jax.vmap(GraphConvNet(**score_dict, in_features=z.shape[-1]))(graph)
-        pos_update = graph.nodes - h.nodes
-        return pos_update
+
+        # Predicted noise
+        eps = graph.nodes - h.nodes
+        return eps
