@@ -24,9 +24,10 @@ if __name__ == "__main__":
     split='test' if use_test_set else 'train'
     print("{} devices visible".format(jax.device_count()))
     #run_name = 'misunderstood-night-203' #'chocolate-cloud-122' #'eternal-oath-121'
-    run_name = 'blooming-puddle-230'
+    run_name = 'stilted-oath-118'
     path_to_model = Path(
-        f"/n/home11/ccuestalazaro/set-diffuser/logging/cosmology/{run_name}"
+        f'/n/holystore01/LABS/iaifi_lab/Lab/set-diffuser-checkpoints/{run_name}'
+        #f"/n/home11/ccuestalazaro/set-diffuser/logging/cosmology/{run_name}"
     )
     path_to_posteriors = Path(
         f'/n/holystore01/LABS/itc_lab/Users/ccuestalazaro/set_diffuser/posteriors/{run_name}'

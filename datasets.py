@@ -42,7 +42,7 @@ def get_nbody_data(
     n_particles,
     split: str = "train",
 ):
-    DATA_DIR = Path("/n/holyscratch01/iaifi_lab/ccuesta/data_for_sid/")
+    DATA_DIR = Path("/n/holystore01/LABS/iaifi_lab/Lab/set-diffuser-data/")
     x, conditioning = get_halo_data(data_dir=DATA_DIR, n_features=n_features, n_particles=n_particles, split=split)
     if split == "train":
         x_train = x
