@@ -100,19 +100,21 @@ class VariationalDiffusionModel(nn.Module):
         vdm = VariationalDiffusionModel(
             d_feature=config.data.n_features,
             timesteps=config.vdm.timesteps,
-            noise_schedule=config.vdm.noise_schedule,
-            noise_scale=config.vdm.noise_scale,
             gamma_min=config.vdm.gamma_min,
             gamma_max=config.vdm.gamma_max,
+            noise_schedule=config.vdm.noise_schedule,
+            noise_scale=config.vdm.noise_scale,
+            d_t_embedding=config.vdm.d_t_embedding,
             score=config.score.score,
             score_dict=score_dict,
-            embed_context=config.vdm.embed_context,
-            d_context_embedding=config.vdm.d_context_embedding,
-            n_classes=config.vdm.n_classes,
-            use_encdec=config.vdm.use_encdec,
             encoder_dict=encoder_dict,
             decoder_dict=decoder_dict,
+            n_classes=config.vdm.n_classes,
+            embed_context=config.vdm.embed_context,
+            d_context_embedding=config.vdm.d_context_embedding,
+            use_encdec=config.vdm.use_encdec,
             norm_dict=norm_dict_input,
+            n_pos_features=config.vdm.n_pos_features,
         )
         rng = jax.random.PRNGKey(42)
         x_dummy = jax.random.normal(
