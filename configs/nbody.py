@@ -61,7 +61,7 @@ def get_config():
     score.message_passing_steps = 4
     score.attention = False
     score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
-    score.use_edges = True
+    score.use_edges = False
     score.use_pbc = True
     score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
 
