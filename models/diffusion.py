@@ -61,7 +61,7 @@ class VariationalDiffusionModel(nn.Module):
     embed_context: bool = False
     d_context_embedding: int = 32
     use_encdec: bool = True
-    norm_dict: dict = dataclasses.field(default_factory=lambda: {"x_mean": 0.0, "x_std": 1.0})
+    norm_dict: dict = dataclasses.field(default_factory=lambda: {"x_mean": 0.0, "x_std": 1.0, "box_size": 1000.0})
     n_pos_features: int = 3
 
     @classmethod
