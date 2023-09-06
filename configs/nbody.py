@@ -55,13 +55,13 @@ def get_config():
     score.k = 50
     score.n_pos_features = 3
     score.num_mlp_layers = 4
-    score.latent_size = 32
+    score.latent_size = 16
     score.hidden_size = 128
     score.skip_connections = True
-    score.message_passing_steps = 4
-    score.attention = False
+    score.message_passing_steps = 7
+    score.attention = True
     score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
-    score.use_edges = False
+    score.use_edges = True
     score.use_pbc = True
     score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
 
@@ -74,7 +74,7 @@ def get_config():
     training.log_every_steps = 100
     training.eval_every_steps = 2_000  # training.n_train_steps + 1  # Turn off eval for now
     training.save_every_steps = 20_000
-    training.unconditional_dropout = False  # Set to True to use unconditional dropout (randomly zero out conditioning vectors)
+    training.unconditional_dropout = True  # Set to True to use unconditional dropout (randomly zero out conditioning vectors)
     training.p_uncond = 0.2  # Fraction of conditioning vectors to zero out if unconditional_dropout is True
 
     # Data
