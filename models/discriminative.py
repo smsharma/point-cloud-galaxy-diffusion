@@ -42,10 +42,10 @@ def loss_fn_discriminative(params, x, theta, model, rng, n_samples, steps):
     """Loss function for the discriminative model.
     p(theta | x) = p(x | theta) * p(theta) / p(x)"""
 
-    rng, spl = jax.random.split(rng)
+    # NOTE: Same rng for both likelihood and evidence
 
     log_prior = tfp.distributions.Uniform(low=(0.1, 0.6), high=(0.5, 1.0)).log_prob(theta).sum()
-    log_like = likelihood(params, theta, x, spl, model, n_samples, steps)
+    log_like = likelihood(params, theta, x, rng, model, n_samples, steps)
     log_ev = likelihood(params, np.zeros_like(theta), x, rng, model, n_samples, steps)
     return -(log_like + log_prior - log_ev)
 

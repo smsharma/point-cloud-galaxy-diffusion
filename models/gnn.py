@@ -131,8 +131,11 @@ class GraphConvNet(nn.Module):
             jraph.GraphsTuple: updated graph object
         """
 
-        # First linearly project the original node features as 'embeddings'.
-        embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.latent_size))
+        # First linearly project the original features as 'embeddings'.
+        if graph.edges is None:
+            embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.latent_size))
+        else:
+            embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.latent_size), embed_edge_fn=nn.Dense(self.latent_size))
         graph = embedder(graph)
         graph = graph._replace(
             globals=graph.globals.reshape(graph.globals.shape[0], -1),

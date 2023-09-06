@@ -169,3 +169,7 @@ logging/
 wandb
 wandb/*
 notebooks/data
+
+*.json.gz
+*.pb
+jax-trace

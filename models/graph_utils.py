@@ -2,12 +2,29 @@ import jax
 import jax.numpy as np
 from functools import partial
 
+import jaxkdtree
 
-@partial(jax.jit, static_argnums=(1,))
+
+def apply_pbc(dr: np.array, cell: np.array) -> np.array:
+    """Apply periodic boundary conditions to a displacement vector, dr, given a cell.
+
+    Args:
+        dr (np.array): An array of shape (N,3) containing the displacement vector
+        cell_matrix (np.array): A 3x3 matrix describing the box dimensions and orientation.
+
+    Returns:
+        np.array: displacement vector with periodic boundary conditions applied
+    """
+    return dr - np.round(dr.dot(np.linalg.inv(cell))).dot(cell)
+
+
+@partial(jax.jit, static_argnums=(1, 4))
 def nearest_neighbors(
     x: np.array,
     k: int,
     mask: np.array = None,
+    cell: np.array = None,
+    pbc: bool = False,
 ):
     """Returns the nearest neighbors of each node in x.
 
@@ -28,6 +45,11 @@ def nearest_neighbors(
 
     # Compute the vector difference between positions
     dr = x[:, None, :] - x[None, :, :]
+    if pbc:
+        dr = apply_pbc(
+            dr=dr,
+            cell=cell,
+        )
 
     # Calculate the distance matrix
     distance_matrix = np.sum(dr**2, axis=-1)
@@ -42,7 +64,8 @@ def nearest_neighbors(
     sources = np.repeat(np.arange(n_nodes), k)
     targets = indices.ravel()
 
-    return sources, targets, distance_matrix[sources, targets]
+    # return sources, targets, distance_matrix[sources, targets]
+    return sources, targets, dr[sources, targets]
 
 
 @partial(jax.jit, static_argnums=(1,))
@@ -56,6 +79,18 @@ def nearest_neighbors_ann(x, k):
     sources = np.arange(x.shape[0]).repeat(k)
     targets = neighbours.reshape(x.shape[0] * (k))
     return (sources, targets)
+
+
+@partial(jax.jit, static_argnums=(1, 2))
+def nearest_neighbors_kd(x, k, max_radius=2000.0):
+    # Implementation of nearest neighbors op
+    res = jaxkdtree.kNN(x, k, max_radius)
+    sources = np.repeat(np.arange(x.shape[0]), k)
+    targets = res.reshape(-1)
+    dr = x[sources] - x[targets]
+    distances = np.sum(dr**2, axis=-1)
+
+    return sources, targets, distances
 
 
 def rotation_matrix(angle_deg, axis):

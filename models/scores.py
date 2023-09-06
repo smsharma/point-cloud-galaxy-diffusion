@@ -9,8 +9,10 @@ from models.transformer import Transformer
 from models.gnn import GraphConvNet
 from models.mlp import MLP
 
-from models.graph_utils import nearest_neighbors
+from models.graph_utils import nearest_neighbors, nearest_neighbors_kd
 from models.diffusion_utils import get_timestep_embedding
+
+from functools import partial
 
 
 class TransformerScoreNet(nn.Module):
@@ -74,8 +76,20 @@ class GraphScoreNet(nn.Module):
         }
     )
 
-    def get_graph_edges(self, z, n_pos_features, k, mask):
-        return jax.vmap(nearest_neighbors, in_axes=(0, None, 0))(z[..., :n_pos_features], k, mask)
+    def get_graph_edges(self, z, n_pos_features, k, mask, graph_method="pairwise_dist", use_pbc=False):
+        if graph_method == "pairwise_dist":
+            coord_mean = np.array(self.norm_dict["x_mean"])
+            coord_std = np.array(self.norm_dict["x_std"])
+            box_size = np.array(self.norm_dict["box_size"])
+            cell = box_size * np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+            z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
+            sources, targets, distances = jax.vmap(partial(nearest_neighbors, pbc=use_pbc), in_axes=(0, None, 0, None))(z_unnormed, k, mask, cell)
+            distances /= coord_std
+            return sources, targets, distances
+        elif graph_method == "kd_tree":
+            return jax.vmap(nearest_neighbors_kd, in_axes=(0, None, None))(jax.lax.stop_gradient(z[..., :n_pos_features]), k, 2000.0)
+        else:
+            raise ValueError(f"Invalid graph construction method: {graph_method}")
 
     @nn.compact
     def __call__(self, z, t, conditioning, mask):
@@ -96,13 +110,13 @@ class GraphScoreNet(nn.Module):
         use_edges = self.score_dict.get("use_edges", False)
         k = self.score_dict["k"]
         n_pos_features = self.score_dict["n_pos_features"]
-        sources, targets, distances = self.get_graph_edges(z=z, k=k, n_pos_features=n_pos_features, mask=mask)
+        sources, targets, distances = self.get_graph_edges(z=z, k=k, n_pos_features=n_pos_features, mask=mask, graph_method=self.score_dict["graph_construction"], use_pbc=self.score_dict["use_pbc"])
         n_batch = z.shape[0]
         graph = jraph.GraphsTuple(
             n_node=(mask.sum(-1)[:, None]).astype(np.int32),
             n_edge=np.array(n_batch * [[k]]),
             nodes=z,
-            edges=distances[..., None] if use_edges else None,
+            edges=distances if use_edges else None,
             globals=cond,
             senders=sources,
             receivers=targets,
@@ -113,7 +127,9 @@ class GraphScoreNet(nn.Module):
         score_dict.pop("k", None)
         score_dict.pop("score", None)
         score_dict.pop("use_edges", None)
+        score_dict.pop("use_pbc", None)
         score_dict.pop("n_pos_features", None)
+        score_dict.pop("graph_construction", None)
 
         h = jax.vmap(GraphConvNet(**score_dict, in_features=z.shape[-1]))(graph)
 
