@@ -23,11 +23,9 @@ if __name__ == "__main__":
     generated_samples = False 
     split='test' if use_test_set else 'train'
     print("{} devices visible".format(jax.device_count()))
-    #run_name = 'misunderstood-night-203' #'chocolate-cloud-122' #'eternal-oath-121'
-    run_name = 'stilted-oath-118'
+    run_name = 'toasty-dream-140'
     path_to_model = Path(
-        f'/n/holystore01/LABS/iaifi_lab/Lab/set-diffuser-checkpoints/{run_name}'
-        #f"/n/home11/ccuestalazaro/set-diffuser/logging/cosmology/{run_name}"
+        f"/n/holystore01/LABS/iaifi_lab/Lab/set-diffuser-checkpoints/{run_name}"
     )
     path_to_posteriors = Path(
         f'/n/holystore01/LABS/itc_lab/Users/ccuestalazaro/set_diffuser/posteriors/{run_name}'
@@ -45,7 +43,7 @@ if __name__ == "__main__":
     lr = 1e-2
 
     min_fit_idx = 0  
-    max_fit_idx = 100 
+    max_fit_idx = 200 
     x, _, conditioning, norm_dict = get_nbody_data(
         n_features=config.data.n_features,
         n_particles = config.data.n_particles,

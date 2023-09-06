@@ -7,7 +7,7 @@ import jax.numpy as np
 import numpyro
 import numpyro.distributions as dist
 
-def elbo(vdm, params, rng, x, conditioning, mask, steps=10, unroll_loop=False):
+def elbo(vdm, params, rng, x, conditioning, mask, steps=2, unroll_loop=True):
     rng, spl = jax.random.split(rng)
     cond = vdm.apply(params, conditioning, method=vdm.embed)
     f = vdm.apply(params, x, conditioning, method=vdm.encode)
@@ -52,15 +52,15 @@ def log_prior(theta):
     return -np.inf
 
 
-@partial(
-    jax.jit,
-    static_argnums=(
-        0,
-        5,
-        6,
-    ),
-)
-def likelihood(vdm, rng, restored_state_params, x_test, params, steps=500,n_samples=2):
+#@partial(
+#    jax.jit,
+#    static_argnums=(
+#        0,
+#        5,
+#        6,
+#    ),
+#)
+def likelihood(vdm, rng, restored_state_params, x_test, params, steps=6,n_samples=2):
     x_test = np.repeat(np.array([x_test]), n_samples, 0)
     theta_test = np.repeat(np.array([params]), n_samples, 0)
     return -elbo(
@@ -79,7 +79,7 @@ def get_model(
     restored_state_params,
     rng,
 ):
-    def model(x_test, n_samples=2, steps=10,):
+    def model(x_test, n_samples=1, steps=4,):
         # Omega_m and sigma_8 prior distributions
         omega_m = numpyro.sample("omega_m", dist.Uniform(0.1, 0.5))
         sigma_8 = numpyro.sample("sigma_8", dist.Uniform(0.6, 1.0))

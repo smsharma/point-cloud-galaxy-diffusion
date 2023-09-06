@@ -114,7 +114,7 @@ class VariationalDiffusionModel(nn.Module):
             d_context_embedding=config.vdm.d_context_embedding,
             use_encdec=config.vdm.use_encdec,
             norm_dict=norm_dict_input,
-            n_pos_features=config.vdm.n_pos_features,
+            n_pos_features=config.score.n_pos_features,
         )
         rng = jax.random.PRNGKey(42)
         x_dummy = jax.random.normal(
