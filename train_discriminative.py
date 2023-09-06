@@ -109,6 +109,7 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
         {
             "x_mean": x_mean,
             "x_std": x_std,
+            "box_size": config_base.data.box_size,
         }
     )
     vdm = VariationalDiffusionModel(
