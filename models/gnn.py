@@ -1,10 +1,9 @@
 from typing import Callable, Tuple
-import jax
 import flax.linen as nn
 import jax.numpy as jnp
 import jraph
-from einops import rearrange
 from models.mlp import MLP
+from models.graph_utils import PairNorm, Identity
 
 
 def get_node_mlp_updates(mlp_feature_sizes: int, name: str = None) -> Callable:
@@ -115,7 +114,7 @@ class GraphConvNet(nn.Module):
     num_mlp_layers: int
     message_passing_steps: int
     skip_connections: bool = True
-    layer_norm: bool = True
+    norm: str = "layer"
     attention: bool = False
     in_features: int = 3
     shared_weights: bool = False  # GNN shares weights across message passing steps
@@ -131,16 +130,15 @@ class GraphConvNet(nn.Module):
             jraph.GraphsTuple: updated graph object
         """
 
+        mlp_feature_sizes = [self.hidden_size] * self.num_mlp_layers + [self.latent_size]
+
         # First linearly project the original features as 'embeddings'.
         if graph.edges is None:
-            embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.latent_size))
+            embedder = jraph.GraphMapFeatures(embed_node_fn=MLP(mlp_feature_sizes))
         else:
-            embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.latent_size), embed_edge_fn=nn.Dense(self.latent_size))
+            embedder = jraph.GraphMapFeatures(embed_node_fn=MLP(mlp_feature_sizes), embed_edge_fn=MLP(mlp_feature_sizes))
         graph = embedder(graph)
-        graph = graph._replace(
-            globals=graph.globals.reshape(graph.globals.shape[0], -1),
-        )
-        mlp_feature_sizes = [self.hidden_size] * self.num_mlp_layers + [self.latent_size]
+        graph = graph._replace(globals=graph.globals.reshape(graph.globals.shape[0], -1))
 
         # Apply GCN once for each message-passing round.
         for step in range(self.message_passing_steps):
@@ -171,10 +169,17 @@ class GraphConvNet(nn.Module):
             else:
                 graph = graph_net(graph)
 
-            # Optional layer norm
-            if self.layer_norm:
-                graph = graph._replace(nodes=nn.LayerNorm()(graph.nodes))
+            # Optional normalization
+            if self.norm == "layer":
+                norm = nn.LayerNorm()
+            elif self.norm == "pair":
+                norm = PairNorm()
+            else:
+                norm = Identity()  # No normalization
 
-        decoder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.in_features))
+            graph = graph._replace(nodes=norm(graph.nodes), edges=norm(graph.edges))
+
+        # Decode the final node features back to the original feature dimension
+        decoder = jraph.GraphMapFeatures(embed_node_fn=MLP([self.hidden_size] * self.num_mlp_layers + [self.in_features]))
 
         return decoder(graph)

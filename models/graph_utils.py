@@ -1,8 +1,42 @@
-import jax
-import jax.numpy as np
 from functools import partial
 
+import jax
+import jax.numpy as np
+import flax.linen as nn
+
 import jaxkdtree
+
+
+class PairNorm(nn.Module):
+    """PairNorm normalization layer from https://arxiv.org/abs/1909.12223."""
+
+    @nn.compact
+    def __call__(self, features, rescale_factor=1.0):
+        # Center features by subtracting mean
+        feature_sum = np.sum(features, axis=0)
+        feature_centered = features - feature_sum / features.shape[0]
+
+        # L2 norm per node across features
+        feature_l2 = np.sqrt(np.sum(np.square(feature_centered), axis=1, keepdims=True))
+
+        # Sum L2 norms across nodes
+        feature_l2_sum = np.sum(feature_l2, keepdims=True)
+
+        # Mean L2 norm
+        feature_l2_sqrt_mean = np.sqrt(feature_l2_sum / features.shape[0])
+
+        # Divide centered by L2 norm per node and multiply by mean L2 norm
+        features_normalized = feature_centered / feature_l2 * feature_l2_sqrt_mean * rescale_factor
+
+        return features_normalized
+
+
+class Identity(nn.Module):
+    """Module that applies the identity function, ignoring any additional args."""
+
+    @nn.compact
+    def __call__(self, x, **args):
+        return x
 
 
 def apply_pbc(dr: np.array, cell: np.array) -> np.array:

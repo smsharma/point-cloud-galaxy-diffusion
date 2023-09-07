@@ -52,18 +52,19 @@ def get_config():
     # Graph score model
     config.score = score = ml_collections.ConfigDict()
     score.score = "graph"
-    score.k = 50
+    score.k = 40
     score.n_pos_features = 3
     score.num_mlp_layers = 4
     score.latent_size = 16
     score.hidden_size = 128
     score.skip_connections = True
-    score.message_passing_steps = 4
+    score.message_passing_steps = 8
     score.attention = True
     score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
     score.use_edges = True
     score.use_pbc = True
     score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
+    score.norm = "pair"  # "pair" or "layer" for LayerNorm or PairNorm. Otherwise, no normalization.
 
     # Training
     config.training = training = ml_collections.ConfigDict()
