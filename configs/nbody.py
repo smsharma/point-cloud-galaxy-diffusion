@@ -64,7 +64,7 @@ def get_config():
     score.use_edges = True
     score.use_pbc = True
     score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
-    score.norm = "pair"  # "pair" or "layer" for LayerNorm or PairNorm. Otherwise, no normalization.
+    score.norm = "layer"  # "pair" or "layer" for LayerNorm or PairNorm. Otherwise, no normalization.
 
     # Training
     config.training = training = ml_collections.ConfigDict()
