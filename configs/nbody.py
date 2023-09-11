@@ -92,8 +92,8 @@ def get_config():
 
     # Optimizer (AdamW)
     config.optim = optim = ml_collections.ConfigDict()
-    optim.learning_rate = 3e-4
-    optim.weight_decay = 1e-5
+    optim.learning_rate = 1e-3
+    optim.weight_decay = 1e-4
 
     config.seed = 52
 
