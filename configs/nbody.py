@@ -19,7 +19,7 @@ def get_config():
     config.vdm = vdm = ml_collections.ConfigDict()
     vdm.gamma_min = -8.0
     vdm.gamma_max = 14.0
-    vdm.noise_schedule = "learned_linear"
+    vdm.noise_schedule = "learned_net"
     vdm.noise_scale = 1e-3
     vdm.timesteps = 0  # 0 for continuous-time VLB
     vdm.embed_context = True
