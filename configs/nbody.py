@@ -19,7 +19,7 @@ def get_config():
     config.vdm = vdm = ml_collections.ConfigDict()
     vdm.gamma_min = -8.0
     vdm.gamma_max = 14.0
-    vdm.noise_schedule = "learned_net"
+    vdm.noise_schedule = "learned_linear"
     vdm.noise_scale = 1e-3
     vdm.timesteps = 0  # 0 for continuous-time VLB
     vdm.embed_context = True
@@ -53,9 +53,9 @@ def get_config():
     # Graph score model
     config.score = score = ml_collections.ConfigDict()
     score.score = "graph"
-    score.k = 20
+    score.k = 40
     score.n_pos_features = 3
-    score.num_mlp_layers = 3
+    score.num_mlp_layers = 4
     score.latent_size = 16
     score.hidden_size = 128
     score.skip_connections = True
@@ -94,7 +94,7 @@ def get_config():
     # Optimizer (AdamW)
     config.optim = optim = ml_collections.ConfigDict()
     optim.learning_rate = 3e-4
-    optim.weight_decay = 1e-4
+    optim.weight_decay = 1e-5
 
     config.seed = 52
 

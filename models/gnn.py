@@ -177,7 +177,7 @@ class GraphConvNet(nn.Module):
             else:
                 norm = Identity()  # No normalization
 
-            graph = graph._replace(nodes=norm(graph.nodes), edges=nn.LayerNorm()(graph.edges))
+            graph = graph._replace(nodes=norm(graph.nodes), edges=norm(graph.edges))
 
         # Decode the final node features back to the original feature dimension
         decoder = jraph.GraphMapFeatures(embed_node_fn=MLP([self.hidden_size] * self.num_mlp_layers + [self.in_features]))
