@@ -589,10 +589,10 @@ def eval_generation(
         true_velocities = None
         true_masses = None
     fig = plot_pointclouds_2D(generated_samples=generated_positions, true_samples=true_positions)
+    """
     if log_wandb:
         # wandb.log({"eval/pointcloud": fig})
         wandb.log({"eval/pointcloud": wandb.Image(plt)})
-    """
     fig = plot_knns(
         generated_samples=generated_positions,
         true_samples=true_positions,

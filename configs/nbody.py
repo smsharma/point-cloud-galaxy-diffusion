@@ -9,10 +9,11 @@ def get_config():
     config.wandb = wandb = ml_collections.ConfigDict()
     wandb.entity = None
     wandb.project = "set-diffusion"
-    wandb.group = "cosmology-augmentations-guidance"
+    wandb.group = "cosmology"
     wandb.job_type = "training"
     wandb.name = None
     wandb.log_train = True
+    wandb.workdir = "/n/holystore01/LABS/iaifi_lab/Lab/set-diffuser-checkpoints/"
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()

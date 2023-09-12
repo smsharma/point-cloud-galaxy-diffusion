@@ -221,7 +221,9 @@ if __name__ == "__main__":
         "File path to the training or sampling hyperparameter configuration.",
         lock_config=True,
     )
-    FLAGS(sys.argv)  # Parse flags
+
+    # Parse flags
+    FLAGS(sys.argv)
 
     # Ensure TF does not see GPU and grab all GPU memory
     tf.config.experimental.set_visible_devices([], "GPU")
@@ -230,4 +232,5 @@ if __name__ == "__main__":
     logging.info("JAX local devices: %r", jax.local_devices())
     logging.info("JAX total visible devices: %r", jax.device_count())
 
-    train(FLAGS.config)
+    # Start training run
+    train(config=FLAGS.config, workdir=FLAGS.config.wandb.workdir)
