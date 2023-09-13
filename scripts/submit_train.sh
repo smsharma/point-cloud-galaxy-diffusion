@@ -6,7 +6,7 @@
 #SBATCH --time=48:00:00
 #SBATCH --gres=gpu:4
 #SBATCH --account=iaifi_lab
-#SBATCH -p gpu
+#SBATCH -p iaifi_gpu
 
 export TF_CPP_MIN_LOG_LEVEL="2"
 
