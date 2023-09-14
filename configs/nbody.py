@@ -62,7 +62,7 @@ def get_config():
     score.message_passing_steps = 12
     score.attention = True
     score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
-    score.use_edges = False
+    score.use_edges = True
     score.use_pbc = True
     score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
     score.norm = "pair"  # "pair" or "layer" for LayerNorm or PairNorm. Otherwise, no normalization.
@@ -93,8 +93,8 @@ def get_config():
 
     # Optimizer (AdamW)
     config.optim = optim = ml_collections.ConfigDict()
-    optim.learning_rate = 3e-4
-    optim.weight_decay = 1e-5
+    optim.learning_rate = 1e-3
+    optim.weight_decay = 1e-4
 
     config.seed = 52
 
