@@ -6,6 +6,8 @@ import flax.linen as nn
 
 import jaxkdtree
 
+EPS = 1e-5
+
 
 class PairNorm(nn.Module):
     """PairNorm normalization layer from https://arxiv.org/abs/1909.12223."""
@@ -78,7 +80,7 @@ def nearest_neighbors(
     n_nodes = x.shape[0]
 
     # Compute the vector difference between positions
-    dr = x[:, None, :] - x[None, :, :]
+    dr = (x[:, None, :] - x[None, :, :]) + EPS
     if pbc:
         dr = apply_pbc(
             dr=dr,

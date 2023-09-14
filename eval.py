@@ -20,10 +20,14 @@ from ml_collections.config_dict import ConfigDict
 from pycorr import TwoPointCorrelationFunction
 from models.diffusion_utils import generate
 from models.train_utils import create_input_iter
+from models.likelihood import elbo
 from datasets import nbody_dataset
 from cosmo_utils.knn import get_CDFkNN
+from scipy.interpolate import interp1d
+from scipy.stats import chi2
 
 import time
+from tqdm import tqdm
 
 colors = [
     "lightseagreen",
@@ -528,6 +532,71 @@ def plot_2pcf_rsd(
     plt.xlabel("r [Mpc/h]")
     plt.legend(fontsize=8)
     return fig
+
+
+def eval_likelihood(
+    vdm,
+    pstate,
+    rng,
+    true_samples: np.array,
+    conditioning: np.array,
+    mask: np.array,
+    log_wandb: bool = True,
+):
+    n_test = 16
+    omega_m_ary = np.linspace(0.1, 0.5, 30)
+
+    log_like_cov = []
+    for idx in tqdm(range(n_test)):
+        log_like = []
+        x_test = true_samples[idx][None, ...]
+        for omega_m in omega_m_ary:
+            theta_test = np.array([omega_m, conditioning[idx][1]])[None, ...]
+            log_like.append(elbo(vdm, pstate.params, rng, x_test, theta_test, np.ones_like(x_test[..., 0]), steps=20, unroll_loop=True))
+        log_like_cov.append(log_like)
+    log_like_cov = np.array(log_like_cov)
+
+    threshold_1sigma = -chi2.isf(1 - 0.68, 1)
+
+    intervals1 = []
+    true_values = []
+
+    for ic, idx in enumerate(range(n_test)):
+        likelihood_arr = 2 * (np.array(log_like_cov[idx]) - np.max(np.array(log_like_cov[idx])))
+
+        # Interpolate to find the 95% limits
+        f_interp1 = interp1d(omega_m_ary, likelihood_arr - threshold_1sigma, kind="linear", fill_value="extrapolate")
+        x_vals = np.linspace(omega_m_ary[0], omega_m_ary[-1], 1000)
+        diff_signs1 = np.sign(f_interp1(x_vals))
+
+        # Find where the sign changes
+        sign_changes1 = ((diff_signs1[:-1] * diff_signs1[1:]) < 0).nonzero()[0]
+
+        if len(sign_changes1) >= 2:  # We need at least two crossings
+            intervals1.append((x_vals[sign_changes1[0]], x_vals[sign_changes1[-1]]))
+            true_values.append(conditioning[idx][0])
+        else:
+            # Optionally handle the case where no interval is found
+            pass
+
+    # Plotting true value vs. interval
+    fig = plt.figure(figsize=(10, 4))
+
+    for value, (low, high) in zip(true_values, intervals1):
+        plt.errorbar(value, (low + high) / 2.0, yerr=[[(low + high) / 2.0 - low], [high - (low + high) / 2.0]], fmt="o", capsize=5, color="k")
+
+    plt.plot([0, 1], [0, 1], color="k", ls="--")
+
+    plt.xlim(0.05, 0.5)
+    plt.ylim(0.05, 0.5)
+
+    plt.xlabel("True Value")
+    plt.ylabel("Estimated Value and Interval")
+    plt.grid(True)
+    plt.tight_layout()
+
+    if log_wandb:
+        wandb.log({"eval/llprof_Om": wandb.Image(plt)})
 
 
 def eval_generation(

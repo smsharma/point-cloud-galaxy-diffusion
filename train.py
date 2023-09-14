@@ -23,7 +23,7 @@ from flax.training import checkpoints, common_utils, train_state
 
 import tensorflow as tf
 
-from eval import eval_generation
+from eval import eval_generation, eval_likelihood
 from models.diffusion import VariationalDiffusionModel
 from models.diffusion_utils import loss_vdm
 from models.train_utils import (
@@ -183,6 +183,14 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
 
             # Eval periodically
             if (step % config.training.eval_every_steps == 0) and (step != 0) and (jax.process_index() == 0) and (config.wandb.log_train):
+                eval_likelihood(
+                    vdm=vdm,
+                    pstate=unreplicate(pstate),
+                    rng=rng,
+                    true_samples=x_batch.reshape((-1, *x_batch.shape[2:])),
+                    conditioning=conditioning_batch.reshape((-1, *conditioning_batch.shape[2:])),
+                    mask=mask_batch.reshape((-1, *mask_batch.shape[2:])),
+                )
                 eval_generation(
                     vdm=vdm,
                     pstate=unreplicate(pstate),
