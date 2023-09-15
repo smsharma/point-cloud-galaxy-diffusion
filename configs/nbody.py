@@ -57,9 +57,9 @@ def get_config():
     score.n_pos_features = 3
     score.num_mlp_layers = 3
     score.latent_size = 8
-    score.hidden_size = 64
+    score.hidden_size = 128
     score.skip_connections = True
-    score.message_passing_steps = 4
+    score.message_passing_steps = 12
     score.attention = True
     score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
     score.use_edges = True
@@ -71,7 +71,7 @@ def get_config():
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
     training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
-    training.n_train_steps = 1001_000
+    training.n_train_steps = 301_000
     training.warmup_steps = 5_000
     training.log_every_steps = 100
     training.eval_every_steps = 5000  # training.n_train_steps + 1  # Turn off eval for now
@@ -93,8 +93,8 @@ def get_config():
 
     # Optimizer (AdamW)
     config.optim = optim = ml_collections.ConfigDict()
-    optim.learning_rate = 1e-3
-    optim.weight_decay = 1e-4
+    optim.learning_rate = 1e-4
+    optim.weight_decay = 1e-5
 
     config.seed = 52
 
