@@ -53,13 +53,13 @@ def get_config():
     # Graph score model
     config.score = score = ml_collections.ConfigDict()
     score.score = "graph"
-    score.k = 50
+    score.k = 20
     score.n_pos_features = 3
     score.num_mlp_layers = 3
-    score.latent_size = 16
-    score.hidden_size = 128
+    score.latent_size = 8
+    score.hidden_size = 64
     score.skip_connections = True
-    score.message_passing_steps = 12
+    score.message_passing_steps = 4
     score.attention = True
     score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
     score.use_edges = True
@@ -71,13 +71,13 @@ def get_config():
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
     training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
-    training.n_train_steps = 301_000
+    training.n_train_steps = 1001_000
     training.warmup_steps = 5_000
     training.log_every_steps = 100
     training.eval_every_steps = 5000  # training.n_train_steps + 1  # Turn off eval for now
     training.save_every_steps = 20_000
     training.unconditional_dropout = True  # Set to True to use unconditional dropout (randomly zero out conditioning vectors)
-    training.p_uncond = 0.2  # Fraction of conditioning vectors to zero out if unconditional_dropout is True
+    training.p_uncond = 0.1  # Fraction of conditioning vectors to zero out if unconditional_dropout is True
 
     # Data
     config.data = data = ml_collections.ConfigDict()
