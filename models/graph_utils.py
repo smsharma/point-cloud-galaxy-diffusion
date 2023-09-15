@@ -41,6 +41,26 @@ class Identity(nn.Module):
         return x
 
 
+def fourier_features(x, num_encodings=8, include_self=True):
+    """Add Fourier features to a set of coordinates
+
+    Args:
+        x (jnp.array): Coordinates
+        num_encodings (int, optional): Number of Fourier feature encodings. Defaults to 16.
+        include_self (bool, optional): Whether to include original coordinates in output. Defaults to True.
+
+    Returns:
+        jnp.array: Fourier features of input coordinates
+    """
+
+    dtype, orig_x = x.dtype, x
+    scales = 2 ** np.arange(num_encodings, dtype=dtype)
+    x = x / scales
+    x = np.concatenate([np.sin(x), np.cos(x)], axis=-1)
+    x = np.concatenate((x, orig_x), axis=-1) if include_self else x
+    return x
+
+
 def apply_pbc(dr: np.array, cell: np.array) -> np.array:
     """Apply periodic boundary conditions to a displacement vector, dr, given a cell.
 
