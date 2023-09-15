@@ -3,8 +3,14 @@ from functools import partial
 import jax
 import jax.numpy as np
 import flax.linen as nn
+from absl import logging
 
-import jaxkdtree
+# Try importing jaxkdtree, if it fails throw a warning
+
+try:
+    import jaxkdtree
+except ImportError:
+    logging.warning("Could not import `jaxkdtree`.")
 
 EPS = 1e-5
 
