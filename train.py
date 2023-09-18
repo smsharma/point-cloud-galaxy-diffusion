@@ -30,6 +30,7 @@ from models.train_utils import (
     create_input_iter,
     param_count,
     train_step,
+    eval_step,
     to_wandb_config,
 )
 
@@ -75,9 +76,21 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
         split="train",
         # **config.data.kwargs,
     )
+    eval_ds, _ = load_data(
+        config.data.dataset,
+        config.data.n_features,
+        config.data.n_particles,
+        config.training.batch_size,
+        config.seed,
+        shuffle=False,
+        split="val",
+        # **config.data.kwargs,
+    )
+
     add_augmentations = True if config.data.add_rotations or config.data.add_translations else False
 
     batches = create_input_iter(train_ds)
+    eval_batches = create_input_iter(eval_ds)
 
     logging.info("Loaded the %s dataset", config.data.dataset)
 
@@ -183,6 +196,21 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
 
             # Eval periodically
             if (step % config.training.eval_every_steps == 0) and (step != 0) and (jax.process_index() == 0) and (config.wandb.log_train):
+                eval_metrics = []
+                for _ in range(config.training.eval_n_batches):
+                    x_eval, conditioning_eval, mask_eval = next(eval_batches)
+                    eval_metrics.append(eval_step(
+                        (x_eval, conditioning_eval, mask_eval),
+                        rng=rng,
+                        model=vdm,
+                        loss_fn=loss_vdm,
+                        unconditional_dropout=config.training.unconditional_dropout,
+                        p_uncond=config.training.p_uncond,
+                    ))
+                eval_metrics = common_utils.get_metrics(eval_metrics)
+                eval_summary = {f"train/{k}": v for k, v in jax.tree_map(lambda x: x.mean(), eval_metrics).items()}
+                writer.write_scalars(step, eval_summary)
+                # Generate some samples
                 eval_generation(
                     vdm=vdm,
                     pstate=unreplicate(pstate),
