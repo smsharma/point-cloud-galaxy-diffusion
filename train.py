@@ -23,7 +23,7 @@ from flax.training import checkpoints, common_utils, train_state
 
 import tensorflow as tf
 
-from eval import eval_generation
+from eval import eval_generation, eval_likelihood
 from models.diffusion import VariationalDiffusionModel
 from models.diffusion_utils import loss_vdm
 from models.train_utils import (
@@ -196,6 +196,7 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
 
             # Eval periodically
             if (step % config.training.eval_every_steps == 0) and (step != 0) and (jax.process_index() == 0) and (config.wandb.log_train):
+<<<<<<< HEAD
                 eval_metrics = []
                 for _ in range(config.training.eval_n_batches):
                     x_eval, conditioning_eval, mask_eval = next(eval_batches)
@@ -211,6 +212,16 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
                 eval_summary = {f"train/{k}": v for k, v in jax.tree_map(lambda x: x.mean(), eval_metrics).items()}
                 writer.write_scalars(step, eval_summary)
                 # Generate some samples
+=======
+                eval_likelihood(
+                    vdm=vdm,
+                    pstate=unreplicate(pstate),
+                    rng=rng,
+                    true_samples=x_batch.reshape((-1, *x_batch.shape[2:])),
+                    conditioning=conditioning_batch.reshape((-1, *conditioning_batch.shape[2:])),
+                    mask=mask_batch.reshape((-1, *mask_batch.shape[2:])),
+                )
+>>>>>>> cd1ec7372591fbacc124707beab69437639f9dc0
                 eval_generation(
                     vdm=vdm,
                     pstate=unreplicate(pstate),
@@ -249,7 +260,9 @@ if __name__ == "__main__":
         "File path to the training or sampling hyperparameter configuration.",
         lock_config=True,
     )
-    FLAGS(sys.argv)  # Parse flags
+
+    # Parse flags
+    FLAGS(sys.argv)
 
     # Ensure TF does not see GPU and grab all GPU memory
     tf.config.experimental.set_visible_devices([], "GPU")
@@ -258,4 +271,5 @@ if __name__ == "__main__":
     logging.info("JAX local devices: %r", jax.local_devices())
     logging.info("JAX total visible devices: %r", jax.device_count())
 
-    train(FLAGS.config)
+    # Start training run
+    train(config=FLAGS.config, workdir=FLAGS.config.wandb.workdir)

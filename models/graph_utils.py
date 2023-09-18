@@ -1,8 +1,70 @@
-import jax
-import jax.numpy as np
 from functools import partial
 
-import jaxkdtree
+import jax
+import jax.numpy as np
+import flax.linen as nn
+from absl import logging
+
+# Try importing jaxkdtree, if it fails throw a warning
+
+try:
+    import jaxkdtree
+except ImportError:
+    logging.warning("Could not import `jaxkdtree`.")
+
+EPS = 1e-5
+
+
+class PairNorm(nn.Module):
+    """PairNorm normalization layer from https://arxiv.org/abs/1909.12223."""
+
+    @nn.compact
+    def __call__(self, features, rescale_factor=1.0):
+        # Center features by subtracting mean
+        feature_sum = np.sum(features, axis=0)
+        feature_centered = features - feature_sum / features.shape[0]
+
+        # L2 norm per node across features
+        feature_l2 = np.sqrt(np.sum(np.square(feature_centered), axis=1, keepdims=True))
+
+        # Sum L2 norms across nodes
+        feature_l2_sum = np.sum(feature_l2, keepdims=True)
+
+        # Mean L2 norm
+        feature_l2_sqrt_mean = np.sqrt(feature_l2_sum / features.shape[0])
+
+        # Divide centered by L2 norm per node and multiply by mean L2 norm
+        features_normalized = feature_centered / feature_l2 * feature_l2_sqrt_mean * rescale_factor
+
+        return features_normalized
+
+
+class Identity(nn.Module):
+    """Module that applies the identity function, ignoring any additional args."""
+
+    @nn.compact
+    def __call__(self, x, **args):
+        return x
+
+
+def fourier_features(x, num_encodings=8, include_self=True):
+    """Add Fourier features to a set of coordinates
+
+    Args:
+        x (jnp.array): Coordinates
+        num_encodings (int, optional): Number of Fourier feature encodings. Defaults to 16.
+        include_self (bool, optional): Whether to include original coordinates in output. Defaults to True.
+
+    Returns:
+        jnp.array: Fourier features of input coordinates
+    """
+
+    dtype, orig_x = x.dtype, x
+    scales = 2 ** np.arange(num_encodings, dtype=dtype)
+    x = x / scales
+    x = np.concatenate([np.sin(x), np.cos(x)], axis=-1)
+    x = np.concatenate((x, orig_x), axis=-1) if include_self else x
+    return x
 
 
 def apply_pbc(dr: np.array, cell: np.array) -> np.array:
@@ -44,7 +106,7 @@ def nearest_neighbors(
     n_nodes = x.shape[0]
 
     # Compute the vector difference between positions
-    dr = x[:, None, :] - x[None, :, :]
+    dr = (x[:, None, :] - x[None, :, :]) + EPS
     if pbc:
         dr = apply_pbc(
             dr=dr,
