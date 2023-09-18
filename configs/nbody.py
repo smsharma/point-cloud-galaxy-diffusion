@@ -53,7 +53,7 @@ def get_config():
     # Graph score model
     config.score = score = ml_collections.ConfigDict()
     score.score = "graph"
-    score.k = 40
+    score.k = 20
     score.n_pos_features = 3
     score.num_mlp_layers = 3
     score.latent_size = 16
@@ -64,8 +64,8 @@ def get_config():
     score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
     score.use_edges = True
     score.use_pbc = True
-    score.use_absolute_distances = True
-    score.use_fourier_features = True
+    score.use_absolute_distances = False
+    score.use_fourier_features = False
     score.n_fourier_features = 16
     score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
     score.norm = "pair"  # "pair" or "layer" for LayerNorm or PairNorm. Otherwise, no normalization.
@@ -80,7 +80,7 @@ def get_config():
     training.eval_every_steps = 5000  # training.n_train_steps + 1  # Turn off eval for now
     training.save_every_steps = 20_000
     training.unconditional_dropout = True  # Set to True to use unconditional dropout (randomly zero out conditioning vectors)
-    training.p_uncond = 0.1  # Fraction of conditioning vectors to zero out if unconditional_dropout is True
+    training.p_uncond = 1.0  # Fraction of conditioning vectors to zero out if unconditional_dropout is True
 
     # Data
     config.data = data = ml_collections.ConfigDict()
