@@ -82,6 +82,7 @@ class VariationalDiffusionModel(nn.Module):
             config = yaml.safe_load(file)
         config = ConfigDict(config)
         score_dict = FrozenDict(config.score)
+        print(score_dict)
         encoder_dict = FrozenDict(config.encoder)
         decoder_dict = FrozenDict(config.decoder)
         if norm_dict is None:
@@ -96,7 +97,7 @@ class VariationalDiffusionModel(nn.Module):
             )
         x_mean = tuple(map(float, norm_dict["mean"]))
         x_std = tuple(map(float, norm_dict["std"]))
-        norm_dict_input = FrozenDict({"x_mean": x_mean, "x_std": x_std})
+        norm_dict_input = FrozenDict({"x_mean": x_mean, "x_std": x_std, "box_size": config.data.box_size})
         vdm = VariationalDiffusionModel(
             d_feature=config.data.n_features,
             timesteps=config.vdm.timesteps,
