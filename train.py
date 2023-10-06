@@ -30,7 +30,6 @@ from models.train_utils import (
     create_input_iter,
     param_count,
     train_step,
-    eval_step,
     to_wandb_config,
 )
 
