@@ -50,7 +50,7 @@ class VariationalDiffusionModel(nn.Module):
     gamma_min: float = -8.0
     gamma_max: float = 14.0
     antithetic_time_sampling: bool = True
-    noise_schedule: str = "linear"  # "linear", "learned_linear", or "learner_net
+    noise_schedule: str = "linear"  # "linear", "learned_linear", or "learned_net"
     noise_scale: float = 1.0e-3
     d_t_embedding: int = 32
     score: str = "transformer"  # "transformer", "graph"
