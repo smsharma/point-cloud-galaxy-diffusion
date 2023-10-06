@@ -184,14 +184,15 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
 
             # Eval periodically
             if (step % config.training.eval_every_steps == 0) and (step != 0) and (jax.process_index() == 0) and (config.wandb.log_train):
-                eval_likelihood(
-                    vdm=vdm,
-                    pstate=unreplicate(pstate),
-                    rng=rng,
-                    true_samples=x_batch.reshape((-1, *x_batch.shape[2:])),
-                    conditioning=conditioning_batch.reshape((-1, *conditioning_batch.shape[2:])),
-                    mask=mask_batch.reshape((-1, *mask_batch.shape[2:])),
-                )
+                if conditioning_batch is not None:
+                    eval_likelihood(
+                        vdm=vdm,
+                        pstate=unreplicate(pstate),
+                        rng=rng,
+                        true_samples=x_batch.reshape((-1, *x_batch.shape[2:])),
+                        conditioning=conditioning_batch.reshape((-1, *conditioning_batch.shape[2:])),
+                        mask=mask_batch.reshape((-1, *mask_batch.shape[2:])),
+                    )
                 eval_generation(
                     vdm=vdm,
                     pstate=unreplicate(pstate),
@@ -199,7 +200,7 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
                     n_samples=config.training.batch_size,
                     n_particles=x_batch.shape[-2],  # config.data.n_particles,
                     true_samples=x_batch.reshape((-1, *x_batch.shape[2:])),
-                    conditioning=conditioning_batch.reshape((-1, *conditioning_batch.shape[2:])),
+                    conditioning=conditioning_batch.reshape((-1, *conditioning_batch.shape[2:])) if conditioning_batch is not None else None,
                     mask=mask_batch.reshape((-1, *mask_batch.shape[2:])),
                     norm_dict=norm_dict,
                     steps=500,
