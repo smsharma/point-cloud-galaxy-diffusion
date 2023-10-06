@@ -64,7 +64,6 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
         yaml.dump(config.to_dict(), f)
 
     writer = metric_writers.create_default_writer(logdir=workdir, just_logging=jax.process_index() != 0)
-
     # Load the dataset
     train_ds, norm_dict = load_data(
         config.data.dataset,
@@ -74,23 +73,13 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
         config.seed,
         shuffle=True,
         split="train",
-        # **config.data.kwargs,
-    )
-    eval_ds, _ = load_data(
-        config.data.dataset,
-        config.data.n_features,
-        config.data.n_particles,
-        config.training.batch_size,
-        config.seed,
-        shuffle=False,
-        split="val",
+        simulation_set = config.data.simulation_set,
         # **config.data.kwargs,
     )
 
     add_augmentations = True if config.data.add_rotations or config.data.add_translations else False
 
     batches = create_input_iter(train_ds)
-    eval_batches = create_input_iter(eval_ds)
 
     logging.info("Loaded the %s dataset", config.data.dataset)
 
@@ -139,15 +128,15 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
     _, params = vdm.init_with_output(
         {"sample": rng, "params": rng_params},
         x_batch[0],
-        conditioning_batch[0],
+        conditioning_batch[0] if conditioning_batch is not None else None,
         mask_batch[0],
     )
+
 
     logging.info("Instantiated the model")
     logging.info("Number of parameters: %d", param_count(params))
 
     ## Training config and loop
-
     schedule = optax.warmup_cosine_decay_schedule(
         init_value=0.0,
         peak_value=config.optim.learning_rate,

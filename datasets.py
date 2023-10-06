@@ -50,7 +50,7 @@ def get_nbody_data(
     simulation_set: str = 'lhc',
 ):
     DATA_DIR = Path("/n/holystore01/LABS/iaifi_lab/Lab/set-diffuser-data/")
-    x, conditioning = get_halo_data(data_dir=DATA_DIR, n_features=n_features, n_particles=n_particles, split=split)
+    x, conditioning = get_halo_data(data_dir=DATA_DIR, n_features=n_features, n_particles=n_particles, split=split, simulation_set=simulation_set)
     if split == "train":
         x_train = x
     else:
@@ -65,7 +65,8 @@ def get_nbody_data(
     x_mean = x_train.mean(axis=(0, 1))
     x_std = x_train.std(axis=(0, 1))
     norm_dict = {"mean": x_mean, "std": x_std}
-    conditioning = conditioning[:, [0, -1]]  # Select only omega_m and sigma_8
+    if conditioning is not None:
+        conditioning = conditioning[:, [0, -1]]  # Select only omega_m and sigma_8
     mask = np.ones((x.shape[0], n_particles))  # No mask
     x = (x - x_mean + EPS) / (x_std + EPS)
     # Finalize
