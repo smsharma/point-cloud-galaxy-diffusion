@@ -2,11 +2,12 @@
 
 #SBATCH --job-name=train
 #SBATCH --nodes=1
-#SBATCH --mem=250GB
+#SBATCH --mem=80GB
 #SBATCH --time=48:00:00
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:1
 #SBATCH --account=iaifi_lab
-#SBATCH -p iaifi_gpu
+## SBATCH -p iaifi_gpu
+#SBATCH -p gpu
 
 export TF_CPP_MIN_LOG_LEVEL="2"
 
