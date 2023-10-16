@@ -28,10 +28,10 @@ def train_step(state, batch, rng, model, loss_fn, unconditional_dropout=False, p
 
     # Unconditional dropout rng
     rng, rng_uncond = jax.random.split(rng)
-    random_nums = jax.random.uniform(rng_uncond, conditioning.shape[:1]).reshape(-1, 1)
 
     # Set a fraction p_uncond of conditioning vectors to zero if unconditional_dropout is True
     if conditioning is not None and unconditional_dropout:
+        random_nums = jax.random.uniform(rng_uncond, conditioning.shape[:1]).reshape(-1, 1)
         conditioning = np.where(random_nums < p_uncond, np.zeros_like(conditioning), conditioning)
 
     loss, grads = jax.value_and_grad(loss_fn)(state.params, model, rng, x, conditioning, mask)

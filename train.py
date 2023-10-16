@@ -63,7 +63,6 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
         yaml.dump(config.to_dict(), f)
 
     writer = metric_writers.create_default_writer(logdir=workdir, just_logging=jax.process_index() != 0)
-
     # Load the dataset
     train_ds, norm_dict = load_data(
         config.data.dataset,
@@ -73,8 +72,10 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
         config.seed,
         shuffle=True,
         split="train",
+        simulation_set = config.data.simulation_set,
         # **config.data.kwargs,
     )
+
     add_augmentations = True if config.data.add_rotations or config.data.add_translations else False
 
     batches = create_input_iter(train_ds)
@@ -126,15 +127,15 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
     _, params = vdm.init_with_output(
         {"sample": rng, "params": rng_params},
         x_batch[0],
-        conditioning_batch[0],
+        conditioning_batch[0] if conditioning_batch is not None else None,
         mask_batch[0],
     )
+
 
     logging.info("Instantiated the model")
     logging.info("Number of parameters: %d", param_count(params))
 
     ## Training config and loop
-
     schedule = optax.warmup_cosine_decay_schedule(
         init_value=0.0,
         peak_value=config.optim.learning_rate,
@@ -183,14 +184,15 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
 
             # Eval periodically
             if (step % config.training.eval_every_steps == 0) and (step != 0) and (jax.process_index() == 0) and (config.wandb.log_train):
-                eval_likelihood(
-                    vdm=vdm,
-                    pstate=unreplicate(pstate),
-                    rng=rng,
-                    true_samples=x_batch.reshape((-1, *x_batch.shape[2:])),
-                    conditioning=conditioning_batch.reshape((-1, *conditioning_batch.shape[2:])),
-                    mask=mask_batch.reshape((-1, *mask_batch.shape[2:])),
-                )
+                if conditioning_batch is not None:
+                    eval_likelihood(
+                        vdm=vdm,
+                        pstate=unreplicate(pstate),
+                        rng=rng,
+                        true_samples=x_batch.reshape((-1, *x_batch.shape[2:])),
+                        conditioning=conditioning_batch.reshape((-1, *conditioning_batch.shape[2:])),
+                        mask=mask_batch.reshape((-1, *mask_batch.shape[2:])),
+                    )
                 eval_generation(
                     vdm=vdm,
                     pstate=unreplicate(pstate),
@@ -198,7 +200,7 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
                     n_samples=config.training.batch_size,
                     n_particles=x_batch.shape[-2],  # config.data.n_particles,
                     true_samples=x_batch.reshape((-1, *x_batch.shape[2:])),
-                    conditioning=conditioning_batch.reshape((-1, *conditioning_batch.shape[2:])),
+                    conditioning=conditioning_batch.reshape((-1, *conditioning_batch.shape[2:])) if conditioning_batch is not None else None,
                     mask=mask_batch.reshape((-1, *mask_batch.shape[2:])),
                     norm_dict=norm_dict,
                     steps=500,

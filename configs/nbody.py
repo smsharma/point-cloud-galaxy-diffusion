@@ -85,6 +85,7 @@ def get_config():
     # Data
     config.data = data = ml_collections.ConfigDict()
     data.dataset = "nbody"
+    data.simulation_set = 'lhc'
     data.n_particles = 5000  # Select the first n_particles particles
     data.n_features = 3  # Select the first n_features features
     data.n_pos_features = 3  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
