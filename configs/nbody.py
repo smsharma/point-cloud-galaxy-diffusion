@@ -17,9 +17,9 @@ def get_config():
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
-    vdm.gamma_min = -8.0
+    vdm.gamma_min = -3.0
     vdm.gamma_max = 14.0
-    vdm.noise_schedule = "learned_linear"
+    vdm.noise_schedule = "linear"
     vdm.noise_scale = 1e-3
     vdm.timesteps = 0  # 0 for continuous-time VLB
     vdm.embed_context = True
@@ -59,7 +59,7 @@ def get_config():
     score.latent_size = 16
     score.hidden_size = 128
     score.skip_connections = True
-    score.message_passing_steps = 6
+    score.message_passing_steps = 10
     score.attention = True
     score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
     score.use_edges = True
@@ -68,7 +68,7 @@ def get_config():
     score.use_fourier_features = False
     score.n_fourier_features = 16
     score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
-    score.norm = "pair"  # "pair" or "layer" for LayerNorm or PairNorm. Otherwise, no normalization.
+    score.norm = "layer"  # "pair" or "layer" for LayerNorm or PairNorm. Otherwise, no normalization.
 
     # Training
     config.training = training = ml_collections.ConfigDict()
