@@ -17,7 +17,7 @@ def get_config():
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
-    vdm.gamma_min = -8.0
+    vdm.gamma_min = -5.0
     vdm.gamma_max = 14.0
     vdm.noise_schedule = "learned_net"
     vdm.noise_scale = 1e-3
