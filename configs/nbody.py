@@ -17,9 +17,9 @@ def get_config():
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
-    vdm.gamma_min = -5.0
+    vdm.gamma_min = -8.0
     vdm.gamma_max = 14.0
-    vdm.noise_schedule = "learned_net"
+    vdm.noise_schedule = "learned_linear"
     vdm.noise_scale = 1e-3
     vdm.timesteps = 0  # 0 for continuous-time VLB
     vdm.embed_context = True
@@ -59,7 +59,7 @@ def get_config():
     score.latent_size = 16
     score.hidden_size = 128
     score.skip_connections = True
-    score.message_passing_steps = 10
+    score.message_passing_steps = 6
     score.attention = True
     score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
     score.use_edges = True
@@ -85,7 +85,7 @@ def get_config():
     # Data
     config.data = data = ml_collections.ConfigDict()
     data.dataset = "nbody"
-    data.simulation_set = 'lhc'
+    data.simulation_set = "lhc"
     data.n_particles = 5000  # Select the first n_particles particles
     data.n_features = 3  # Select the first n_features features
     data.n_pos_features = 3  # Select the first n_pos_features features as coordinates (e.g., for graph-building)

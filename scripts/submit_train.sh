@@ -2,9 +2,9 @@
 
 #SBATCH --job-name=train
 #SBATCH --nodes=1
-#SBATCH --mem=200GB
+#SBATCH --mem=100GB
 #SBATCH --time=48:00:00
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:2
 #SBATCH --account=iaifi_lab
 ## SBATCH -p iaifi_gpu
 #SBATCH -p iaifi_gpu
