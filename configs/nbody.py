@@ -17,9 +17,9 @@ def get_config():
 
     # Vartiational diffusion model
     config.vdm = vdm = ml_collections.ConfigDict()
-    vdm.gamma_min = -3.0
+    vdm.gamma_min = -8.0
     vdm.gamma_max = 14.0
-    vdm.noise_schedule = "linear"
+    vdm.noise_schedule = "learned_linear"
     vdm.noise_scale = 1e-3
     vdm.timesteps = 0  # 0 for continuous-time VLB
     vdm.embed_context = True
@@ -55,7 +55,7 @@ def get_config():
     score.score = "graph"
     score.k = 20
     score.n_pos_features = 3
-    score.num_mlp_layers = 3
+    score.num_mlp_layers = 4
     score.latent_size = 16
     score.hidden_size = 128
     score.skip_connections = True
@@ -73,7 +73,7 @@ def get_config():
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
-    training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
+    training.batch_size = 32  # Must be divisible by number of devices; this is the total batch size, not per-device
     training.n_train_steps = 301_000
     training.warmup_steps = 5_000
     training.log_every_steps = 100
