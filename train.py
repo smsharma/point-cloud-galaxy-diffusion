@@ -146,10 +146,11 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
 
     # Check if config.optim.grad_clip exists, if so add gradient clipping
     if hasattr(config.optim, "grad_clip"):
-        tx = optax.chain(
-            optax.clip(config.optim.grad_clip),
-            tx,
-        )
+        if config.optim.grad_clip is not None:
+            tx = optax.chain(
+                optax.clip(config.optim.grad_clip),
+                tx,
+            )
 
     state = train_state.TrainState.create(apply_fn=vdm.apply, params=params, tx=tx)
     pstate = replicate(state)
