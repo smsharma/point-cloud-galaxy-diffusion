@@ -63,11 +63,13 @@ class VariationalDiffusionModel(nn.Module):
     use_encdec: bool = True
     norm_dict: dict = dataclasses.field(default_factory=lambda: {"x_mean": 0.0, "x_std": 1.0, "box_size": 1000.0})
     n_pos_features: int = 3
+    scale_non_linear_init: bool = False 
 
     @classmethod
     def from_path_to_model(
         cls,
         path_to_model: Union[str, Path],
+        checkpoint_step: int = None,
         norm_dict: dict = None,
     ) -> "VariationalDiffusionModel":
         """load model from path where it is stored
@@ -82,7 +84,6 @@ class VariationalDiffusionModel(nn.Module):
             config = yaml.safe_load(file)
         config = ConfigDict(config)
         score_dict = FrozenDict(config.score)
-        print(score_dict)
         encoder_dict = FrozenDict(config.encoder)
         decoder_dict = FrozenDict(config.decoder)
         if norm_dict is None:
@@ -116,6 +117,7 @@ class VariationalDiffusionModel(nn.Module):
             use_encdec=config.vdm.use_encdec,
             norm_dict=norm_dict_input,
             n_pos_features=config.score.n_pos_features,
+            #scale_non_linear_init = config.vdm.scale_non_linear_init,
         )
         rng = jax.random.PRNGKey(42)
         x_dummy = jax.random.normal(
@@ -138,7 +140,7 @@ class VariationalDiffusionModel(nn.Module):
         tx = optax.adamw(learning_rate=schedule, weight_decay=config.optim.weight_decay)
         state = train_state.TrainState.create(apply_fn=vdm.apply, params=params, tx=tx)
         # Training config and state
-        restored_state = checkpoints.restore_checkpoint(ckpt_dir=path_to_model, target=state)
+        restored_state = checkpoints.restore_checkpoint(ckpt_dir=path_to_model, target=state, step=checkpoint_step,)
         if state is restored_state:
             raise FileNotFoundError(f"Did not load checkpoint correctly")
         return vdm, restored_state.params
@@ -150,7 +152,7 @@ class VariationalDiffusionModel(nn.Module):
         elif self.noise_schedule == "learned_linear":
             self.gamma = NoiseScheduleScalar(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
         elif self.noise_schedule == "learned_net":
-            self.gamma = NoiseScheduleNet(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
+            self.gamma = NoiseScheduleNet(gamma_min=self.gamma_min, gamma_max=self.gamma_max, scale_non_linear_init=self.scale_non_linear_init,)
         else:
             raise NotImplementedError(f"Unknown noise schedule {self.noise_schedule}")
 

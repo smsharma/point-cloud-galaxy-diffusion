@@ -301,17 +301,17 @@ def plot_2pcf(generated_samples: np.array, true_samples: np.array, boxsize: floa
         true_2pcfs.append(compute_2pcf(true_samples[idx][..., :3], boxsize, r_bins))
 
     fig, _ = plt.subplots()
-    c = plt.loglog(r, onp.mean(true_2pcfs, axis=0), label="N-body")
+    c = plt.plot(r, r**2*onp.mean(true_2pcfs, axis=0), label="N-body")
     plt.plot(
         r,
-        (onp.mean(true_2pcfs, axis=0) - onp.std(true_2pcfs, axis=0)),
+        r**2*(onp.mean(true_2pcfs, axis=0) - onp.std(true_2pcfs, axis=0)),
         alpha=0.5,
         color=c[0].get_color(),
         linestyle="dashed",
     )
     plt.plot(
         r,
-        (onp.mean(true_2pcfs, axis=0) + onp.std(true_2pcfs, axis=0)),
+        r**2*(onp.mean(true_2pcfs, axis=0) + onp.std(true_2pcfs, axis=0)),
         alpha=0.5,
         color=c[0].get_color(),
         linestyle="dashed",
@@ -325,17 +325,17 @@ def plot_2pcf(generated_samples: np.array, true_samples: np.array, boxsize: floa
     #    alpha=0.5,
     #    color=c[0].get_color(),
     # )
-    c = plt.plot(r, onp.mean(generated_2pcfs, axis=0), label="Diffusion")
+    c = plt.plot(r, r**2*onp.mean(generated_2pcfs, axis=0), label="Diffusion")
     plt.plot(
         r,
-        (onp.mean(generated_2pcfs, axis=0) - onp.std(generated_2pcfs, axis=0)),
+        r**2*(onp.mean(generated_2pcfs, axis=0) - onp.std(generated_2pcfs, axis=0)),
         alpha=0.5,
         color=c[0].get_color(),
         linestyle="dashed",
     )
     plt.plot(
         r,
-        (onp.mean(generated_2pcfs, axis=0) + onp.std(generated_2pcfs, axis=0)),
+        r**2*(onp.mean(generated_2pcfs, axis=0) + onp.std(generated_2pcfs, axis=0)),
         alpha=0.5,
         color=c[0].get_color(),
         linestyle="dashed",
