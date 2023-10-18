@@ -72,7 +72,7 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
         config.seed,
         shuffle=True,
         split="train",
-        simulation_set = config.data.simulation_set,
+        simulation_set=config.data.simulation_set,
         # **config.data.kwargs,
     )
 
@@ -131,7 +131,6 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
         mask_batch[0],
     )
 
-
     logging.info("Instantiated the model")
     logging.info("Number of parameters: %d", param_count(params))
 
@@ -142,7 +141,15 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
         warmup_steps=config.training.warmup_steps,
         decay_steps=config.training.n_train_steps,
     )
+
     tx = optax.adamw(learning_rate=schedule, weight_decay=config.optim.weight_decay)
+
+    # Check if config.optim.grad_clip exists, if so add gradient clipping
+    if hasattr(config.optim, "grad_clip"):
+        tx = optax.chain(
+            optax.clip(config.optim.grad_clip),
+            tx,
+        )
 
     state = train_state.TrainState.create(apply_fn=vdm.apply, params=params, tx=tx)
     pstate = replicate(state)

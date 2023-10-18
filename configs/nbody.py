@@ -57,9 +57,9 @@ def get_config():
     score.n_pos_features = 3
     score.num_mlp_layers = 4
     score.latent_size = 16
-    score.hidden_size = 64
+    score.hidden_size = 128
     score.skip_connections = True
-    score.message_passing_steps = 10
+    score.message_passing_steps = 4
     score.attention = True
     score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
     score.use_edges = True
@@ -86,7 +86,7 @@ def get_config():
     # Data
     config.data = data = ml_collections.ConfigDict()
     data.dataset = "nbody"
-    data.simulation_set = "fiducial"  # "lhc" or "fiducial"
+    data.simulation_set = "lhc"  # "lhc" or "fiducial"
     data.n_particles = 5000  # Select the first n_particles particles
     data.n_features = 3  # Select the first n_features features
     data.n_pos_features = 3  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
@@ -99,7 +99,8 @@ def get_config():
     # Optimizer (AdamW)
     config.optim = optim = ml_collections.ConfigDict()
     optim.learning_rate = 3e-4
-    optim.weight_decay = 1e-5
+    optim.weight_decay = 1e-4
+    optim.grad_clip = 1.0
 
     config.seed = 52
 
