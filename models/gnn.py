@@ -114,6 +114,7 @@ class GraphConvNet(nn.Module):
     num_mlp_layers: int
     message_passing_steps: int
     skip_connections: bool = True
+    edge_skip_connections: bool = True
     norm: str = "layer"
     attention: bool = False
     in_features: int = 3
@@ -164,7 +165,7 @@ class GraphConvNet(nn.Module):
                 new_graph = graph_net(graph)
                 graph = graph._replace(
                     nodes=graph.nodes + new_graph.nodes,
-                    edges=new_graph.edges if graph.edges is None else graph.edges + new_graph.edges,
+                    edges=new_graph.edges if (graph.edges is None or not self.edge_skip_connections) else graph.edges + new_graph.edges,
                 )
             else:
                 graph = graph_net(graph)
