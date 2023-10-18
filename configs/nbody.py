@@ -19,7 +19,7 @@ def get_config():
     config.vdm = vdm = ml_collections.ConfigDict()
     vdm.gamma_min = -8.0
     vdm.gamma_max = 14.0
-    vdm.noise_schedule = "learned_net"
+    vdm.noise_schedule = "learned_linear"
     vdm.noise_scale = 1e-3
     vdm.timesteps = 0  # 0 for continuous-time VLB
     vdm.embed_context = True
@@ -68,7 +68,8 @@ def get_config():
     score.use_fourier_features = False
     score.n_fourier_features = 16
     score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
-    score.norm = "pair"  # "pair" or "layer" for LayerNorm or PairNorm. Otherwise, no normalization.
+    score.norm = "layer"  # "pair" or "layer" for LayerNorm or PairNorm. Otherwise, no normalization.
+    score.edge_skip_connections = False
 
     # Training
     config.training = training = ml_collections.ConfigDict()
@@ -78,14 +79,14 @@ def get_config():
     training.warmup_steps = 5_000
     training.log_every_steps = 100
     training.eval_every_steps = 5000  # training.n_train_steps + 1  # Turn off eval for now
-    training.save_every_steps = 20_000
+    training.save_every_steps = 5000
     training.unconditional_dropout = False  # Set to True to use unconditional dropout (randomly zero out conditioning vectors)
     training.p_uncond = 0.0  # Fraction of conditioning vectors to zero out if unconditional_dropout is True
 
     # Data
     config.data = data = ml_collections.ConfigDict()
     data.dataset = "nbody"
-    data.simulation_set = 'lhc'
+    data.simulation_set = "lhc"  # "lhc" or "fiducial"
     data.n_particles = 5000  # Select the first n_particles particles
     data.n_features = 3  # Select the first n_features features
     data.n_pos_features = 3  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
@@ -99,6 +100,7 @@ def get_config():
     config.optim = optim = ml_collections.ConfigDict()
     optim.learning_rate = 3e-4
     optim.weight_decay = 1e-4
+    optim.grad_clip = 1.0
 
     config.seed = 52
 

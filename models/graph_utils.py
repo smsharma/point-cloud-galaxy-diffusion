@@ -34,7 +34,8 @@ class PairNorm(nn.Module):
         feature_l2_sqrt_mean = np.sqrt(feature_l2_sum / features.shape[0])
 
         # Divide centered by L2 norm per node and multiply by mean L2 norm
-        features_normalized = feature_centered / feature_l2 * feature_l2_sqrt_mean * rescale_factor
+        # Add eps for numerical stability
+        features_normalized = feature_centered / (feature_l2 + EPS) * feature_l2_sqrt_mean * rescale_factor
 
         return features_normalized
 
