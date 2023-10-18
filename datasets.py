@@ -28,15 +28,20 @@ def make_dataloader(x, conditioning, mask, batch_size, seed, shuffle=True):
     return train_ds
 
 
-def get_halo_data(data_dir, n_features, n_particles, split: str = "train", simulation_set: str = 'lhc',):
+def get_halo_data(data_dir, n_features, n_particles, split: str = "train", simulation_set: str = 'lhc', conditioning_parameters: list = ['Omega_m', 'sigma_8'],):
     if simulation_set == 'lhc':
         x = np.load(data_dir / f"{split}_halos.npy")
-        conditioning = np.array(pd.read_csv(data_dir / f"{split}_cosmology.csv").values)
+        conditioning = pd.read_csv(data_dir / f"{split}_cosmology.csv")
+    elif simulation_set == 'lhc+fiducial':
+        x = np.load(data_dir / f"{split}_halos_combined.npy")
+        conditioning = pd.read_csv(data_dir / f"{split}_cosmology_combined.csv")
     elif simulation_set == 'fiducial':
         x = np.load(data_dir / f"{split}_halos_fiducial.npy")
         conditioning = None
     else:
         raise NotImplementedError(f'{simulation_set} does not exist as a simulation set')
+    if conditioning is not None:
+        conditioning = np.array(conditioning[conditioning_parameters].values)
     if n_features == 7:
         x = x.at[:, :, -1].set(np.log10(x[:, :, -1]))  # Use log10(mass)
     x = x[:, :n_particles, :n_features]
@@ -48,9 +53,17 @@ def get_nbody_data(
     n_particles,
     split: str = "train",
     simulation_set: str = 'lhc',
+    conditioning_parameters: list = ['Omega_m', 'sigma_8'],
 ):
     DATA_DIR = Path("/n/holystore01/LABS/iaifi_lab/Lab/set-diffuser-data/")
-    x, conditioning = get_halo_data(data_dir=DATA_DIR, n_features=n_features, n_particles=n_particles, split=split, simulation_set=simulation_set)
+    x, conditioning = get_halo_data(
+        data_dir=DATA_DIR, 
+        n_features=n_features, 
+        n_particles=n_particles, 
+        split=split, 
+        simulation_set=simulation_set,
+        conditioning_parameters=conditioning_parameters,
+    )
     if split == "train":
         x_train = x
     else:
@@ -65,8 +78,8 @@ def get_nbody_data(
     x_mean = x_train.mean(axis=(0, 1))
     x_std = x_train.std(axis=(0, 1))
     norm_dict = {"mean": x_mean, "std": x_std}
-    if conditioning is not None:
-        conditioning = conditioning[:, [0, -1]]  # Select only omega_m and sigma_8
+    #if conditioning is not None:
+    #    conditioning = conditioning[:, [0, -1]]  # Select only omega_m and sigma_8
     mask = np.ones((x.shape[0], n_particles))  # No mask
     x = (x - x_mean + EPS) / (x_std + EPS)
     # Finalize
@@ -81,12 +94,14 @@ def nbody_dataset(
     split: str = "train",
     shuffle: bool = True,
     simulation_set: str = 'lhc',
+    conditioning_parameters: list = ['Omega_m', 'sigma_8'],
 ):
     x, mask, conditioning, norm_dict = get_nbody_data(
         n_features,
         n_particles,
         split=split,
         simulation_set=simulation_set,
+        conditioning_parameters=conditioning_parameters,
     )
     ds = make_dataloader(
         x,

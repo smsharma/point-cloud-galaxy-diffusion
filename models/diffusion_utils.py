@@ -8,7 +8,7 @@ class NoiseScheduleNet(nn.Module):
     gamma_max: float = 7.0
     n_features: int = 1024
     nonlinear: bool = True
-    scale_non_linear_init: bool = True 
+    scale_non_linear_init: bool = False 
  
     def setup(self):
         init_bias = self.gamma_max
@@ -18,7 +18,7 @@ class NoiseScheduleNet(nn.Module):
         if self.nonlinear:
             if self.scale_non_linear_init:
                 stddev_l2 = init_scale 
-                stddev_l3 = init_scale  #/ np.sqrt(self.n_features)
+                stddev_l3 = init_scale  
             else:
                 stddev_l2 = stddev_l3 = 0.01
             self.l2 = DenseMonotone(self.n_features, kernel_init=nn.initializers.normal(stddev=stddev_l2))

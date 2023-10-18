@@ -94,6 +94,7 @@ def get_config():
     data.add_augmentations = True
     data.add_rotations = True
     data.add_translations = True
+    data.conditioning_parameters = ['Omega_m', 'sigma_8']
     data.kwargs = {}
 
     # Optimizer (AdamW)
