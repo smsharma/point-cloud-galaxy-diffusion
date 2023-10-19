@@ -138,6 +138,13 @@ class VariationalDiffusionModel(nn.Module):
             decay_steps=config.training.n_train_steps,
         )
         tx = optax.adamw(learning_rate=schedule, weight_decay=config.optim.weight_decay)
+        if hasattr(config.optim, "grad_clip"):
+            if config.optim.grad_clip is not None:
+                tx = optax.chain(
+                    optax.clip(config.optim.grad_clip),
+                    tx,
+                )
+
         state = train_state.TrainState.create(apply_fn=vdm.apply, params=params, tx=tx)
         # Training config and state
         restored_state = checkpoints.restore_checkpoint(ckpt_dir=path_to_model, target=state, step=checkpoint_step,)

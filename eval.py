@@ -181,19 +181,10 @@ def plot_2pcf(generated_samples: np.array, true_samples: np.array, boxsize: floa
         color=c[0].get_color(),
         linestyle="dashed",
     )
-
-    # fill_between somehow doesnt work with wandb :(
-    # plt.fill_between(
-    #    r,
-    #    (onp.mean(true_2pcfs, axis=0) - onp.std(true_2pcfs,axis=0)),
-    #    (onp.mean(true_2pcfs, axis=0) + onp.std(true_2pcfs,axis=0)),
-    #    alpha=0.5,
-    #    color=c[0].get_color(),
-    # )
     c = plt.plot(r, r**2*onp.mean(generated_2pcfs, axis=0), label="Diffusion")
     plt.plot(
         r,
-        r**2*(onp.mean(generated_2pcfs, axis=0) - onp.std(generated_2pcfs, axis=0)/onp.sqrt(len(generated_2pcfs)))),
+        r**2*(onp.mean(generated_2pcfs, axis=0) - onp.std(generated_2pcfs, axis=0)/onp.sqrt(len(generated_2pcfs))),
         alpha=0.5,
         color=c[0].get_color(),
         linestyle="dashed",
@@ -205,13 +196,7 @@ def plot_2pcf(generated_samples: np.array, true_samples: np.array, boxsize: floa
         color=c[0].get_color(),
         linestyle="dashed",
     )
-    # plt.fill_between(
-    #    r,
-    #    (onp.mean(generated_2pcfs, axis=0) - onp.std(generated_2pcfs,axis=0)),
-    #    (onp.mean(generated_2pcfs, axis=0) + onp.std(generated_2pcfs,axis=0)),
-    #    alpha=0.5,
-    #    color=c[0].get_color(),
-    # )
+
     plt.ylabel("2PCF")
     plt.xlabel("r [Mpc/h]")
     plt.legend(fontsize=8)

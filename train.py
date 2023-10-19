@@ -116,7 +116,6 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
         encoder_dict=encoder_dict,
         decoder_dict=decoder_dict,
         norm_dict=norm_dict_input,
-        scale_non_linear_init=config.vdm.scale_non_linear_init,
     )
 
     rng = jax.random.PRNGKey(config.seed)
