@@ -94,7 +94,7 @@ def get_config():
     data.add_augmentations = True
     data.add_rotations = True
     data.add_translations = True
-    data.conditioning_parameters = ['Omega_m', 'sigma_8']
+    data.conditioning_parameters = ["Omega_m", "sigma_8"]
     data.kwargs = {}
 
     # Optimizer (AdamW)
@@ -102,7 +102,7 @@ def get_config():
     optim.learning_rate = 3e-4
     optim.weight_decay = 1e-4
     optim.grad_clip = 0.5
-    optim.lr_schedule = "constant"
+    optim.lr_schedule = "cosine"
 
     config.seed = 52
 
