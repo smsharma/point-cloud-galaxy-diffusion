@@ -8,15 +8,21 @@ class NoiseScheduleNet(nn.Module):
     gamma_max: float = 7.0
     n_features: int = 1024
     nonlinear: bool = True
-
+    scale_non_linear_init: bool = False 
+ 
     def setup(self):
         init_bias = self.gamma_max
         init_scale = self.gamma_min - init_bias
 
         self.l1 = DenseMonotone(1, kernel_init=nn.initializers.constant(init_scale), bias_init=nn.initializers.constant(init_bias))
         if self.nonlinear:
-            self.l2 = DenseMonotone(self.n_features, kernel_init=nn.initializers.normal())
-            self.l3 = DenseMonotone(1, kernel_init=nn.initializers.normal(), use_bias=False, decreasing=False)
+            if self.scale_non_linear_init:
+                stddev_l2 = init_scale 
+                stddev_l3 = init_scale  
+            else:
+                stddev_l2 = stddev_l3 = 0.01
+            self.l2 = DenseMonotone(self.n_features, kernel_init=nn.initializers.normal(stddev=stddev_l2))
+            self.l3 = DenseMonotone(1, kernel_init=nn.initializers.normal(stddev=stddev_l3), use_bias=False, decreasing=False)
 
     @nn.compact
     def __call__(self, t):
