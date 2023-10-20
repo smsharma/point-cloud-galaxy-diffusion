@@ -135,12 +135,22 @@ def train(config: ml_collections.ConfigDict, workdir: str = "./logging/") -> tra
     logging.info("Number of parameters: %d", param_count(params))
 
     ## Training config and loop
-    schedule = optax.warmup_cosine_decay_schedule(
-        init_value=0.0,
-        peak_value=config.optim.learning_rate,
-        warmup_steps=config.training.warmup_steps,
-        decay_steps=config.training.n_train_steps,
-    )
+
+    # Default schedule if not specified
+    if not hasattr(config.optim, "lr_schedule"):
+        config.optim.lr_schedule = "cosine"
+
+    if config.optim.lr_schedule == "cosine":
+        schedule = optax.warmup_cosine_decay_schedule(
+            init_value=0.0,
+            peak_value=config.optim.learning_rate,
+            warmup_steps=config.training.warmup_steps,
+            decay_steps=config.training.n_train_steps,
+        )
+    elif config.optim.lr_schedule == "constant":
+        schedule = optax.constant_schedule(config.optim.learning_rate)
+    else:
+        raise ValueError(f"Invalid learning rate schedule: {config.optim.lr_schedule}")
 
     tx = optax.adamw(learning_rate=schedule, weight_decay=config.optim.weight_decay)
 
