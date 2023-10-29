@@ -59,7 +59,7 @@ def get_config():
     score.latent_size = 16
     score.hidden_size = 128
     score.skip_connections = True
-    score.message_passing_steps = 10
+    score.message_passing_steps = 4
     score.attention = True
     score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
     score.use_edges = True
@@ -88,7 +88,7 @@ def get_config():
     data.dataset = "nbody"
     data.simulation_set = "lhc"  # "lhc" or "fiducial"
     data.n_particles = 5000  # Select the first n_particles particles
-    data.n_features = 3  # Select the first n_features features
+    data.n_features = 7  # Select the first n_features features
     data.n_pos_features = 3  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
     data.box_size = 1000.0  # Need to know the box size for augmentations
     data.add_augmentations = True

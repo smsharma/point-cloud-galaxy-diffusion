@@ -78,8 +78,8 @@ class GraphScoreNet(nn.Module):
 
     def get_graph_edges(self, z, n_pos_features, k, mask, graph_method="pairwise_dist", use_pbc=False):
         if graph_method == "pairwise_dist":
-            coord_mean = np.array(self.norm_dict["x_mean"])
-            coord_std = np.array(self.norm_dict["x_std"])
+            coord_mean = np.array(self.norm_dict["x_mean"])[..., :n_pos_features]
+            coord_std = np.array(self.norm_dict["x_std"])[..., :n_pos_features]
             box_size = np.array(self.norm_dict["box_size"])
             cell = box_size * np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
             z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
