@@ -6,13 +6,14 @@
 #SBATCH --time=48:00:00
 #SBATCH --gres=gpu:4
 #SBATCH --account=iaifi_lab
+##SBATCH -p gpu_requeue
 #SBATCH -p iaifi_gpu
 
 export TF_CPP_MIN_LOG_LEVEL="2"
 
 # Load modules
 module load python/3.10.9-fasrc01
-module load cuda/12.0.1-fasrc01
+module load cuda/12.2.0-fasrc01
 module load gcc/12.2.0-fasrc01
 module load openmpi/4.1.4-fasrc01
 
