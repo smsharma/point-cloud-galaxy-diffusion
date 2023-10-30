@@ -6,8 +6,8 @@
 #SBATCH --time=48:00:00
 #SBATCH --gres=gpu:4
 #SBATCH --account=iaifi_lab
-##SBATCH -p gpu_requeue
-#SBATCH -p iaifi_gpu
+#BATCH -p gpu_requeue
+##SBATCH -p gpu
 
 export TF_CPP_MIN_LOG_LEVEL="2"
 
