@@ -12,7 +12,7 @@ def get_config():
     wandb.group = "cosmology"
     wandb.job_type = "training"
     wandb.name = None
-    wandb.log_train = True
+    wandb.log_train = False
     wandb.workdir = "/n/holystore01/LABS/iaifi_lab/Lab/set-diffuser-checkpoints/"
 
     # Vartiational diffusion model
@@ -38,17 +38,25 @@ def get_config():
     decoder.d_hidden = 256
     decoder.n_layers = 4
 
-    # Transformer score model
+    # # Transformer score model
+    # config.score = score = ml_collections.ConfigDict()
+    # score.score = "transformer"
+    # score.induced_attention = False
+    # score.n_inducing_points = 200
+    # score.d_model = 256
+    # score.d_mlp = 1024
+    # score.n_layers = 6
+    # score.n_heads = 4
+    # score.concat_conditioning = False
+    # score.d_conditioning = 256
+
+    # Transformer score model with adaptive layer norm
     config.score = score = ml_collections.ConfigDict()
-    score.score = "transformer"
-    score.induced_attention = False
-    score.n_inducing_points = 200
+    score.score = "transformer_adanorm"
     score.d_model = 256
     score.d_mlp = 1024
     score.n_layers = 6
     score.n_heads = 4
-    score.concat_conditioning = False
-    score.d_conditioning = 256
 
     # # Graph score model
     # config.score = score = ml_collections.ConfigDict()
@@ -74,9 +82,9 @@ def get_config():
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
-    training.batch_size = 32  # Must be divisible by number of devices; this is the total batch size, not per-device
-    training.n_train_steps = 1001_000
-    training.warmup_steps = 10_000
+    training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
+    training.n_train_steps = 301_000
+    training.warmup_steps = 5_000
     training.log_every_steps = 100
     training.eval_every_steps = 5000  # training.n_train_steps + 1  # Turn off eval for now
     training.save_every_steps = 5000

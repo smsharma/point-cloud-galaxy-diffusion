@@ -63,7 +63,7 @@ class VariationalDiffusionModel(nn.Module):
     use_encdec: bool = True
     norm_dict: dict = dataclasses.field(default_factory=lambda: {"x_mean": 0.0, "x_std": 1.0, "box_size": 1000.0})
     n_pos_features: int = 3
-    scale_non_linear_init: bool = False 
+    scale_non_linear_init: bool = False
 
     @classmethod
     def from_path_to_model(
@@ -117,7 +117,7 @@ class VariationalDiffusionModel(nn.Module):
             use_encdec=config.vdm.use_encdec,
             norm_dict=norm_dict_input,
             n_pos_features=config.score.n_pos_features,
-            #scale_non_linear_init = config.vdm.scale_non_linear_init,
+            # scale_non_linear_init = config.vdm.scale_non_linear_init,
         )
         rng = jax.random.PRNGKey(42)
         x_dummy = jax.random.normal(
@@ -147,7 +147,11 @@ class VariationalDiffusionModel(nn.Module):
 
         state = train_state.TrainState.create(apply_fn=vdm.apply, params=params, tx=tx)
         # Training config and state
-        restored_state = checkpoints.restore_checkpoint(ckpt_dir=path_to_model, target=state, step=checkpoint_step,)
+        restored_state = checkpoints.restore_checkpoint(
+            ckpt_dir=path_to_model,
+            target=state,
+            step=checkpoint_step,
+        )
         if state is restored_state:
             raise FileNotFoundError(f"Did not load checkpoint correctly")
         return vdm, restored_state.params
@@ -159,13 +163,19 @@ class VariationalDiffusionModel(nn.Module):
         elif self.noise_schedule == "learned_linear":
             self.gamma = NoiseScheduleScalar(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
         elif self.noise_schedule == "learned_net":
-            self.gamma = NoiseScheduleNet(gamma_min=self.gamma_min, gamma_max=self.gamma_max, scale_non_linear_init=self.scale_non_linear_init,)
+            self.gamma = NoiseScheduleNet(
+                gamma_min=self.gamma_min,
+                gamma_max=self.gamma_max,
+                scale_non_linear_init=self.scale_non_linear_init,
+            )
         else:
             raise NotImplementedError(f"Unknown noise schedule {self.noise_schedule}")
 
         # Score model specification
         if self.score == "transformer":
-            self.score_model = TransformerScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict)
+            self.score_model = TransformerScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict, adanorm=False)
+        elif self.score == "transformer_adanorm":
+            self.score_model = TransformerScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict, adanorm=True)
         elif self.score == "graph":
             self.score_model = GraphScoreNet(
                 d_t_embedding=self.d_t_embedding,

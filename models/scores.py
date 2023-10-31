@@ -6,6 +6,7 @@ import flax.linen as nn
 import jraph
 
 from models.transformer import Transformer
+from models.transformer_adanorm import Transformer as TransformerAdaNorm
 from models.gnn import GraphConvNet
 from models.mlp import MLP
 
@@ -27,6 +28,7 @@ class TransformerScoreNet(nn.Module):
             "n_heads": 4,
         }
     )
+    adanorm: bool = False
 
     @nn.compact
     def __call__(self, z, t, conditioning, mask):
@@ -49,7 +51,10 @@ class TransformerScoreNet(nn.Module):
         score_dict = dict(self.score_dict)
         score_dict.pop("score", None)
 
-        h = Transformer(n_input=z.shape[-1], **score_dict)(z, cond, mask)
+        if self.adanorm:
+            h = TransformerAdaNorm(n_input=z.shape[-1], **score_dict)(z, cond, mask)
+        else:
+            h = Transformer(n_input=z.shape[-1], **score_dict)(z, cond, mask)
 
         return z + h
 
