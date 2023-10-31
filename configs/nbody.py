@@ -12,7 +12,7 @@ def get_config():
     wandb.group = "cosmology"
     wandb.job_type = "training"
     wandb.name = None
-    wandb.log_train = False
+    wandb.log_train = True
     wandb.workdir = "/n/holystore01/LABS/iaifi_lab/Lab/set-diffuser-checkpoints/"
 
     # Vartiational diffusion model
@@ -82,7 +82,7 @@ def get_config():
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
-    training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
+    training.batch_size = 32  # Must be divisible by number of devices; this is the total batch size, not per-device
     training.n_train_steps = 301_000
     training.warmup_steps = 5_000
     training.log_every_steps = 100
