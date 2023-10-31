@@ -53,7 +53,11 @@ class MultiHeadSelfAttentionBlock(nn.Module):
 
 
 class Transformer(nn.Module):
-    """Simple decoder-only transformer for set modeling.
+    """Transformer with Adaptive Layer Norm for conditioning.
+    See https://arxiv.org/abs/2212.09748, and a reference PyTorch implementation at
+    https://github.com/adelacvg/diff-vits/blob/master/unet1d/attention.py#L320
+
+
     Attributes:
       n_input: The number of input (and output) features.
       d_model: The dimension of the model embedding space.
