@@ -113,6 +113,7 @@ class GraphScoreNet(nn.Module):
         d_cond = cond.shape[-1]  # Dimension of conditioning context
         cond = MLP([d_cond * 4, d_cond * 4, d_cond])(cond)
 
+        # For backwards compatibility
         use_edges = self.score_dict.get("use_edges", False)
         use_absolute_distances = self.score_dict.get("use_absolute_distances", False)
         use_pbc = self.score_dict.get("use_pbc", False)
