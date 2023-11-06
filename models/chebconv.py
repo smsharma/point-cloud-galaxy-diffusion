@@ -41,6 +41,7 @@ class AdaLayerNorm(nn.Module):
 class ChebConv(nn.Module):
     out_channels: int = 128
     K: int = 6
+    bias: bool = True
 
     @nn.compact
     def __call__(self, graph: jraph.GraphsTuple, lambda_max: float = None) -> jraph.GraphsTuple:
@@ -63,6 +64,10 @@ class ChebConv(nn.Module):
             out = out + nn.Dense(self.out_channels)(Tx_2)
             Tx_0, Tx_1 = Tx_1, Tx_2
 
+        if self.bias:
+            bias = self.param("bias", nn.initializers.zeros_init(), (self.out_channels,))
+            out = out + bias
+
         return graph._replace(nodes=out)
 
     def __norm__(self, edge_index, edge_weight, lambda_max=None, num_nodes=5000):
@@ -84,6 +89,7 @@ class ChebConv(nn.Module):
 class ChebConvNet(nn.Module):
     out_channels: int = 128
     K: int = 6
+    bias: bool = True
     message_passing_steps: int = 4
 
     @nn.compact
@@ -91,7 +97,7 @@ class ChebConvNet(nn.Module):
         in_channels = graph.nodes.shape[-1]
 
         for _ in range(self.message_passing_steps):
-            graph = ChebConv(out_channels=self.out_channels, K=self.K)(graph, lambda_max)
+            graph = ChebConv(out_channels=self.out_channels, K=self.K, bias=self.bias)(graph, lambda_max)
             graph = graph._replace(nodes=AdaLayerNorm()(nn.gelu(graph.nodes), graph.globals))
 
         # Readout
