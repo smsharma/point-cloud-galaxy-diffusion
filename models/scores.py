@@ -9,6 +9,7 @@ from models.transformer import Transformer
 from models.transformer_adanorm import Transformer as TransformerAdaNorm
 from models.gnn import GraphConvNet
 from models.chebconv import ChebConvNet
+from models.dynamic_edge_conv import DynamicEdgeConvNet
 from models.mlp import MLP
 
 from models.graph_utils import nearest_neighbors, nearest_neighbors_kd, fourier_features
@@ -130,7 +131,7 @@ class GraphScoreNet(nn.Module):
 
         # `distances` has shape (batch, nodes, 3); if `use_absolute_distances`, collapse the last dim to get just the L1 norm
         if use_absolute_distances:
-            distances = distances.sum(-1, keepdims=True if self.gnn_type == "gcn" else False)
+            distances = distances.sum(-1, keepdims=True if self.gnn_type is not "chebconv" else False)
             distances = fourier_features(distances, num_encodings=n_fourier_features, include_self=True) if use_fourier_features else distances
 
         graph = jraph.GraphsTuple(
@@ -155,10 +156,12 @@ class GraphScoreNet(nn.Module):
         score_dict.pop("n_fourier_features", None)
         score_dict.pop("graph_construction", None)
 
-        if self.gnn_type == "gnn":
+        if self.gnn_type == "graph":
             h = jax.vmap(GraphConvNet(**score_dict, in_features=z.shape[-1]))(graph)
         elif self.gnn_type == "chebconv":
             h = jax.vmap(ChebConvNet(**score_dict))(graph)
+        elif self.gnn_type == "edgeconv":
+            h = jax.vmap(DynamicEdgeConvNet(**score_dict))(graph)
 
         # Predicted noise
         eps = graph.nodes - h.nodes

@@ -59,32 +59,25 @@ def get_config():
     # score.n_layers = 6
     # score.n_heads = 4
 
-    # Graph score model
-    config.score = score = ml_collections.ConfigDict()
-    score.score = "chebconv"
-    score.k = 20
-    score.message_passing_steps = 4
-    score.use_edges = True
-    score.use_pbc = True
-    score.use_absolute_distances = True
-    score.use_fourier_features = False
-    score.n_fourier_features = 16
-    score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
-    score.K = 6
-    score.out_channels = 128
-    score.bias = True
-
-    # # Graph score model
+    # # ChebConv score model
     # config.score = score = ml_collections.ConfigDict()
-    # score.score = "transformer_adanorm"
-    # score.d_model = 256
-    # score.d_mlp = 1024
-    # score.n_layers = 6
-    # score.n_heads = 4
+    # score.score = "chebconv"
+    # score.k = 20
+    # score.n_pos_features = 3
+    # score.message_passing_steps = 4
+    # score.use_edges = True
+    # score.use_pbc = True
+    # score.use_absolute_distances = True
+    # score.use_fourier_features = False
+    # score.n_fourier_features = 16
+    # score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
+    # score.K = 6
+    # score.out_channels = 128
+    # score.bias = True
 
-    # Graph score model
+    # EdgeConv score model
     config.score = score = ml_collections.ConfigDict()
-    score.score = "graph"
+    score.score = "edgeconv"
     score.k = 20
     score.n_pos_features = 3
     score.num_mlp_layers = 4
@@ -92,21 +85,46 @@ def get_config():
     score.hidden_size = 64
     score.skip_connections = True
     score.message_passing_steps = 4
-    score.attention = True
-    score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
     score.use_edges = False
-    score.use_pbc = True
+    score.use_pbc = False
     score.use_absolute_distances = False
     score.use_fourier_features = False
     score.n_fourier_features = 16
     score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
-    score.norm = "layer"  # "pair" or "layer" for LayerNorm or PairNorm. Otherwise, no normalization.
-    score.edge_skip_connections = False
+
+    # # Transformwe with adaptive norm conditioning score model
+    # config.score = score = ml_collections.ConfigDict()
+    # score.score = "transformer_adanorm"
+    # score.d_model = 256
+    # score.d_mlp = 1024
+    # score.n_layers = 6
+    # score.n_heads = 4
+
+    # # Graph score model
+    # config.score = score = ml_collections.ConfigDict()
+    # score.score = "graph"
+    # score.k = 20
+    # score.n_pos_features = 3
+    # score.num_mlp_layers = 4
+    # score.latent_size = 64
+    # score.hidden_size = 64
+    # score.skip_connections = True
+    # score.message_passing_steps = 4
+    # score.attention = True
+    # score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
+    # score.use_edges = False
+    # score.use_pbc = True
+    # score.use_absolute_distances = False
+    # score.use_fourier_features = False
+    # score.n_fourier_features = 16
+    # score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
+    # score.norm = "layer"  # "pair" or "layer" for LayerNorm or PairNorm. Otherwise, no normalization.
+    # score.edge_skip_connections = False
 
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
-    training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
+    training.batch_size = 32  # Must be divisible by number of devices; this is the total batch size, not per-device
     training.n_train_steps = 501_000
     training.warmup_steps = 5_000
     training.log_every_steps = 100
@@ -120,7 +138,7 @@ def get_config():
     data.dataset = "nbody"
     data.simulation_set = "lhc"  # "lhc" or "fiducial"
     data.n_particles = 5000  # Select the first n_particles particles
-    data.n_features = 7  # Select the first n_features features
+    data.n_features = 3  # Select the first n_features features
     data.n_pos_features = 3  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
     data.box_size = 1000.0  # Need to know the box size for augmentations
     data.add_augmentations = True
@@ -131,7 +149,7 @@ def get_config():
 
     # Optimizer (AdamW)
     config.optim = optim = ml_collections.ConfigDict()
-    optim.learning_rate = 2e-4
+    optim.learning_rate = 3e-4
     optim.weight_decay = 1e-4
     optim.grad_clip = 0.5
     optim.lr_schedule = "cosine"
