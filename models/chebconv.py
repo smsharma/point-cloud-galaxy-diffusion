@@ -3,7 +3,6 @@ from jax.experimental.sparse import BCOO
 import jax.numpy as np
 import flax.linen as nn
 import jraph
-from models.graph_utils import get_laplacian
 from models.mlp import MLP
 
 
@@ -23,7 +22,7 @@ class AdaLayerNorm(nn.Module):
         # Don't use bias or scale since these will be learnable through the conditioning context
         x = nn.LayerNorm(use_bias=False, use_scale=False)(x)
 
-        # Apple same element-wise scale and shift to all elements in graph
+        # Apply same element-wise scale and shift to all elements in graph
         x = x * (1 + scale[None, :]) + shift[None, :]
 
         return x
@@ -49,6 +48,7 @@ class ChebConv(nn.Module):
         Tx_1 = None
 
         # Loop over the order of Chebyshev polynomials
+        # x'_{if'} = Sum_k Sum_f Wk_{f'f} Sum_j L_{ij} Tk(x)_{jf}
         for k in range(self.K):
             # Apply the Chebyshev transformation for the k-th term
             if k == 0:
@@ -75,7 +75,7 @@ class ChebConv(nn.Module):
 
         # Get graph Laplacian
         # Symmetric norm is tricky given Jax static reqs
-        L, edge_index, edge_weight = get_laplacian(edge_index, edge_weight, num_nodes=num_nodes)
+        L, edge_index, edge_weight = self.get_laplacian(edge_index, edge_weight, num_nodes=num_nodes)
 
         assert edge_weight is not None, "Edge weights cannot be None after getting the Laplacian."
 
@@ -88,6 +88,20 @@ class ChebConv(nn.Module):
 
         return 2.0 * L / lambda_max, edge_index, edge_weight
 
+    def get_laplacian(self, edge_index, edge_weight=None, num_nodes=None):
+        if edge_weight is None:
+            edge_weight = np.ones_like(edge_index[0])
+
+        A = BCOO((edge_weight, edge_index.T), shape=(num_nodes, num_nodes))
+
+        # D_ii = Sum_j A_{ij}
+        deg = A.sum(axis=1)
+        D = BCOO((deg.todense(), np.array([np.arange(num_nodes), np.arange(num_nodes)]).T), shape=(num_nodes, num_nodes))
+
+        L = D - A  # L_{ij}
+
+        return L, L.indices.T, L.data
+
 
 class ChebConvNet(nn.Module):
     out_channels: int = 128
@@ -97,7 +111,7 @@ class ChebConvNet(nn.Module):
     skip_connection: bool = True
 
     @nn.compact
-    def __call__(self, graph: jraph.GraphsTuple, lambda_max: float = None) -> jraph.GraphsTuple:
+    def __call__(self, graph: jraph.GraphsTuple, lambda_max: float = 2.0) -> jraph.GraphsTuple:
         in_channels = graph.nodes.shape[-1]
 
         # Linear embedding
@@ -119,6 +133,7 @@ class ChebConvNet(nn.Module):
             # Nonlinearity, norm, and global conditioning
             graph = graph._replace(nodes=AdaLayerNorm()(nn.gelu(graph.nodes), graph.globals))
 
-        # Linear readout, keeping it simple
-        graph = graph._replace(nodes=nn.Dense(in_channels)(graph.nodes))
+        # Readout
+        # graph = graph._replace(nodes=nn.Dense(in_channels)(graph.nodes))  # Linear readout
+        graph = graph._replace(nodes=MLP([2 * self.out_channels, 2 * self.out_channels, in_channels])(graph.nodes))
         return graph
