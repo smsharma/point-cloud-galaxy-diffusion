@@ -95,6 +95,7 @@ class ChebConvNet(nn.Module):
     bias: bool = True
     message_passing_steps: int = 5
     skip_connection: bool = True
+    add_global: bool = True
 
     @nn.compact
     def __call__(self, graph: jraph.GraphsTuple, lambda_max: float = None) -> jraph.GraphsTuple:
@@ -105,9 +106,10 @@ class ChebConvNet(nn.Module):
         graph = embedder(graph)
 
         for _ in range(self.message_passing_steps):
-            # Add an embedding of the global context to each node feature
-            emb_global = nn.Dense(self.out_channels)(graph.globals)
-            graph = graph._replace(nodes=graph.nodes + nn.Dense(self.out_channels)(nn.gelu(emb_global))[None, :])
+            # Optionally add an embedding of the global context to each node feature
+            if self.add_global:
+                emb_global = nn.Dense(self.out_channels)(graph.globals)
+                graph = graph._replace(nodes=graph.nodes + nn.Dense(self.out_channels)(nn.gelu(emb_global))[None, :])
 
             graph_net = ChebConv(out_channels=self.out_channels, K=self.K, bias=self.bias)
             if self.skip_connection:
