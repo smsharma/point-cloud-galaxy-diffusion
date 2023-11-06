@@ -51,8 +51,7 @@ def get_config():
     # score.d_conditioning = 256
 
     # # Transformer score model with adaptive layer norm
-<<<<<<< HEAD
-=======
+    # # Transformer score model with adaptive layer norm
     # config.score = score = ml_collections.ConfigDict()
     # score.score = "transformer_adanorm"
     # score.d_model = 256
@@ -76,7 +75,6 @@ def get_config():
     score.bias = True
 
     # # Graph score model
->>>>>>> 8b86a197628f1aebe81713026d202c3e5fbd31f6
     # config.score = score = ml_collections.ConfigDict()
     # score.score = "transformer_adanorm"
     # score.d_model = 256
