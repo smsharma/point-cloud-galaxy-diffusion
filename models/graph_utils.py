@@ -1,6 +1,8 @@
 from functools import partial
+from typing import Optional, Tuple
 
 import jax
+from jax.experimental.sparse import BCOO
 import jax.numpy as np
 import flax.linen as nn
 from absl import logging
@@ -213,3 +215,20 @@ def get_rotated_box(features, rotation_axis, rotation_angle, n_pos_dim=3, box_si
         axis=1,
     )
     return rotated_features[mask_in_box]
+
+
+def get_laplacian(
+    edge_index: np.ndarray,
+    edge_weight: Optional[np.ndarray] = None,
+    dtype: Optional[np.dtype] = None,
+    num_nodes: Optional[int] = None,
+) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+    if edge_weight is None:
+        edge_weight = np.ones_like(edge_index[0])
+
+    A = BCOO((edge_weight, edge_index.T), shape=(num_nodes, num_nodes))
+    deg = A.sum(axis=0)
+    D = BCOO((deg.todense(), np.array([np.arange(num_nodes), np.arange(num_nodes)]).T), shape=(num_nodes, num_nodes))
+    L = D - A
+
+    return L.indices.T, L.data

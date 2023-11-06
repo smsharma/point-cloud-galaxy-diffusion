@@ -51,6 +51,32 @@ def get_config():
     # score.d_conditioning = 256
 
     # # Transformer score model with adaptive layer norm
+<<<<<<< HEAD
+=======
+    # config.score = score = ml_collections.ConfigDict()
+    # score.score = "transformer_adanorm"
+    # score.d_model = 256
+    # score.d_mlp = 1024
+    # score.n_layers = 6
+    # score.n_heads = 4
+
+    # Graph score model
+    config.score = score = ml_collections.ConfigDict()
+    score.score = "chebconv"
+    score.k = 20
+    score.message_passing_steps = 4
+    score.use_edges = True
+    score.use_pbc = True
+    score.use_absolute_distances = True
+    score.use_fourier_features = False
+    score.n_fourier_features = 16
+    score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
+    score.K = 6
+    score.out_channels = 128
+    score.bias = True
+
+    # # Graph score model
+>>>>>>> 8b86a197628f1aebe81713026d202c3e5fbd31f6
     # config.score = score = ml_collections.ConfigDict()
     # score.score = "transformer_adanorm"
     # score.d_model = 256

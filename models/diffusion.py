@@ -177,11 +177,9 @@ class VariationalDiffusionModel(nn.Module):
         elif self.score == "transformer_adanorm":
             self.score_model = TransformerScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict, adanorm=True)
         elif self.score == "graph":
-            self.score_model = GraphScoreNet(
-                d_t_embedding=self.d_t_embedding,
-                score_dict=self.score_dict,
-                norm_dict=self.norm_dict,
-            )
+            self.score_model = GraphScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict, norm_dict=self.norm_dict, gnn_type="gcn")
+        elif self.score == "chebconv":
+            self.score_model = GraphScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict, norm_dict=self.norm_dict, gnn_type="chebconv")
         else:
             raise NotImplementedError(f"Unknown score model {self.score}")
 
