@@ -1,5 +1,5 @@
 from typing import Callable
-import jax
+from jax.experimental.sparse import BCOO
 import jax.numpy as np
 import flax.linen as nn
 import jraph
@@ -29,18 +29,6 @@ class AdaLayerNorm(nn.Module):
         return x
 
 
-def get_node_mlp_updates() -> Callable:
-    def update_fn(
-        nodes: np.ndarray,
-        sent_attributes: np.ndarray,
-        received_attributes: np.ndarray,
-        globals: np.ndarray,
-    ) -> np.ndarray:
-        return received_attributes[..., None] * nodes
-
-    return update_fn
-
-
 class ChebConv(nn.Module):
     out_channels: int = 128
     K: int = 6
@@ -52,23 +40,19 @@ class ChebConv(nn.Module):
         """Chebychev convolutional layer, based on https://arxiv.org/abs/1606.09375.
         Reference implementation: https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/conv/cheb_conv.html
         """
-        (senders, receivers), norm = self.__norm__(edge_index=np.array([graph.senders, graph.receivers]), edge_weight=graph.edges, lambda_max=lambda_max, num_nodes=graph.nodes.shape[0])
+        L, (senders, receivers), norm = self.__norm__(edge_index=np.array([graph.senders, graph.receivers]), edge_weight=graph.edges, lambda_max=lambda_max, num_nodes=graph.nodes.shape[0])
 
         # Recursively get Chebychev polynomial coefficients
         Tx_0 = graph.nodes  # Initial feature vector
-        Tx_1 = graph.nodes  # Dummy; we will compute Tx_1 by applying the graph Laplacian below
         out = nn.Dense(self.out_channels)(Tx_0)
 
         if self.K > 1:
-            graph_Tx_1 = graph._replace(senders=senders, receivers=receivers, edges=norm)
-            graph_Tx_1 = jraph.GraphNetwork(update_node_fn=get_node_mlp_updates(), update_edge_fn=None)(graph_Tx_1)
-            Tx_1 = graph_Tx_1.nodes
-
+            Tx_1 = L @ Tx_0
             out = out + nn.Dense(self.out_channels)(Tx_1)
 
         for _ in range(2, self.K):
-            graph_Tx_2 = graph._replace(nodes=Tx_1, senders=senders, receivers=receivers, edges=norm)
-            Tx_2 = 2.0 * graph_Tx_2.nodes - Tx_0
+            Tx_2 = L @ Tx_1
+            Tx_2 = 2.0 * Tx_2 - Tx_0
             out = out + nn.Dense(self.out_channels)(Tx_2)
             Tx_0, Tx_1 = Tx_1, Tx_2
 
@@ -83,7 +67,7 @@ class ChebConv(nn.Module):
 
         # Get graph Laplacian
         # Symmetric norm is tricky given Jax static reqs
-        edge_index, edge_weight = get_laplacian(edge_index, edge_weight, num_nodes=num_nodes)
+        L, edge_index, edge_weight = get_laplacian(edge_index, edge_weight, num_nodes=num_nodes)
 
         assert edge_weight is not None, "Edge weights cannot be None after getting the Laplacian."
 
@@ -94,7 +78,7 @@ class ChebConv(nn.Module):
         # Normalizing edge weights
         edge_weight = (2.0 * edge_weight) / lambda_max
 
-        return edge_index, edge_weight
+        return 2.0 * L / lambda_max, edge_index, edge_weight
 
 
 class ChebConvNet(nn.Module):

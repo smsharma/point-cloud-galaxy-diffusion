@@ -231,4 +231,4 @@ def get_laplacian(
     D = BCOO((deg.todense(), np.array([np.arange(num_nodes), np.arange(num_nodes)]).T), shape=(num_nodes, num_nodes))
     L = D - A
 
-    return L.indices.T, L.data
+    return L, L.indices.T, L.data
