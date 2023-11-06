@@ -16,8 +16,8 @@ class AdaLayerNorm(nn.Module):
     @nn.compact
     def __call__(self, x, conditioning):
         # Compute scale and shift parameters from conditioning context
-        # scale_and_shift = nn.gelu(nn.Dense(2 * x.shape[-1])(conditioning))  # Most implementations use just a linear layer
-        scale_and_shift = MLP([4 * conditioning.shape[-1], 2 * x.shape[-1]])(conditioning)
+        emb = nn.Dense(2 * x.shape[-1])(conditioning)
+        scale_and_shift = nn.Dense(2 * x.shape[-1])(nn.gelu(emb))  # Most implementations use just a linear layer
         scale, shift = np.split(scale_and_shift, 2, axis=-1)
 
         # Don't use bias or scale since these will be learnable through the conditioning context
@@ -42,19 +42,27 @@ class ChebConv(nn.Module):
         """
         L, (senders, receivers), norm = self.__norm__(edge_index=np.array([graph.senders, graph.receivers]), edge_weight=graph.edges, lambda_max=lambda_max, num_nodes=graph.nodes.shape[0])
 
-        # Recursively get Chebychev polynomial coefficients
+        # Initialize the output feature as zero
+        out = np.zeros_like(graph.nodes[:, : self.out_channels])
+
         Tx_0 = graph.nodes  # Initial feature vector
-        out = nn.Dense(self.out_channels)(Tx_0)
+        Tx_1 = None
 
-        if self.K > 1:
-            Tx_1 = L @ Tx_0
-            out = out + nn.Dense(self.out_channels)(Tx_1)
+        # Loop over the order of Chebyshev polynomials
+        for k in range(self.K):
+            # Apply the Chebyshev transformation for the k-th term
+            if k == 0:
+                Tx_k = Tx_0
+            elif k == 1:
+                Tx_1 = L @ Tx_0
+                Tx_k = Tx_1
+            else:
+                Tx_2 = 2 * L @ Tx_1 - Tx_0
+                Tx_0, Tx_1 = Tx_1, Tx_2
+                Tx_k = Tx_1
 
-        for _ in range(2, self.K):
-            Tx_2 = L @ Tx_1
-            Tx_2 = 2.0 * Tx_2 - Tx_0
-            out = out + nn.Dense(self.out_channels)(Tx_2)
-            Tx_0, Tx_1 = Tx_1, Tx_2
+            # Accumulate the results
+            out += nn.Dense(self.out_channels)(Tx_k)
 
         if self.bias:
             bias = self.param("bias", nn.initializers.zeros_init(), (self.out_channels,))
@@ -85,7 +93,7 @@ class ChebConvNet(nn.Module):
     out_channels: int = 128
     K: int = 6
     bias: bool = True
-    message_passing_steps: int = 4
+    message_passing_steps: int = 5
     skip_connection: bool = True
 
     @nn.compact
@@ -97,6 +105,10 @@ class ChebConvNet(nn.Module):
         graph = embedder(graph)
 
         for _ in range(self.message_passing_steps):
+            # Add an embedding of the global context to each node feature
+            emb_global = nn.Dense(self.out_channels)(graph.globals)
+            graph = graph._replace(nodes=graph.nodes + nn.Dense(self.out_channels)(nn.gelu(emb_global))[None, :])
+
             graph_net = ChebConv(out_channels=self.out_channels, K=self.K, bias=self.bias)
             if self.skip_connection:
                 new_graph = graph_net(graph, lambda_max)
