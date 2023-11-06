@@ -55,8 +55,8 @@ class ChebConv(nn.Module):
         (senders, receivers), norm = self.__norm__(edge_index=np.array([graph.senders, graph.receivers]), edge_weight=graph.edges, lambda_max=lambda_max, num_nodes=graph.nodes.shape[0])
 
         # Recursively get Chebychev polynomial coefficients
-        Tx_0 = graph.nodes
-        Tx_1 = graph.nodes
+        Tx_0 = graph.nodes  # Initial feature vector
+        Tx_1 = graph.nodes  # Dummy; we will compute Tx_1 by applying the graph Laplacian below
         out = nn.Dense(self.out_channels)(Tx_0)
 
         if self.K > 1:
