@@ -71,11 +71,12 @@ def get_config():
     score.use_fourier_features = False
     score.n_fourier_features = 16
     score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
-    score.K = 6
+    score.K = 4
     score.out_channels = 128
     score.bias = True
     score.skip_connection = True
-    score.add_global = True
+    score.attend_global = True
+    score.norm = True
 
     # # EdgeConv score model
     # config.score = score = ml_collections.ConfigDict()
@@ -126,7 +127,7 @@ def get_config():
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
-    training.batch_size = 32  # Must be divisible by number of devices; this is the total batch size, not per-device
+    training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
     training.n_train_steps = 501_000
     training.warmup_steps = 5_000
     training.log_every_steps = 100

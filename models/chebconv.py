@@ -103,28 +103,57 @@ class ChebConv(nn.Module):
         return L, L.indices.T, L.data
 
 
+class GlobalAttentionLayer(nn.Module):
+    """Attention mechanism to reweight node features based on global context."""
+
+    node_feature_dim: int
+    global_feature_dim: int
+    hidden_dim: int  # An intermediate dimension for the attention computation
+
+    @nn.compact
+    def __call__(self, node_features, global_features):
+        # Expand global features to have the same shape as node features for broadcasting
+        global_features = global_features[None, :]  # [1, global_feature_dim]
+
+        # Project node features and global features to an intermediate dimension
+        node_transform = nn.Dense(self.hidden_dim)(node_features)  # [num_nodes, hidden_dim]
+        global_transform = nn.Dense(self.hidden_dim)(global_features)  # [1, hidden_dim]
+        combined_features = nn.gelu(node_transform + global_transform)
+
+        # Compute attention scores using a small neural network and then get attention weights
+        attention_logits = nn.Dense(1)(combined_features)  # [num_nodes, 1]
+        attention_weights = nn.softmax(attention_logits, axis=0)  # [num_nodes, 1]
+
+        # Apply attention weights to node features
+        attended_features = attention_weights * node_features  # [num_nodes, node_feature_dim]
+
+        return attended_features
+
+
 class ChebConvNet(nn.Module):
     out_channels: int = 128
     K: int = 6
     bias: bool = True
     message_passing_steps: int = 5
     skip_connection: bool = True
-    add_global: bool = True
+    attend_global: bool = True
+    norm: bool = True
 
     @nn.compact
-    def __call__(self, graph: jraph.GraphsTuple, lambda_max: float = 2.0) -> jraph.GraphsTuple:
+    def __call__(self, graph: jraph.GraphsTuple, lambda_max: float = None) -> jraph.GraphsTuple:
         in_channels = graph.nodes.shape[-1]
+
+        # Reweigh node features by attending to global context
+
+        if self.attend_global:
+            attention_layer = GlobalAttentionLayer(node_feature_dim=graph.nodes.shape[-1], global_feature_dim=graph.globals.shape[-1], hidden_dim=self.out_channels)
+            graph = graph._replace(nodes=attention_layer(graph.nodes, graph.globals))
 
         # Linear embedding
         embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.out_channels))
         graph = embedder(graph)
 
         for _ in range(self.message_passing_steps):
-            # Optionally add an embedding of the global context to each node feature
-            if self.add_global:
-                emb_global = nn.Dense(self.out_channels)(graph.globals)
-                graph = graph._replace(nodes=graph.nodes + nn.Dense(self.out_channels)(nn.gelu(emb_global))[None, :])
-
             graph_net = ChebConv(out_channels=self.out_channels, K=self.K, bias=self.bias)
             if self.skip_connection:
                 new_graph = graph_net(graph, lambda_max)
@@ -133,7 +162,10 @@ class ChebConvNet(nn.Module):
                 graph = graph_net(graph, lambda_max)
 
             # Nonlinearity, norm, and global conditioning
-            graph = graph._replace(nodes=AdaLayerNorm()(nn.gelu(graph.nodes), graph.globals))
+            graph = graph._replace(nodes=nn.gelu(graph.nodes))
+
+            if self.norm:
+                graph = graph._replace(nodes=AdaLayerNorm()(graph.nodes, graph.globals))
 
         # Readout
         # graph = graph._replace(nodes=nn.Dense(in_channels)(graph.nodes))  # Linear readout
