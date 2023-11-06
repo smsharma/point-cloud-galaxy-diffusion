@@ -4,6 +4,7 @@ import jax.numpy as np
 import flax.linen as nn
 import jraph
 from models.graph_utils import get_laplacian
+from models.mlp import MLP
 
 
 def get_node_mlp_updates() -> Callable:
@@ -24,7 +25,8 @@ class AdaLayerNorm(nn.Module):
     @nn.compact
     def __call__(self, x, conditioning):
         # Compute scale and shift parameters from conditioning context
-        scale_and_shift = nn.gelu(nn.Dense(2 * x.shape[-1])(conditioning))
+        # scale_and_shift = nn.gelu(nn.Dense(2 * x.shape[-1])(conditioning))
+        scale_and_shift = MLP([4 * conditioning.shape[-1], 2 * x.shape[-1]])(conditioning)
         scale, shift = np.split(scale_and_shift, 2, axis=-1)
 
         # Apply layer norm
@@ -42,6 +44,7 @@ class ChebConv(nn.Module):
     out_channels: int = 128
     K: int = 6
     bias: bool = True
+    skip_connection: bool = True
 
     @nn.compact
     def __call__(self, graph: jraph.GraphsTuple, lambda_max: float = None) -> jraph.GraphsTuple:
@@ -91,16 +94,23 @@ class ChebConvNet(nn.Module):
     K: int = 6
     bias: bool = True
     message_passing_steps: int = 4
+    skip_connection: bool = True
 
     @nn.compact
     def __call__(self, graph: jraph.GraphsTuple, lambda_max: float = None) -> jraph.GraphsTuple:
         in_channels = graph.nodes.shape[-1]
 
         for _ in range(self.message_passing_steps):
-            graph = ChebConv(out_channels=self.out_channels, K=self.K, bias=self.bias)(graph, lambda_max)
+            graph_net = ChebConv(out_channels=self.out_channels, K=self.K, bias=self.bias)
+            if self.skip_connection:
+                new_graph = graph_net(graph, lambda_max)
+                graph = graph._replace(nodes=new_graph.nodes + graph.nodes)
+            else:
+                graph = graph_net(graph, lambda_max)
+
+            # Nonlinearity, norm, and global conditioning
             graph = graph._replace(nodes=AdaLayerNorm()(nn.gelu(graph.nodes), graph.globals))
 
-        # Readout
+        # Linear readout, keeping it simple
         graph = graph._replace(nodes=nn.Dense(in_channels)(graph.nodes))
-
         return graph
