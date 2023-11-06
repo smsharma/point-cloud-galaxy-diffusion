@@ -7,6 +7,28 @@ from models.graph_utils import get_laplacian
 from models.mlp import MLP
 
 
+class AdaLayerNorm(nn.Module):
+    """Adaptive layer norm; generate scale and shift parameters from conditioning context.
+    Same as the one for transformer, but with MLP instead of dense scale and shift output
+    and dims assuming single batch.
+    """
+
+    @nn.compact
+    def __call__(self, x, conditioning):
+        # Compute scale and shift parameters from conditioning context
+        # scale_and_shift = nn.gelu(nn.Dense(2 * x.shape[-1])(conditioning))  # Most implementations use just a linear layer
+        scale_and_shift = MLP([4 * conditioning.shape[-1], 2 * x.shape[-1]])(conditioning)
+        scale, shift = np.split(scale_and_shift, 2, axis=-1)
+
+        # Don't use bias or scale since these will be learnable through the conditioning context
+        x = nn.LayerNorm(use_bias=False, use_scale=False)(x)
+
+        # Apple same element-wise scale and shift to all elements in graph
+        x = x * (1 + scale[None, :]) + shift[None, :]
+
+        return x
+
+
 def get_node_mlp_updates() -> Callable:
     def update_fn(
         nodes: np.ndarray,
@@ -19,27 +41,6 @@ def get_node_mlp_updates() -> Callable:
     return update_fn
 
 
-class AdaLayerNorm(nn.Module):
-    """Adaptive layer norm; generate scale and shift parameters from conditioning context."""
-
-    @nn.compact
-    def __call__(self, x, conditioning):
-        # Compute scale and shift parameters from conditioning context
-        # scale_and_shift = nn.gelu(nn.Dense(2 * x.shape[-1])(conditioning))
-        scale_and_shift = MLP([4 * conditioning.shape[-1], 2 * x.shape[-1]])(conditioning)
-        scale, shift = np.split(scale_and_shift, 2, axis=-1)
-
-        # Apply layer norm
-        # Don't use bias or scale since these will be learnable through the conditioning context
-        x = nn.LayerNorm(use_bias=False, use_scale=False)(x)
-
-        # Apply scale and shift
-        # Apple same scale, shift to all elements in sequence
-        x = x * (1 + scale[None, :]) + shift[None, :]
-
-        return x
-
-
 class ChebConv(nn.Module):
     out_channels: int = 128
     K: int = 6
@@ -48,8 +49,12 @@ class ChebConv(nn.Module):
 
     @nn.compact
     def __call__(self, graph: jraph.GraphsTuple, lambda_max: float = None) -> jraph.GraphsTuple:
+        """Chebychev convolutional layer, based on https://arxiv.org/abs/1606.09375.
+        Reference implementation: https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/conv/cheb_conv.html
+        """
         (senders, receivers), norm = self.__norm__(edge_index=np.array([graph.senders, graph.receivers]), edge_weight=graph.edges, lambda_max=lambda_max, num_nodes=graph.nodes.shape[0])
 
+        # Recursively get Chebychev polynomial coefficients
         Tx_0 = graph.nodes
         Tx_1 = graph.nodes
         out = nn.Dense(self.out_channels)(Tx_0)
@@ -74,12 +79,15 @@ class ChebConv(nn.Module):
         return graph._replace(nodes=out)
 
     def __norm__(self, edge_index, edge_weight, lambda_max=None, num_nodes=5000):
-        # Adjusting the get_laplacian function call to the correct format
+        """Get and normalize graph Laplacian."""
+
+        # Get graph Laplacian
+        # Symmetric norm is tricky given Jax static reqs
         edge_index, edge_weight = get_laplacian(edge_index, edge_weight, num_nodes=num_nodes)
 
         assert edge_weight is not None, "Edge weights cannot be None after getting the Laplacian."
 
-        # If lambda_max is not specified, calculate it as twice the max of the edge weights
+        # If lambda_max is not specified, calculate it using the edge weights
         if lambda_max is None:
             lambda_max = 2.0 * edge_weight.max()
 
@@ -99,6 +107,10 @@ class ChebConvNet(nn.Module):
     @nn.compact
     def __call__(self, graph: jraph.GraphsTuple, lambda_max: float = None) -> jraph.GraphsTuple:
         in_channels = graph.nodes.shape[-1]
+
+        # Linear embedding
+        embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.out_channels))
+        graph = embedder(graph)
 
         for _ in range(self.message_passing_steps):
             graph_net = ChebConv(out_channels=self.out_channels, K=self.K, bias=self.bias)

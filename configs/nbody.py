@@ -64,14 +64,14 @@ def get_config():
     score.score = "chebconv"
     score.k = 20
     score.n_pos_features = 3
-    score.message_passing_steps = 4
+    score.message_passing_steps = 5
     score.use_edges = True
     score.use_pbc = True
     score.use_absolute_distances = True
     score.use_fourier_features = False
     score.n_fourier_features = 16
     score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
-    score.K = 6
+    score.K = 8
     score.out_channels = 128
     score.bias = True
     score.skip_connection = True
@@ -150,7 +150,7 @@ def get_config():
 
     # Optimizer (AdamW)
     config.optim = optim = ml_collections.ConfigDict()
-    optim.learning_rate = 3e-4
+    optim.learning_rate = 6e-4
     optim.weight_decay = 1e-4
     optim.grad_clip = 0.5
     optim.lr_schedule = "cosine"
