@@ -99,6 +99,7 @@ class VariationalDiffusionModel(nn.Module):
         x_mean = tuple(map(float, norm_dict["mean"]))
         x_std = tuple(map(float, norm_dict["std"]))
         norm_dict_input = FrozenDict({"x_mean": x_mean, "x_std": x_std, "box_size": config.data.box_size})
+        n_pos_features = config.score.get('n_pos_features', 3)
         vdm = VariationalDiffusionModel(
             d_feature=config.data.n_features,
             timesteps=config.vdm.timesteps,
@@ -116,7 +117,7 @@ class VariationalDiffusionModel(nn.Module):
             d_context_embedding=config.vdm.d_context_embedding,
             use_encdec=config.vdm.use_encdec,
             norm_dict=norm_dict_input,
-            n_pos_features=config.score.n_pos_features,
+            n_pos_features=n_pos_features,
             # scale_non_linear_init = config.vdm.scale_non_linear_init,
         )
         rng = jax.random.PRNGKey(42)
