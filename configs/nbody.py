@@ -49,18 +49,30 @@ def get_config():
     # score.n_heads = 4
     # score.concat_conditioning = False
     # score.d_conditioning = 256
+    # score.adanorm = True
 
-    # Transformer score model with adaptive layer norm
-    config.score = score = ml_collections.ConfigDict()
-    score.score = "transformer_adanorm"
-    score.d_model = 256
-    score.d_mlp = 1024
-    score.n_layers = 6
-    score.n_heads = 4
-
-    # # Graph score model
+    # # ChebConv score model
     # config.score = score = ml_collections.ConfigDict()
-    # score.score = "graph"
+    # score.score = "chebconv"
+    # score.k = 20
+    # score.n_pos_features = 3
+    # score.message_passing_steps = 3
+    # score.use_edges = True
+    # score.use_pbc = True
+    # score.use_absolute_distances = True
+    # score.use_fourier_features = False
+    # score.n_fourier_features = 16
+    # score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
+    # score.K = 3
+    # score.out_channels = 128
+    # score.bias = True
+    # score.skip_connection = True
+    # score.attend_global = False
+    # score.norm = True
+
+    # # EdgeConv score model
+    # config.score = score = ml_collections.ConfigDict()
+    # score.score = "edgeconv"
     # score.k = 20
     # score.n_pos_features = 3
     # score.num_mlp_layers = 4
@@ -68,25 +80,51 @@ def get_config():
     # score.hidden_size = 64
     # score.skip_connections = True
     # score.message_passing_steps = 4
-    # score.attention = False
-    # score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
-    # score.use_edges = False
-    # score.use_pbc = False
+    # score.use_edges = True
+    # score.use_pbc = True
     # score.use_absolute_distances = False
     # score.use_fourier_features = False
     # score.n_fourier_features = 16
     # score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
-    # score.norm = "layer"  # "pair" or "layer" for LayerNorm or PairNorm. Otherwise, no normalization.
-    # score.edge_skip_connections = False
+
+    # # Transformwe with adaptive norm conditioning score model
+    # config.score = score = ml_collections.ConfigDict()
+    # score.score = "transformer_adanorm"
+    # score.d_model = 256
+    # score.d_mlp = 1024
+    # score.n_layers = 6
+    # score.n_heads = 4
+
+    # Graph score model
+    config.score = score = ml_collections.ConfigDict()
+    score.score = "graph"
+    score.k = 20
+    score.n_pos_features = 3
+    score.num_mlp_layers = 2
+    score.latent_size = 16
+    score.hidden_size = 256
+    score.skip_connections = True
+    score.message_passing_steps = 6
+    score.attention = True
+    score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
+    score.use_edges = True
+    score.use_pbc = True
+    score.use_absolute_distances = False
+    score.use_fourier_features = False
+    score.n_fourier_features = 16
+    score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
+    score.norm = "layer"  # "pair" or "layer" for LayerNorm or PairNorm. Otherwise, no normalization.
+    score.edge_skip_connections = False
+    score.relative_updates = True
 
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
-    training.batch_size = 64  # Must be divisible by number of devices; this is the total batch size, not per-device
-    training.n_train_steps = 501_000
-    training.warmup_steps = 10_000
+    training.batch_size = 32  # Must be divisible by number of devices; this is the total batch size, not per-device
+    training.n_train_steps = 301_000
+    training.warmup_steps = 5_000
     training.log_every_steps = 100
-    training.eval_every_steps = 5000  # training.n_train_steps + 1  # Turn off eval for now
+    training.eval_every_steps = 5000
     training.save_every_steps = 5000
     training.unconditional_dropout = False  # Set to True to use unconditional dropout (randomly zero out conditioning vectors)
     training.p_uncond = 0.0  # Fraction of conditioning vectors to zero out if unconditional_dropout is True
@@ -95,7 +133,7 @@ def get_config():
     config.data = data = ml_collections.ConfigDict()
     data.dataset = "nbody"
     data.simulation_set = "lhc"  # "lhc" or "fiducial"
-    data.n_particles = 2000  # Select the first n_particles particles
+    data.n_particles = 5000  # Select the first n_particles particles
     data.n_features = 3  # Select the first n_features features
     data.n_pos_features = 3  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
     data.box_size = 1000.0  # Need to know the box size for augmentations

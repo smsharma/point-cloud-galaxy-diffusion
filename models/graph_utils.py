@@ -1,6 +1,8 @@
 from functools import partial
+from typing import Optional, Tuple
 
 import jax
+from jax.experimental.sparse import BCOO
 import jax.numpy as np
 import flax.linen as nn
 from absl import logging

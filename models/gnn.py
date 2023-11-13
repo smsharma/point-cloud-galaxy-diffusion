@@ -43,7 +43,9 @@ def get_node_mlp_updates(mlp_feature_sizes: int, name: str = None) -> Callable:
     return update_fn
 
 
-def get_edge_mlp_updates(mlp_feature_sizes: int, name: str = None) -> Callable:
+def get_edge_mlp_updates(
+    mlp_feature_sizes: int, name: str = None, relative_updates: bool = False
+) -> Callable:
     """Get an edge MLP update function
 
     Args:
@@ -73,9 +75,17 @@ def get_edge_mlp_updates(mlp_feature_sizes: int, name: str = None) -> Callable:
         """
         # If there are no edges in the initial layer
         if edges is not None:
-            inputs = jnp.concatenate([edges, senders, receivers, globals], axis=1)
+            if relative_updates:
+                inputs = jnp.concatenate([edges, senders - receivers, globals], axis=1)
+            else:
+                inputs = jnp.concatenate([edges, senders, receivers, globals], axis=1)
+
         else:
-            inputs = jnp.concatenate([senders, receivers, globals], axis=1)
+            if relative_updates:
+                inputs = jnp.concatenate([senders - receivers, globals], axis=1)
+            else:
+                inputs = jnp.concatenate([senders, receivers, globals], axis=1)
+
         return MLP(mlp_feature_sizes, name=name)(inputs)
 
     return update_fn
@@ -119,6 +129,7 @@ class GraphConvNet(nn.Module):
     attention: bool = False
     in_features: int = 3
     shared_weights: bool = False  # GNN shares weights across message passing steps
+    relative_updates: bool = False
 
     @nn.compact
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
@@ -131,15 +142,22 @@ class GraphConvNet(nn.Module):
             jraph.GraphsTuple: updated graph object
         """
 
-        mlp_feature_sizes = [self.hidden_size] * self.num_mlp_layers + [self.latent_size]
+        mlp_feature_sizes = [self.hidden_size] * self.num_mlp_layers + [
+            self.latent_size
+        ]
 
         # First linearly project the original features as 'embeddings'.
         if graph.edges is None:
             embedder = jraph.GraphMapFeatures(embed_node_fn=MLP(mlp_feature_sizes))
         else:
-            embedder = jraph.GraphMapFeatures(embed_node_fn=MLP(mlp_feature_sizes), embed_edge_fn=MLP(mlp_feature_sizes))
+            embedder = jraph.GraphMapFeatures(
+                embed_node_fn=MLP(mlp_feature_sizes),
+                embed_edge_fn=MLP(mlp_feature_sizes),
+            )
         graph = embedder(graph)
-        graph = graph._replace(globals=graph.globals.reshape(graph.globals.shape[0], -1))
+        graph = graph._replace(
+            globals=graph.globals.reshape(graph.globals.shape[0], -1)
+        )
 
         # Apply GCN once for each message-passing round.
         for step in range(self.message_passing_steps):
@@ -148,9 +166,20 @@ class GraphConvNet(nn.Module):
             if step == 0 or not self.shared_weights:
                 suffix = "shared" if self.shared_weights else step
 
-                update_node_fn = get_node_mlp_updates(mlp_feature_sizes, name=f"update_node_fn_{suffix}")
-                update_edge_fn = get_edge_mlp_updates(mlp_feature_sizes, name=f"update_edge_fn_{suffix}")
-                attention_logit_fn = get_attention_logit_fn(name=f"attention_logit_fn_{suffix}") if self.attention else None
+                update_node_fn = get_node_mlp_updates(
+                    mlp_feature_sizes,
+                    name=f"update_node_fn_{suffix}",
+                )
+                update_edge_fn = get_edge_mlp_updates(
+                    mlp_feature_sizes,
+                    name=f"update_edge_fn_{suffix}",
+                    relative_updates=self.relative_updates,
+                )
+                attention_logit_fn = (
+                    get_attention_logit_fn(name=f"attention_logit_fn_{suffix}")
+                    if self.attention
+                    else None
+                )
 
                 # Update nodes and edges; no need to update globals as they only condition
                 graph_net = jraph.GraphNetwork(
@@ -165,7 +194,9 @@ class GraphConvNet(nn.Module):
                 new_graph = graph_net(graph)
                 graph = graph._replace(
                     nodes=graph.nodes + new_graph.nodes,
-                    edges=new_graph.edges if (graph.edges is None or not self.edge_skip_connections) else graph.edges + new_graph.edges,
+                    edges=new_graph.edges
+                    if (graph.edges is None or not self.edge_skip_connections)
+                    else graph.edges + new_graph.edges,
                 )
             else:
                 graph = graph_net(graph)
@@ -181,6 +212,10 @@ class GraphConvNet(nn.Module):
             graph = graph._replace(nodes=norm(graph.nodes), edges=norm(graph.edges))
 
         # Decode the final node features back to the original feature dimension
-        decoder = jraph.GraphMapFeatures(embed_node_fn=MLP([self.hidden_size] * self.num_mlp_layers + [self.in_features]))
+        decoder = jraph.GraphMapFeatures(
+            embed_node_fn=MLP(
+                [self.hidden_size] * self.num_mlp_layers + [self.in_features]
+            )
+        )
 
         return decoder(graph)

@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as np
 from flax import linen as nn
+from models.transformer_adanorm import AdaLayerNorm
 
 
 class MultiHeadAttentionBlock(nn.Module):
@@ -9,18 +10,31 @@ class MultiHeadAttentionBlock(nn.Module):
     n_heads: int
     d_model: int
     d_mlp: int
+    adanorm: bool = False
 
     @nn.compact
-    def __call__(self, x, y, mask=None):
+    def __call__(self, x, y, mask=None, conditioning=None):
         mask = None if mask is None else mask[..., None, :, :]
 
         # Multi-head attention
         if x is y:  # Self-attention
-            x_sa = nn.LayerNorm()(x)  # pre-LN
-            x_sa = nn.MultiHeadDotProductAttention(num_heads=self.n_heads, kernel_init=nn.initializers.xavier_uniform(), bias_init=nn.initializers.zeros)(x_sa, x_sa, mask)
+            x_sa = (
+                nn.LayerNorm()(x)
+                if not self.adanorm
+                else AdaLayerNorm()(x, conditioning)
+            )  # pre-LN
+            x_sa = nn.MultiHeadDotProductAttention(
+                num_heads=self.n_heads,
+                kernel_init=nn.initializers.xavier_uniform(),
+                bias_init=nn.initializers.zeros,
+            )(x_sa, x_sa, mask)
         else:  # Cross-attention
             x_sa, y_sa = nn.LayerNorm()(x), nn.LayerNorm()(y)
-            x_sa = nn.MultiHeadDotProductAttention(num_heads=self.n_heads, kernel_init=nn.initializers.xavier_uniform(), bias_init=nn.initializers.zeros)(x_sa, y_sa, mask)
+            x_sa = nn.MultiHeadDotProductAttention(
+                num_heads=self.n_heads,
+                kernel_init=nn.initializers.xavier_uniform(),
+                bias_init=nn.initializers.zeros,
+            )(x_sa, y_sa, mask)
 
         # Add into residual stream
         x += x_sa
@@ -46,10 +60,16 @@ class PoolingByMultiHeadAttention(nn.Module):
 
     @nn.compact
     def __call__(self, z, mask=None):
-        seed_vectors = self.param("seed_vectors", nn.linear.default_embed_init, (self.n_seed_vectors, z.shape[-1]))
+        seed_vectors = self.param(
+            "seed_vectors",
+            nn.linear.default_embed_init,
+            (self.n_seed_vectors, z.shape[-1]),
+        )
         seed_vectors = np.broadcast_to(seed_vectors, z.shape[:-2] + seed_vectors.shape)
         mask = None if mask is None else mask[..., None, :]
-        return MultiHeadAttentionBlock(n_heads=self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp)(seed_vectors, z, mask)
+        return MultiHeadAttentionBlock(
+            n_heads=self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp
+        )(seed_vectors, z, mask)
 
 
 class Transformer(nn.Module):
@@ -73,6 +93,7 @@ class Transformer(nn.Module):
     induced_attention: bool = False
     n_inducing_points: int = 32
     concat_conditioning: bool = False
+    adanorm: bool = False
 
     @nn.compact
     def __call__(self, x: np.ndarray, conditioning: np.ndarray = None, mask=None):
@@ -81,9 +102,13 @@ class Transformer(nn.Module):
 
         # Add conditioning
         if conditioning is not None:
-            conditioning = nn.Dense(int(self.d_conditioning))(conditioning)  # (batch, d_model)
+            conditioning = nn.Dense(int(self.d_conditioning))(
+                conditioning
+            )  # (batch, d_model)
             if self.concat_conditioning:
-                conditioning = np.repeat(conditioning[:, np.newaxis, :], x.shape[1], axis=1)
+                conditioning = np.repeat(
+                    conditioning[:, np.newaxis, :], x.shape[1], axis=1
+                )
                 x = np.concatenate([x, conditioning], axis=-1)
                 x = nn.Dense(int(self.d_model))(x)
 
@@ -92,14 +117,28 @@ class Transformer(nn.Module):
             if conditioning is not None and not self.concat_conditioning:
                 x += conditioning[:, None, :]  # (batch, seq_len, d_model)
             if not self.induced_attention:  # Vanilla self-attention
-                mask_attn = None if mask is None else mask[..., None] * mask[..., None, :]
-                x = MultiHeadAttentionBlock(n_heads=self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp)(x, x, mask_attn)
+                mask_attn = (
+                    None if mask is None else mask[..., None] * mask[..., None, :]
+                )
+                x = MultiHeadAttentionBlock(
+                    n_heads=self.n_heads,
+                    d_model=self.d_model,
+                    d_mlp=self.d_mlp,
+                    adanorm=self.adanorm,
+                )(x, x, mask_attn, conditioning)
             else:  # Induced attention from set transformer paper
-                h = PoolingByMultiHeadAttention(self.n_inducing_points, self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp)(x, mask)
+                h = PoolingByMultiHeadAttention(
+                    self.n_inducing_points,
+                    self.n_heads,
+                    d_model=self.d_model,
+                    d_mlp=self.d_mlp,
+                )(x, mask)
                 mask_attn = None if mask is None else mask[..., None]
-                x = MultiHeadAttentionBlock(n_heads=self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp)(x, h, mask_attn)
+                x = MultiHeadAttentionBlock(
+                    n_heads=self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp
+                )(x, h, mask_attn)
         # Final LN as in pre-LN configuration
-        x = nn.LayerNorm()(x)
+        x = nn.LayerNorm()(x) if not self.adanorm else AdaLayerNorm()(x, conditioning)
         # Unembed; zero init kernel to propagate zero residual initially before training
         x = nn.Dense(self.n_input, kernel_init=jax.nn.initializers.zeros)(x)
         return x

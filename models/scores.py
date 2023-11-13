@@ -8,6 +8,8 @@ import jraph
 from models.transformer import Transformer
 from models.transformer_adanorm import Transformer as TransformerAdaNorm
 from models.gnn import GraphConvNet
+from models.chebconv import ChebConvNet
+from models.dynamic_edge_conv import DynamicEdgeConvNet
 from models.mlp import MLP
 
 from models.graph_utils import nearest_neighbors, nearest_neighbors_kd, fourier_features
@@ -35,10 +37,14 @@ class TransformerScoreNet(nn.Module):
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
         t = t * np.ones(z.shape[0])  # Ensure t is a vector
 
-        t_embedding = get_timestep_embedding(t, self.d_t_embedding)  # Timestep embeddings
+        t_embedding = get_timestep_embedding(
+            t, self.d_t_embedding
+        )  # Timestep embeddings
 
         if conditioning is not None:
-            cond = np.concatenate([t_embedding, conditioning], axis=1)  # Concatenate with conditioning context
+            cond = np.concatenate(
+                [t_embedding, conditioning], axis=1
+            )  # Concatenate with conditioning context
         else:
             cond = t_embedding
 
@@ -46,6 +52,9 @@ class TransformerScoreNet(nn.Module):
         # I'm not sure this is really necessary
         d_cond = cond.shape[-1]  # Dimension of conditioning context
         cond = MLP([d_cond * 4, d_cond * 4, d_cond])(cond)
+
+        # For backwards compatibility
+        adanorm = self.score_dict.get("adanorm", False)
 
         # Make copy of score dict since original cannot be in-place modified; remove `score` argument before passing to Net
         score_dict = dict(self.score_dict)
@@ -80,19 +89,28 @@ class GraphScoreNet(nn.Module):
             "x_std": None,
         }
     )
+    gnn_type: str = "gcn"
 
-    def get_graph_edges(self, z, n_pos_features, k, mask, graph_method="pairwise_dist", use_pbc=False):
+    def get_graph_edges(
+        self, z, n_pos_features, k, mask, graph_method="pairwise_dist", use_pbc=False
+    ):
         if graph_method == "pairwise_dist":
             coord_mean = np.array(self.norm_dict["x_mean"])[..., :n_pos_features]
             coord_std = np.array(self.norm_dict["x_std"])[..., :n_pos_features]
             box_size = np.array(self.norm_dict["box_size"])
-            cell = box_size * np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+            cell = box_size * np.array(
+                [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+            )
             z_unnormed = z[..., :n_pos_features] * coord_std + coord_mean
-            sources, targets, distances = jax.vmap(partial(nearest_neighbors, pbc=use_pbc), in_axes=(0, None, 0, None))(z_unnormed, k, mask, cell)
+            sources, targets, distances = jax.vmap(
+                partial(nearest_neighbors, pbc=use_pbc), in_axes=(0, None, 0, None)
+            )(z_unnormed, k, mask, cell)
             distances /= coord_std
             return sources, targets, distances
         elif graph_method == "kd_tree":
-            return jax.vmap(nearest_neighbors_kd, in_axes=(0, None, None))(jax.lax.stop_gradient(z[..., :n_pos_features]), k, 2000.0)
+            return jax.vmap(nearest_neighbors_kd, in_axes=(0, None, None))(
+                jax.lax.stop_gradient(z[..., :n_pos_features]), k, 2000.0
+            )
         else:
             raise ValueError(f"Invalid graph construction method: {graph_method}")
 
@@ -101,10 +119,14 @@ class GraphScoreNet(nn.Module):
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
         t = t * np.ones(z.shape[0])  # Ensure t is a vector
 
-        t_embedding = get_timestep_embedding(t, self.d_t_embedding)  # Timestep embeddings
+        t_embedding = get_timestep_embedding(
+            t, self.d_t_embedding
+        )  # Timestep embeddings
 
         if conditioning is not None:
-            cond = np.concatenate([t_embedding, conditioning], axis=1)  # Concatenate with conditioning context
+            cond = np.concatenate(
+                [t_embedding, conditioning], axis=1
+            )  # Concatenate with conditioning context
         else:
             cond = t_embedding
 
@@ -113,6 +135,7 @@ class GraphScoreNet(nn.Module):
         d_cond = cond.shape[-1]  # Dimension of conditioning context
         cond = MLP([d_cond * 4, d_cond * 4, d_cond])(cond)
 
+        # For backwards compatibility
         use_edges = self.score_dict.get("use_edges", False)
         use_absolute_distances = self.score_dict.get("use_absolute_distances", False)
         use_pbc = self.score_dict.get("use_pbc", False)
@@ -122,13 +145,28 @@ class GraphScoreNet(nn.Module):
         n_pos_features = self.score_dict["n_pos_features"]
         n_fourier_features = self.score_dict["n_fourier_features"]
 
-        sources, targets, distances = self.get_graph_edges(z=z, k=k, n_pos_features=n_pos_features, mask=mask, graph_method=self.score_dict["graph_construction"], use_pbc=use_pbc)
+        sources, targets, distances = self.get_graph_edges(
+            z=z,
+            k=k,
+            n_pos_features=n_pos_features,
+            mask=mask,
+            graph_method=self.score_dict["graph_construction"],
+            use_pbc=use_pbc,
+        )
         n_batch = z.shape[0]
 
         # `distances` has shape (batch, nodes, 3); if `use_absolute_distances`, collapse the last dim to get just the L1 norm
         if use_absolute_distances:
-            distances = distances.sum(-1, keepdims=True)
-            distances = fourier_features(distances, num_encodings=n_fourier_features, include_self=True) if use_fourier_features else distances
+            distances = distances.sum(
+                -1, keepdims=True if self.gnn_type is not "chebconv" else False
+            )
+            distances = (
+                fourier_features(
+                    distances, num_encodings=n_fourier_features, include_self=True
+                )
+                if use_fourier_features
+                else distances
+            )
 
         graph = jraph.GraphsTuple(
             n_node=(mask.sum(-1)[:, None]).astype(np.int32),
@@ -152,7 +190,12 @@ class GraphScoreNet(nn.Module):
         score_dict.pop("n_fourier_features", None)
         score_dict.pop("graph_construction", None)
 
-        h = jax.vmap(GraphConvNet(**score_dict, in_features=z.shape[-1]))(graph)
+        if self.gnn_type == "graph":
+            h = jax.vmap(GraphConvNet(**score_dict, in_features=z.shape[-1]))(graph)
+        elif self.gnn_type == "chebconv":
+            h = jax.vmap(ChebConvNet(**score_dict))(graph)
+        elif self.gnn_type == "edgeconv":
+            h = jax.vmap(DynamicEdgeConvNet(**score_dict))(graph)
 
         # Predicted noise
         eps = graph.nodes - h.nodes

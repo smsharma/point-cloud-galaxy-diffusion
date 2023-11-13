@@ -36,7 +36,11 @@ class MultiHeadSelfAttentionBlock(nn.Module):
 
         # Multi-head attention
         x_sa = AdaLayerNorm()(x, conditioning)  # pre-LN
-        x_sa = nn.MultiHeadDotProductAttention(num_heads=self.n_heads, kernel_init=nn.initializers.xavier_uniform(), bias_init=nn.initializers.zeros)(x_sa, x_sa, mask)
+        x_sa = nn.MultiHeadDotProductAttention(
+            num_heads=self.n_heads,
+            kernel_init=nn.initializers.xavier_uniform(),
+            bias_init=nn.initializers.zeros,
+        )(x_sa, x_sa, mask)
 
         # Add into residual stream
         x += x_sa
@@ -82,7 +86,9 @@ class Transformer(nn.Module):
         # Transformer layers
         for _ in range(self.n_layers):
             mask_attn = None if mask is None else mask[..., None] * mask[..., None, :]
-            x = MultiHeadSelfAttentionBlock(n_heads=self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp)(x, conditioning, mask_attn)
+            x = MultiHeadSelfAttentionBlock(
+                n_heads=self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp
+            )(x, conditioning, mask_attn)
 
         # Final LN as in pre-LN configuration
         x = AdaLayerNorm()(x, conditioning)
