@@ -104,7 +104,7 @@ def get_config():
     score.latent_size = 16
     score.hidden_size = 256
     score.skip_connections = True
-    score.message_passing_steps = 6
+    score.message_passing_steps = 4
     score.attention = True
     score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
     score.use_edges = True
