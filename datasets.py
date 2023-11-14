@@ -28,18 +28,27 @@ def make_dataloader(x, conditioning, mask, batch_size, seed, shuffle=True):
     return train_ds
 
 
-def get_halo_data(data_dir, n_features, n_particles, split: str = "train", simulation_set: str = 'lhc', conditioning_parameters: list = ['Omega_m', 'sigma_8'],):
-    if simulation_set == 'lhc':
+def get_halo_data(
+    data_dir,
+    n_features,
+    n_particles,
+    split: str = "train",
+    simulation_set: str = "lhc",
+    conditioning_parameters: list = ["Omega_m", "sigma_8"],
+):
+    if simulation_set == "lhc":
         x = np.load(data_dir / f"{split}_halos.npy")
         conditioning = pd.read_csv(data_dir / f"{split}_cosmology.csv")
-    elif simulation_set == 'lhc+fiducial':
+    elif simulation_set == "lhc+fiducial":
         x = np.load(data_dir / f"{split}_halos_combined.npy")
         conditioning = pd.read_csv(data_dir / f"{split}_cosmology_combined.csv")
-    elif simulation_set == 'fiducial':
+    elif simulation_set == "fiducial":
         x = np.load(data_dir / f"{split}_halos_fiducial.npy")
         conditioning = None
     else:
-        raise NotImplementedError(f'{simulation_set} does not exist as a simulation set')
+        raise NotImplementedError(
+            f"{simulation_set} does not exist as a simulation set"
+        )
     if conditioning is not None:
         conditioning = np.array(conditioning[conditioning_parameters].values)
     if n_features == 7:
@@ -52,15 +61,15 @@ def get_nbody_data(
     n_features,
     n_particles,
     split: str = "train",
-    simulation_set: str = 'lhc',
-    conditioning_parameters: list = ['Omega_m', 'sigma_8'],
+    simulation_set: str = "lhc",
+    conditioning_parameters: list = ["Omega_m", "sigma_8"],
 ):
     DATA_DIR = Path("/n/holystore01/LABS/iaifi_lab/Lab/set-diffuser-data/")
     x, conditioning = get_halo_data(
-        data_dir=DATA_DIR, 
-        n_features=n_features, 
-        n_particles=n_particles, 
-        split=split, 
+        data_dir=DATA_DIR,
+        n_features=n_features,
+        n_particles=n_particles,
+        split=split,
         simulation_set=simulation_set,
         conditioning_parameters=conditioning_parameters,
     )
@@ -72,13 +81,13 @@ def get_nbody_data(
             n_features=n_features,
             n_particles=n_particles,
             split="train",
-            simulation_set = simulation_set,
+            simulation_set=simulation_set,
         )
     # Standardize per-feature (over datasets and particles)
     x_mean = x_train.mean(axis=(0, 1))
     x_std = x_train.std(axis=(0, 1))
     norm_dict = {"mean": x_mean, "std": x_std}
-    #if conditioning is not None:
+    # if conditioning is not None:
     #    conditioning = conditioning[:, [0, -1]]  # Select only omega_m and sigma_8
     mask = np.ones((x.shape[0], n_particles))  # No mask
     x = (x - x_mean + EPS) / (x_std + EPS)
@@ -93,8 +102,8 @@ def nbody_dataset(
     seed,
     split: str = "train",
     shuffle: bool = True,
-    simulation_set: str = 'lhc',
-    conditioning_parameters: list = ['Omega_m', 'sigma_8'],
+    simulation_set: str = "lhc",
+    conditioning_parameters: list = ["Omega_m", "sigma_8"],
 ):
     x, mask, conditioning, norm_dict = get_nbody_data(
         n_features,
@@ -114,7 +123,9 @@ def nbody_dataset(
     return ds, norm_dict
 
 
-def load_data(dataset, n_features, n_particles, batch_size, seed, shuffle, split, **kwargs):
+def load_data(
+    dataset, n_features, n_particles, batch_size, seed, shuffle, split, **kwargs
+):
     if dataset == "nbody":
         train_ds, norm_dict = nbody_dataset(
             n_features,
@@ -144,8 +155,12 @@ def augment_with_translations(
     x = x * norm_dict["std"] + norm_dict["mean"]
 
     # Draw N random translations
-    translations = jax.random.uniform(rng, minval=-box_size / 2, maxval=box_size / 2, shape=(*x.shape[:2], 3))
-    x = x.at[..., :n_pos_dim].set((x[..., :n_pos_dim] + translations[..., None, :]) % box_size)
+    translations = jax.random.uniform(
+        rng, minval=-box_size / 2, maxval=box_size / 2, shape=(*x.shape[:2], 3)
+    )
+    x = x.at[..., :n_pos_dim].set(
+        (x[..., :n_pos_dim] + translations[..., None, :]) % box_size
+    )
     x = (x - norm_dict["mean"]) / norm_dict["std"]
     return x, conditioning, mask
 
@@ -192,7 +207,9 @@ def augment_with_symmetries(
     x = x.at[..., :n_pos_dim].set(np.dot(x[..., :n_pos_dim], matrix.T))
     if x.shape[-1] > n_pos_dim:
         # Rotate velocities too
-        x = x.at[..., n_pos_dim : n_pos_dim + 3].set(np.dot(x[..., n_pos_dim : n_pos_dim + 3], matrix.T))
+        x = x.at[..., n_pos_dim : n_pos_dim + 3].set(
+            np.dot(x[..., n_pos_dim : n_pos_dim + 3], matrix.T)
+        )
     return x, conditioning, mask
 
 
