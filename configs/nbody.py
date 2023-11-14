@@ -100,9 +100,9 @@ def get_config():
     score.score = "graph"
     score.k = 20
     score.n_pos_features = 3
-    score.num_mlp_layers = 2
+    score.num_mlp_layers = 4
     score.latent_size = 16
-    score.hidden_size = 256
+    score.hidden_size = 128
     score.skip_connections = True
     score.message_passing_steps = 4
     score.attention = True
@@ -120,7 +120,7 @@ def get_config():
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.half_precision = False
-    training.batch_size = 32  # Must be divisible by number of devices; this is the total batch size, not per-device
+    training.batch_size = 16  # Must be divisible by number of devices; this is the total batch size, not per-device
     training.n_train_steps = 301_000
     training.warmup_steps = 5_000
     training.log_every_steps = 100
@@ -140,7 +140,13 @@ def get_config():
     data.add_augmentations = True
     data.add_rotations = True
     data.add_translations = True
-    data.conditioning_parameters = ["Omega_m", "sigma_8"]
+    data.conditioning_parameters = [
+        "Omega_m",
+        "Omega_b",
+        "h",
+        "n_s",
+        "sigma_8",
+    ]  # ["Omega_m", "sigma_8"]
     data.kwargs = {}
 
     # Optimizer (AdamW)
