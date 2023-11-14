@@ -37,7 +37,10 @@ colors = [
     "rosybrown",
 ]
 
-def plot_pointclouds_2D(generated_samples: np.array, true_samples: np.array, idx_to_plot: int = 0):
+
+def plot_pointclouds_2D(
+    generated_samples: np.array, true_samples: np.array, idx_to_plot: int = 0
+):
     """Plot pointcloud in two dimensions
 
     Args:
@@ -104,9 +107,7 @@ def compute_2pcf(
         n_threads=2,
         boxsize=boxsize,
         los="z",
-    )(
-        ells=[0]
-    )[0]
+    )(ells=[0])[0]
 
 
 def compute_2pcf_rsd(
@@ -147,7 +148,9 @@ def compute_2pcf_rsd(
     )(ells=[0, 2])
 
 
-def plot_2pcf(generated_samples: np.array, true_samples: np.array, boxsize: float) -> plt.figure:
+def plot_2pcf(
+    generated_samples: np.array, true_samples: np.array, boxsize: float
+) -> plt.figure:
     """Plot the two point correlation function
 
     Args:
@@ -162,36 +165,54 @@ def plot_2pcf(generated_samples: np.array, true_samples: np.array, boxsize: floa
     r_bins = np.linspace(0.5, 120.0, 60)
     r = 0.5 * (r_bins[1:] + r_bins[:-1])
     for idx in range(len(generated_samples)):
-        generated_2pcfs.append(compute_2pcf(generated_samples[idx][..., :3], boxsize, r_bins))
+        generated_2pcfs.append(
+            compute_2pcf(generated_samples[idx][..., :3], boxsize, r_bins)
+        )
         true_2pcfs.append(compute_2pcf(true_samples[idx][..., :3], boxsize, r_bins))
 
     fig, _ = plt.subplots()
-    c = plt.plot(r, r**2*onp.mean(true_2pcfs, axis=0), label="N-body")
+    c = plt.plot(r, r**2 * onp.mean(true_2pcfs, axis=0), label="N-body")
     plt.plot(
         r,
-        r**2*(onp.mean(true_2pcfs, axis=0) - onp.std(true_2pcfs, axis=0)/onp.sqrt(len(true_2pcfs))),
+        r**2
+        * (
+            onp.mean(true_2pcfs, axis=0)
+            - onp.std(true_2pcfs, axis=0) / onp.sqrt(len(true_2pcfs))
+        ),
         alpha=0.5,
         color=c[0].get_color(),
         linestyle="dashed",
     )
     plt.plot(
         r,
-        r**2*(onp.mean(true_2pcfs, axis=0) + onp.std(true_2pcfs, axis=0)/onp.sqrt(len(true_2pcfs))),
+        r**2
+        * (
+            onp.mean(true_2pcfs, axis=0)
+            + onp.std(true_2pcfs, axis=0) / onp.sqrt(len(true_2pcfs))
+        ),
         alpha=0.5,
         color=c[0].get_color(),
         linestyle="dashed",
     )
-    c = plt.plot(r, r**2*onp.mean(generated_2pcfs, axis=0), label="Diffusion")
+    c = plt.plot(r, r**2 * onp.mean(generated_2pcfs, axis=0), label="Diffusion")
     plt.plot(
         r,
-        r**2*(onp.mean(generated_2pcfs, axis=0) - onp.std(generated_2pcfs, axis=0)/onp.sqrt(len(generated_2pcfs))),
+        r**2
+        * (
+            onp.mean(generated_2pcfs, axis=0)
+            - onp.std(generated_2pcfs, axis=0) / onp.sqrt(len(generated_2pcfs))
+        ),
         alpha=0.5,
         color=c[0].get_color(),
         linestyle="dashed",
     )
     plt.plot(
         r,
-        r**2*(onp.mean(generated_2pcfs, axis=0) + onp.std(generated_2pcfs, axis=0)/onp.sqrt(len(generated_2pcfs))),
+        r**2
+        * (
+            onp.mean(generated_2pcfs, axis=0)
+            + onp.std(generated_2pcfs, axis=0) / onp.sqrt(len(generated_2pcfs))
+        ),
         alpha=0.5,
         color=c[0].get_color(),
         linestyle="dashed",
@@ -353,13 +374,19 @@ def plot_2pcf_rsd(
             c = ax[i].semilogx(r, onp.mean(true_2pcfs, axis=0)[i], label="N-body")
         ax[i].plot(
             r,
-            (onp.mean(true_2pcfs, axis=0) - onp.std(true_2pcfs, axis=0)/onp.sqrt(len(true_2pcfs)))[i],
+            (
+                onp.mean(true_2pcfs, axis=0)
+                - onp.std(true_2pcfs, axis=0) / onp.sqrt(len(true_2pcfs))
+            )[i],
             color=c[0].get_color(),
             linestyle="dashed",
         )
         ax[i].plot(
             r,
-            (onp.mean(true_2pcfs, axis=0) + onp.std(true_2pcfs, axis=0)/onp.sqrt(len(true_2pcfs)))[i],
+            (
+                onp.mean(true_2pcfs, axis=0)
+                + onp.std(true_2pcfs, axis=0) / onp.sqrt(len(true_2pcfs))
+            )[i],
             color=c[0].get_color(),
             linestyle="dashed",
         )
@@ -367,13 +394,19 @@ def plot_2pcf_rsd(
         c = ax[i].plot(r, onp.mean(generated_2pcfs, axis=0)[i], label="Diffusion")
         ax[i].plot(
             r,
-            (onp.mean(generated_2pcfs, axis=0) - onp.std(generated_2pcfs, axis=0)/onp.sqrt(len(generated_2pcfs)))[i],
+            (
+                onp.mean(generated_2pcfs, axis=0)
+                - onp.std(generated_2pcfs, axis=0) / onp.sqrt(len(generated_2pcfs))
+            )[i],
             color=c[0].get_color(),
             linestyle="dashed",
         )
         ax[i].plot(
             r,
-            (onp.mean(generated_2pcfs, axis=0) + onp.std(generated_2pcfs, axis=0)/onp.sqrt(len(generated_2pcfs)))[i],
+            (
+                onp.mean(generated_2pcfs, axis=0)
+                + onp.std(generated_2pcfs, axis=0) / onp.sqrt(len(generated_2pcfs))
+            )[i],
             color=c[0].get_color(),
             linestyle="dashed",
         )
@@ -401,8 +434,24 @@ def eval_likelihood(
         log_like = []
         x_test = true_samples[idx][None, ...]
         for omega_m in omega_m_ary:
-            theta_test = np.array([omega_m, conditioning[idx][1]])[None, ...]
-            log_like.append(elbo(vdm, pstate.params, rng, x_test, theta_test, np.ones_like(x_test[..., 0]), steps=20, unroll_loop=True))
+            if len(conditioning[idx]) > 2:
+                theta_test = np.array([omega_m] + list(conditioning[idx][1:]))[
+                    None, ...
+                ]
+            else:
+                theta_test = np.array([omega_m, conditioning[idx][1]])[None, ...]
+            log_like.append(
+                elbo(
+                    vdm,
+                    pstate.params,
+                    rng,
+                    x_test,
+                    theta_test,
+                    np.ones_like(x_test[..., 0]),
+                    steps=20,
+                    unroll_loop=True,
+                )
+            )
         log_like_cov.append(log_like)
     log_like_cov = np.array(log_like_cov)
 
@@ -412,10 +461,17 @@ def eval_likelihood(
     true_values = []
 
     for ic, idx in enumerate(range(n_test)):
-        likelihood_arr = 2 * (np.array(log_like_cov[idx]) - np.max(np.array(log_like_cov[idx])))
+        likelihood_arr = 2 * (
+            np.array(log_like_cov[idx]) - np.max(np.array(log_like_cov[idx]))
+        )
 
         # Interpolate to find the 95% limits
-        f_interp1 = interp1d(omega_m_ary, likelihood_arr - threshold_1sigma, kind="linear", fill_value="extrapolate")
+        f_interp1 = interp1d(
+            omega_m_ary,
+            likelihood_arr - threshold_1sigma,
+            kind="linear",
+            fill_value="extrapolate",
+        )
         x_vals = np.linspace(omega_m_ary[0], omega_m_ary[-1], 1000)
         diff_signs1 = np.sign(f_interp1(x_vals))
 
@@ -433,7 +489,14 @@ def eval_likelihood(
     fig = plt.figure(figsize=(10, 4))
 
     for value, (low, high) in zip(true_values, intervals1):
-        plt.errorbar(value, (low + high) / 2.0, yerr=[[(low + high) / 2.0 - low], [high - (low + high) / 2.0]], fmt="o", capsize=5, color="k")
+        plt.errorbar(
+            value,
+            (low + high) / 2.0,
+            yerr=[[(low + high) / 2.0 - low], [high - (low + high) / 2.0]],
+            fmt="o",
+            capsize=5,
+            color="k",
+        )
 
     plt.plot([0, 1], [0, 1], color="k", ls="--")
 
@@ -577,7 +640,9 @@ def generate_samples(
     generated_samples = generated_samples.mean()
     generated_samples = generated_samples * norm_dict["std"] + norm_dict["mean"]
     # make sure generated samples are inside boxsize
-    generated_samples = generated_samples.at[..., :3].set(generated_samples[..., :3] % boxsize)
+    generated_samples = generated_samples.at[..., :3].set(
+        generated_samples[..., :3] % boxsize
+    )
     return generated_samples
 
 
@@ -624,7 +689,9 @@ def generate_samples_for_dataset(
 ):
     batches = create_input_iter(ds)
     x_batch, conditioning_batch, mask_batch = next(batches)
-    vdm, params = VariationalDiffusionModel.from_path_to_model(path_to_model=path_to_model)
+    vdm, params = VariationalDiffusionModel.from_path_to_model(
+        path_to_model=path_to_model
+    )
     rng = jax.random.PRNGKey(42)
     n_batches = n_total_samples // batch_size
     true_samples, generated_samples, conditioning_samples = [], [], []
@@ -648,21 +715,37 @@ def generate_samples_for_dataset(
         )
         conditioning_samples.append(conditioning_batch[0])
         print(f"Iteration {i} takes {time.time() - t0} seconds")
-    return np.array(true_samples), np.array(generated_samples), np.array(conditioning_samples)
+    return (
+        np.array(true_samples),
+        np.array(generated_samples),
+        np.array(conditioning_samples),
+    )
 
 
 if __name__ == "__main__":
     t0 = time.time()
     run_name = "blooming-puddle-230"  # 'misunderstood-night-203' #'confused-gorge-138' #'chocolate-cloud-122'
-    path_to_samples = Path(f"/n/holystore01/LABS/itc_lab/Users/ccuestalazaro/set_diffuser/samples/{run_name}")
+    path_to_samples = Path(
+        f"/n/holystore01/LABS/itc_lab/Users/ccuestalazaro/set_diffuser/samples/{run_name}"
+    )
     path_to_samples.mkdir(exist_ok=True)
-    path_to_model = Path(f"/n/home11/ccuestalazaro/set-diffuser/logging/cosmology/{run_name}")
+    path_to_model = Path(
+        f"/n/home11/ccuestalazaro/set-diffuser/logging/cosmology/{run_name}"
+    )
     steps = 500
-    true_samples, generated_samples, conditioninig_samples = generate_test_samples_from_model_folder(
+    (
+        true_samples,
+        generated_samples,
+        conditioninig_samples,
+    ) = generate_test_samples_from_model_folder(
         path_to_model=path_to_model,
         steps=steps,
     )
     np.save(path_to_samples / f"true_test_samples.npy", true_samples)
-    np.save(path_to_samples / f"generated_test_samples_{steps}_steps.npy", generated_samples)
-    np.save(path_to_samples / f"cond_test_samples_{steps}_steps.npy", conditioninig_samples)
+    np.save(
+        path_to_samples / f"generated_test_samples_{steps}_steps.npy", generated_samples
+    )
+    np.save(
+        path_to_samples / f"cond_test_samples_{steps}_steps.npy", conditioninig_samples
+    )
     print(f"It takes {time.time() - t0} seconds to generate samples")
