@@ -142,10 +142,10 @@ def get_config():
     data.add_translations = True
     data.conditioning_parameters = [
         "Omega_m",
-        "Omega_b",
-        "h",
-        "n_s",
+        # "Omega_b",
+        # "h",
         "sigma_8",
+        "n_s",
     ]  # ["Omega_m", "sigma_8"]
     data.kwargs = {}
 
