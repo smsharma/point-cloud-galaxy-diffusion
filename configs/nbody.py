@@ -38,18 +38,18 @@ def get_config():
     decoder.d_hidden = 256
     decoder.n_layers = 4
 
-    # # Transformer score model
-    # config.score = score = ml_collections.ConfigDict()
-    # score.score = "transformer"
-    # score.induced_attention = False
-    # score.n_inducing_points = 200
-    # score.d_model = 256
-    # score.d_mlp = 1024
-    # score.n_layers = 6
-    # score.n_heads = 4
-    # score.concat_conditioning = False
-    # score.d_conditioning = 256
-    # score.adanorm = True
+    # Transformer score model
+    config.score = score = ml_collections.ConfigDict()
+    score.score = "transformer"
+    score.induced_attention = False
+    score.n_inducing_points = 200
+    score.d_model = 256
+    score.d_mlp = 1024
+    score.n_layers = 6
+    score.n_heads = 4
+    score.concat_conditioning = False
+    score.d_conditioning = 256
+    score.adanorm = False
 
     # # ChebConv score model
     # config.score = score = ml_collections.ConfigDict()
@@ -95,27 +95,27 @@ def get_config():
     # score.n_layers = 6
     # score.n_heads = 4
 
-    # Graph score model
-    config.score = score = ml_collections.ConfigDict()
-    score.score = "graph"
-    score.k = 20
-    score.n_pos_features = 3
-    score.num_mlp_layers = 4
-    score.latent_size = 16
-    score.hidden_size = 128
-    score.skip_connections = True
-    score.message_passing_steps = 4
-    score.attention = True
-    score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
-    score.use_edges = True
-    score.use_pbc = True
-    score.use_absolute_distances = False
-    score.use_fourier_features = False
-    score.n_fourier_features = 16
-    score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
-    score.norm = "layer"  # "pair" or "layer" for LayerNorm or PairNorm. Otherwise, no normalization.
-    score.edge_skip_connections = False
-    score.relative_updates = True
+    # # Graph score model
+    # config.score = score = ml_collections.ConfigDict()
+    # score.score = "graph"
+    # score.k = 20
+    # score.n_pos_features = 3
+    # score.num_mlp_layers = 4
+    # score.latent_size = 16
+    # score.hidden_size = 128
+    # score.skip_connections = True
+    # score.message_passing_steps = 4
+    # score.attention = True
+    # score.shared_weights = False  # GNN shares weights across message passing steps; Doesn't work yet because of flax quirks
+    # score.use_edges = True
+    # score.use_pbc = True
+    # score.use_absolute_distances = False
+    # score.use_fourier_features = False
+    # score.n_fourier_features = 16
+    # score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
+    # score.norm = "layer"  # "pair" or "layer" for LayerNorm or PairNorm. Otherwise, no normalization.
+    # score.edge_skip_connections = False
+    # score.relative_updates = True
 
     # Training
     config.training = training = ml_collections.ConfigDict()
@@ -134,7 +134,7 @@ def get_config():
     data.dataset = "nbody"
     data.simulation_set = "lhc"  # "lhc" or "fiducial"
     data.n_particles = 5000  # Select the first n_particles particles
-    data.n_features = 3  # Select the first n_features features
+    data.n_features = 7  # Select the first n_features features
     data.n_pos_features = 3  # Select the first n_pos_features features as coordinates (e.g., for graph-building)
     data.box_size = 1000.0  # Need to know the box size for augmentations
     data.add_augmentations = True
@@ -142,8 +142,8 @@ def get_config():
     data.add_translations = True
     data.conditioning_parameters = [
         "Omega_m",
-        # "Omega_b",
-        # "h",
+        "Omega_b",
+        "h",
         "sigma_8",
         "n_s",
     ]  # ["Omega_m", "sigma_8"]
