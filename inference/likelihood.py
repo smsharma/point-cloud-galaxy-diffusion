@@ -4,8 +4,6 @@ sys.path.append("../")
 from functools import partial
 import jax
 import jax.numpy as np
-import numpyro
-import numpyro.distributions as dist
 
 
 def elbo(vdm, params, rng, x, conditioning, mask, steps=2, unroll_loop=False):
@@ -60,23 +58,7 @@ def elbo(vdm, params, rng, x, conditioning, mask, steps=2, unroll_loop=False):
     )
 
 
-# def prior_cube(u):
-#     priors = np.array([[0.1, 0.5], [0.6, 1.0]])
-#     priors_lo = priors[:, 0]
-#     priors_interval = priors[:, 1] - priors[:, 0]
-#     for i in range(len(u) - 1):
-#         u[i] = u[i] * priors_interval[i] + priors_lo[i]
-#     return u
-
-
-# def log_prior(theta):
-#     Omega_m, sigma_8 = theta
-#     if 0.1 < Omega_m < 0.5 and 0.6 < sigma_8 < 1.0:
-#         return 0.0
-#     return -np.inf
-
-
-# @partial(jax.jit, static_argnums=(0, 5, 6))
+@partial(jax.jit, static_argnums=(0, 5, 6))
 def likelihood(vdm, rng, restored_state_params, x_test, params, steps=6, n_samples=2):
     x_test = np.repeat(np.array([x_test]), n_samples, 0)
     theta_test = np.repeat(np.array([params]), n_samples, 0)
@@ -89,33 +71,3 @@ def likelihood(vdm, rng, restored_state_params, x_test, params, steps=6, n_sampl
         mask=np.ones_like(x_test[..., 0]),
         steps=steps,
     ).mean()
-
-
-def get_model(
-    vdm,
-    restored_state_params,
-    rng,
-    n_samples=1,
-    steps=4,
-):
-    def model(x_test, n_samples=n_samples, steps=steps):
-        # Omega_m and sigma_8 prior distributions
-        omega_m = numpyro.sample("omega_m", dist.Uniform(0.1, 0.5))
-        omega_b = numpyro.sample("omega_b", dist.Uniform(0.03, 0.07))
-        h = numpyro.sample("h", dist.Uniform(0.5, 0.9))
-        sigma_8 = numpyro.sample("sigma_8", dist.Uniform(0.6, 1.0))
-        n_s = numpyro.sample("n_s", dist.Uniform(0.8, 1.2))
-        # params = np.array([omega_m, sigma_8])
-        params = np.array([omega_m, omega_b, h, sigma_8, n_s])
-        log_like = likelihood(
-            vdm=vdm,
-            rng=rng,
-            restored_state_params=jax.tree_map(np.array, restored_state_params),
-            x_test=x_test,
-            params=params,
-            steps=steps,
-            n_samples=n_samples,
-        )
-        return numpyro.factor("log_like", log_like)
-
-    return model
