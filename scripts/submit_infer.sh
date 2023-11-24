@@ -6,7 +6,7 @@
 #SBATCH --time=48:00:00
 #SBATCH --gres=gpu:1
 #SBATCH --account=iaifi_lab
-#SBATCH --array=0-4
+#SBATCH --array=0-3
 #SBATCH -p iaifi_gpu
 
 export TF_CPP_MIN_LOG_LEVEL="2"
@@ -24,4 +24,4 @@ mamba activate jax
 cd /n/holystore01/LABS/iaifi_lab/Users/smsharma/set-diffuser/
 
 # Set seed as the job array index
-python -u infer.py --seed $SLURM_ARRAY_TASK_ID --n_steps 30 --n_elbo_samples 16 --n_test 32 --run_name "gallant-cherry-87"
+python -u infer.py --seed $SLURM_ARRAY_TASK_ID --n_steps 50 --n_elbo_samples 8 --n_test 32 --run_name "gallant-cherry-87"

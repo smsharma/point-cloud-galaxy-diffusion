@@ -14,6 +14,8 @@ from models.diffusion import VariationalDiffusionModel
 from datasets import get_nbody_data
 from inference.likelihood import likelihood
 from tqdm import tqdm
+from datasets import load_data
+from models.train_utils import create_input_iter
 
 
 def get_profiles(run_name, n_steps, n_elbo_samples, n_test, seed):
@@ -29,12 +31,29 @@ def get_profiles(run_name, n_steps, n_elbo_samples, n_test, seed):
         config = yaml.safe_load(file)
         config = ConfigDict(config)
 
-    x, _, conditioning, norm_dict = get_nbody_data(
-        n_features=config.data.n_features,
-        n_particles=config.data.n_particles,
+    # x, _, conditioning, norm_dict = get_nbody_data(
+    #     n_features=config.data.n_features,
+    #     n_particles=config.data.n_particles,
+    #     split="test",
+    #     conditioning_parameters=["Omega_m", "sigma_8"],
+    # )
+
+    train_ds, _ = load_data(
+        config.data.dataset,
+        config.data.n_features,
+        config.data.n_particles,
+        32,
+        config.seed,
+        shuffle=True,
         split="test",
-        conditioning_parameters=["Omega_m", "sigma_8"],
+        # **config.data.kwargs,
     )
+
+    batches = create_input_iter(train_ds)
+    x, conditioning, mask = next(batches)
+    x = x.reshape(-1, config.data.n_particles, config.data.n_features)
+    conditioning = conditioning.reshape(-1, 2)
+    mask = mask.reshape(-1, config.data.n_particles)
 
     rng = jax.random.PRNGKey(seed)
     rng, spl = jax.random.split(rng)
@@ -89,11 +108,12 @@ def get_profiles(run_name, n_steps, n_elbo_samples, n_test, seed):
     log_like_cov_s8 = np.array(log_like_cov_s8)
 
     np.savez(
-        path_to_profiles / f"log_like_cov_{seed}.npz",
+        path_to_profiles / f"log_like_cov_v2_{seed}.npz",
         log_like_cov=log_like_cov,
         log_like_cov_s8=log_like_cov_s8,
         omega_m_ary=omega_m_ary,
         sigma_8_ary=sigma_8_ary,
+        conditioning=conditioning,
     )
 
 
@@ -101,7 +121,6 @@ if __name__ == "__main__":
     print("{} devices visible".format(jax.device_count()))
 
     # Read from command line
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--run_name", type=str, default="gallant-cherry-87")
     parser.add_argument("--n_steps", type=int, default=50)
