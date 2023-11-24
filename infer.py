@@ -2,113 +2,138 @@ import sys
 
 sys.path.append("./inference/")
 
-import time
-
 import yaml
-import pickle
 from pathlib import Path
-import jax.numpy as np
+import argparse
 
-import optax
 import jax
-from numpyro import optim
-from numpyro.infer import SVI, Trace_ELBO, autoguide
+import jax.numpy as np
 from ml_collections.config_dict import ConfigDict
 
 from models.diffusion import VariationalDiffusionModel
 from datasets import get_nbody_data
-from inference.inference_utils import get_model
+from inference.likelihood import likelihood
+from tqdm import tqdm
+from datasets import load_data
+from models.train_utils import create_input_iter
 
-if __name__ == "__main__":
-    use_test_set = True
-    generated_samples = False
-    conditioning_parameters = ["Omega_m", "Omega_b", "h", "sigma_8", "n_s"]
-    split = "test" if use_test_set else "train"
-    print("{} devices visible".format(jax.device_count()))
-    # run_name = "gallant-cherry-87"
-    run_name = "cool-terrain-168"  # All params
-    # run_name = "leafy-pyramid-88"
+
+def get_profiles(run_name, n_steps, n_elbo_samples, n_test, seed):
     path_to_model = Path(
         f"/n/holystore01/LABS/iaifi_lab/Lab/set-diffuser-checkpoints/cosmology/{run_name}"
     )
-    path_to_posteriors = Path(
-        f"/n/holystore01/LABS/iaifi_lab/Lab/set-diffuser-checkpoints/cosmology/{run_name}/posteriors/"
+    path_to_profiles = Path(
+        f"/n/holystore01/LABS/iaifi_lab/Lab/set-diffuser-checkpoints/cosmology/{run_name}/ll_profiles/"
     )
-    path_to_posteriors.mkdir(exist_ok=True)
+    path_to_profiles.mkdir(exist_ok=True)
     config_file = path_to_model / "config.yaml"
     with open(config_file, "r") as file:
         config = yaml.safe_load(file)
         config = ConfigDict(config)
 
-    # Steps for diffusion, number ELBO evaluation to mean over, num_particles (4), n_steps for svi optimization
-    # ELBO mean
-    n_diffusion_steps = 10
-    n_steps = 2000
-    num_samples = 100_000
-    num_particles = 1
-    lr = 5e-3
+    # x, _, conditioning, norm_dict = get_nbody_data(
+    #     n_features=config.data.n_features,
+    #     n_particles=config.data.n_particles,
+    #     split="test",
+    #     conditioning_parameters=["Omega_m", "sigma_8"],
+    # )
 
-    min_fit_idx = 0
-    max_fit_idx = 30
-
-    x, _, conditioning, norm_dict = get_nbody_data(
-        n_features=config.data.n_features,
-        n_particles=config.data.n_particles,
-        split=split,
-        conditioning_parameters=conditioning_parameters,
+    train_ds, _ = load_data(
+        config.data.dataset,
+        config.data.n_features,
+        config.data.n_particles,
+        32,
+        config.seed,
+        shuffle=True,
+        split="test",
+        # **config.data.kwargs,
     )
 
-    if generated_samples:
-        x = np.load(
-            path_to_posteriors.parent.parent
-            / f"samples/{run_name}/generated_test_samples_500_steps.npy"
-        )
-        x = x.reshape((-1, config.data.n_particles, 3))
-        x = (x - norm_dict["mean"]) / norm_dict["std"]
+    batches = create_input_iter(train_ds)
+    x, conditioning, mask = next(batches)
+    x = x.reshape(-1, config.data.n_particles, config.data.n_features)
+    conditioning = conditioning.reshape(-1, 2)
+    mask = mask.reshape(-1, config.data.n_particles)
 
-    test_idx = np.array(range(min_fit_idx, max_fit_idx))
-    x = x[test_idx]
-
-    rng = jax.random.PRNGKey(42)
+    rng = jax.random.PRNGKey(seed)
     rng, spl = jax.random.split(rng)
 
     vdm, restored_params = VariationalDiffusionModel.from_path_to_model(
         path_to_model=path_to_model
     )
 
-    # NumPyro model and guide
-    model = get_model(
-        vdm=vdm,
-        restored_state_params=jax.tree_map(np.array, restored_params),
-        rng=rng,
-        n_samples=1,
-        steps=n_diffusion_steps,
+    sigma_8_ary = np.linspace(0.6, 1.0, 30)
+    omega_m_ary = np.linspace(0.1, 0.5, 30)
+
+    # Get Omega_m
+    log_like_cov = []
+    for idx in tqdm(range(n_test)):
+        log_like = []
+        x_test = x[idx]
+        for omega_m in omega_m_ary:
+            theta_test = np.array([omega_m, conditioning[idx][1]])
+            log_like.append(
+                likelihood(
+                    vdm,
+                    rng,
+                    restored_params,
+                    x_test,
+                    theta_test,
+                    steps=n_steps,
+                    n_samples=n_elbo_samples,
+                )
+            )
+        log_like_cov.append(log_like)
+    log_like_cov = np.array(log_like_cov)
+
+    # Get sigma_8
+    log_like_cov_s8 = []
+    for idx in tqdm(range(n_test)):
+        log_like = []
+        x_test = x[idx]
+        for sigma_8 in sigma_8_ary:
+            theta_test = np.array([conditioning[idx][0], sigma_8])
+            log_like.append(
+                likelihood(
+                    vdm,
+                    rng,
+                    restored_params,
+                    x_test,
+                    theta_test,
+                    steps=n_steps,
+                    n_samples=n_elbo_samples,
+                )
+            )
+        log_like_cov_s8.append(log_like)
+    log_like_cov_s8 = np.array(log_like_cov_s8)
+
+    np.savez(
+        path_to_profiles / f"log_like_cov_v2_{seed}.npz",
+        log_like_cov=log_like_cov,
+        log_like_cov_s8=log_like_cov_s8,
+        omega_m_ary=omega_m_ary,
+        sigma_8_ary=sigma_8_ary,
+        conditioning=conditioning,
     )
-    # guide = autoguide.AutoIAFNormal(
-    #     model,
-    #     num_flows=4,
-    #     hidden_dims=[64, 64],
-    #     skip_connections=True,
-    #     nonlinearity=jax.example_libraries.stax.Tanh,
-    # )
-    guide = autoguide.AutoMultivariateNormal(model)
 
-    optimizer = optim.optax_to_numpyro(optax.adam(lr))
-    svi = SVI(model, guide, optimizer, Trace_ELBO(num_particles=num_particles))
 
-    for i, x_test in enumerate(x):
-        print("Starting :)")
-        t0 = time.time()
-        idx = test_idx[i]
-        svi_results = svi.run(rng, n_steps, x_test)
-        rng, _ = jax.random.split(rng)
-        posterior_dict = guide.sample_posterior(
-            rng_key=rng, params=svi_results.params, sample_shape=(num_samples,)
-        )
-        if generated_samples:
-            filename = f"generated_chain_{split}_{idx}_steps10.pkl"
-        else:
-            filename = f"chain_mvn_{split}_{idx}_steps10.pkl"
-        with open(path_to_posteriors / filename, "wb") as f:
-            pickle.dump(posterior_dict, f)
-        print(f"Finished chain {idx} in {time.time() - t0:.2f} seconds")
+if __name__ == "__main__":
+    print("{} devices visible".format(jax.device_count()))
+
+    # Read from command line
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--run_name", type=str, default="gallant-cherry-87")
+    parser.add_argument("--n_steps", type=int, default=50)
+    parser.add_argument("--n_elbo_samples", type=int, default=16)
+    parser.add_argument("--n_test", type=int, default=32)
+    parser.add_argument("--seed", type=int, default=42)
+
+    args = parser.parse_args()
+
+    get_profiles(
+        run_name=args.run_name,
+        n_steps=args.n_steps,
+        n_elbo_samples=args.n_elbo_samples,
+        n_test=args.n_test,
+        seed=args.seed,
+    )
