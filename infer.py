@@ -31,13 +31,6 @@ def get_profiles(run_name, n_steps, n_elbo_samples, n_test, seed):
         config = yaml.safe_load(file)
         config = ConfigDict(config)
 
-    # x, _, conditioning, norm_dict = get_nbody_data(
-    #     n_features=config.data.n_features,
-    #     n_particles=config.data.n_particles,
-    #     split="test",
-    #     conditioning_parameters=["Omega_m", "sigma_8"],
-    # )
-
     train_ds, _ = load_data(
         config.data.dataset,
         config.data.n_features,
@@ -46,7 +39,6 @@ def get_profiles(run_name, n_steps, n_elbo_samples, n_test, seed):
         config.seed,
         shuffle=True,
         split="test",
-        # **config.data.kwargs,
     )
 
     batches = create_input_iter(train_ds)
