@@ -20,7 +20,7 @@ from ml_collections.config_dict import ConfigDict
 from pycorr import TwoPointCorrelationFunction
 from models.diffusion_utils import generate
 from models.train_utils import create_input_iter
-from models.likelihood import elbo
+from inference.likelihood import elbo
 from datasets import nbody_dataset
 from cosmo_utils.knn import get_CDFkNN
 from scipy.interpolate import interp1d

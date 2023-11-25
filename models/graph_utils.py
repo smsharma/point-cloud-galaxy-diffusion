@@ -8,7 +8,6 @@ import flax.linen as nn
 from absl import logging
 
 # Try importing jaxkdtree, if it fails throw a warning
-
 try:
     import jaxkdtree
 except ImportError:
@@ -37,7 +36,12 @@ class PairNorm(nn.Module):
 
         # Divide centered by L2 norm per node and multiply by mean L2 norm
         # Add eps for numerical stability
-        features_normalized = feature_centered / (feature_l2 + EPS) * feature_l2_sqrt_mean * rescale_factor
+        features_normalized = (
+            feature_centered
+            / (feature_l2 + EPS)
+            * feature_l2_sqrt_mean
+            * rescale_factor
+        )
 
         return features_normalized
 
@@ -133,19 +137,6 @@ def nearest_neighbors(
     return sources, targets, dr[sources, targets]
 
 
-@partial(jax.jit, static_argnums=(1,))
-def nearest_neighbors_ann(x, k):
-    """Algorithm from https://arxiv.org/abs/2206.14286. NOTE: Does not support masking."""
-
-    dots = np.einsum("ik,jk->ij", x, x)
-    db_half_norm = np.linalg.norm(x, axis=1) ** 2 / 2.0
-    dists = db_half_norm - dots
-    dist, neighbours = jax.lax.approx_min_k(dists, k=k, recall_target=0.95)
-    sources = np.arange(x.shape[0]).repeat(k)
-    targets = neighbours.reshape(x.shape[0] * (k))
-    return (sources, targets)
-
-
 @partial(jax.jit, static_argnums=(1, 2))
 def nearest_neighbors_kd(x, k, max_radius=2000.0):
     # Implementation of nearest neighbors op
@@ -203,7 +194,9 @@ def replicate_box(
     return replicated_features
 
 
-def get_rotated_box(features, rotation_axis, rotation_angle, n_pos_dim=3, box_size: float = 1000.0):
+def get_rotated_box(
+    features, rotation_axis, rotation_angle, n_pos_dim=3, box_size: float = 1000.0
+):
     unfolded_features = replicate_box(features, box_size)
     rotated_features = rotate_representation(
         unfolded_features,
@@ -211,7 +204,8 @@ def get_rotated_box(features, rotation_axis, rotation_angle, n_pos_dim=3, box_si
         rotation_axis,
     )
     mask_in_box = np.all(
-        (rotated_features[:, :n_pos_dim] >= 0) & (rotated_features[:, :n_pos_dim] <= box_size),
+        (rotated_features[:, :n_pos_dim] >= 0)
+        & (rotated_features[:, :n_pos_dim] <= box_size),
         axis=1,
     )
     return rotated_features[mask_in_box]

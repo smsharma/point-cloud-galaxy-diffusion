@@ -11,7 +11,6 @@ import jax.numpy as np
 from ml_collections.config_dict import ConfigDict
 
 from models.diffusion import VariationalDiffusionModel
-from datasets import get_nbody_data
 from inference.likelihood import likelihood
 from tqdm import tqdm
 from datasets import load_data

@@ -16,7 +16,9 @@ class AdaLayerNorm(nn.Module):
     def __call__(self, x, conditioning):
         # Compute scale and shift parameters from conditioning context
         emb = nn.Dense(2 * x.shape[-1])(conditioning)
-        scale_and_shift = nn.Dense(2 * x.shape[-1])(nn.gelu(emb))  # Most implementations use just a linear layer
+        scale_and_shift = nn.Dense(2 * x.shape[-1])(
+            nn.gelu(emb)
+        )  # Most implementations use just a linear layer
         scale, shift = np.split(scale_and_shift, 2, axis=-1)
 
         # Don't use bias or scale since these will be learnable through the conditioning context
@@ -35,11 +37,18 @@ class ChebConv(nn.Module):
     skip_connection: bool = True
 
     @nn.compact
-    def __call__(self, graph: jraph.GraphsTuple, lambda_max: float = None) -> jraph.GraphsTuple:
+    def __call__(
+        self, graph: jraph.GraphsTuple, lambda_max: float = None
+    ) -> jraph.GraphsTuple:
         """Chebychev convolutional layer, based on https://arxiv.org/abs/1606.09375.
         Reference implementation: https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/conv/cheb_conv.html
         """
-        L, (senders, receivers), norm = self.__norm__(edge_index=np.array([graph.senders, graph.receivers]), edge_weight=graph.edges, lambda_max=lambda_max, num_nodes=graph.nodes.shape[0])
+        L, (senders, receivers), norm = self.__norm__(
+            edge_index=np.array([graph.senders, graph.receivers]),
+            edge_weight=graph.edges,
+            lambda_max=lambda_max,
+            num_nodes=graph.nodes.shape[0],
+        )
 
         # Initialize the output feature as zero
         out = np.zeros_like(graph.nodes[:, : self.out_channels])
@@ -65,7 +74,9 @@ class ChebConv(nn.Module):
             out += nn.Dense(self.out_channels)(Tx_k)
 
         if self.bias:
-            bias = self.param("bias", nn.initializers.zeros_init(), (self.out_channels,))
+            bias = self.param(
+                "bias", nn.initializers.zeros_init(), (self.out_channels,)
+            )
             out = out + bias
 
         return graph._replace(nodes=out)
@@ -75,9 +86,13 @@ class ChebConv(nn.Module):
 
         # Get graph Laplacian
         # Symmetric norm is tricky given Jax static reqs
-        L, edge_index, edge_weight = self.get_laplacian(edge_index, edge_weight, num_nodes=num_nodes)
+        L, edge_index, edge_weight = self.get_laplacian(
+            edge_index, edge_weight, num_nodes=num_nodes
+        )
 
-        assert edge_weight is not None, "Edge weights cannot be None after getting the Laplacian."
+        assert (
+            edge_weight is not None
+        ), "Edge weights cannot be None after getting the Laplacian."
 
         # If lambda_max is not specified, calculate it using the edge weights
         if lambda_max is None:
@@ -96,38 +111,14 @@ class ChebConv(nn.Module):
 
         # D_ii = Sum_j A_{ij}
         deg = A.sum(axis=1)
-        D = BCOO((deg.todense(), np.array([np.arange(num_nodes), np.arange(num_nodes)]).T), shape=(num_nodes, num_nodes))
+        D = BCOO(
+            (deg.todense(), np.array([np.arange(num_nodes), np.arange(num_nodes)]).T),
+            shape=(num_nodes, num_nodes),
+        )
 
         L = D - A  # L_{ij}
 
         return L, L.indices.T, L.data
-
-
-class GlobalAttentionLayer(nn.Module):
-    """Attention mechanism to reweight node features based on global context."""
-
-    node_feature_dim: int
-    global_feature_dim: int
-    hidden_dim: int  # An intermediate dimension for the attention computation
-
-    @nn.compact
-    def __call__(self, node_features, global_features):
-        # Expand global features to have the same shape as node features for broadcasting
-        global_features = global_features[None, :]  # [1, global_feature_dim]
-
-        # Project node features and global features to an intermediate dimension
-        node_transform = nn.Dense(self.hidden_dim)(node_features)  # [num_nodes, hidden_dim]
-        global_transform = nn.Dense(self.hidden_dim)(global_features)  # [1, hidden_dim]
-        combined_features = nn.gelu(node_transform + global_transform)
-
-        # Compute attention scores using a small neural network and then get attention weights
-        attention_logits = nn.Dense(1)(combined_features)  # [num_nodes, 1]
-        attention_weights = nn.softmax(attention_logits, axis=0)  # [num_nodes, 1]
-
-        # Apply attention weights to node features
-        attended_features = attention_weights * node_features  # [num_nodes, node_feature_dim]
-
-        return attended_features
 
 
 class ChebConvNet(nn.Module):
@@ -136,25 +127,22 @@ class ChebConvNet(nn.Module):
     bias: bool = True
     message_passing_steps: int = 5
     skip_connection: bool = True
-    attend_global: bool = True
     norm: bool = True
 
     @nn.compact
-    def __call__(self, graph: jraph.GraphsTuple, lambda_max: float = None) -> jraph.GraphsTuple:
+    def __call__(
+        self, graph: jraph.GraphsTuple, lambda_max: float = None
+    ) -> jraph.GraphsTuple:
         in_channels = graph.nodes.shape[-1]
-
-        # Reweigh node features by attending to global context
-
-        if self.attend_global:
-            attention_layer = GlobalAttentionLayer(node_feature_dim=graph.nodes.shape[-1], global_feature_dim=graph.globals.shape[-1], hidden_dim=self.out_channels)
-            graph = graph._replace(nodes=attention_layer(graph.nodes, graph.globals))
 
         # Linear embedding
         embedder = jraph.GraphMapFeatures(embed_node_fn=nn.Dense(self.out_channels))
         graph = embedder(graph)
 
         for _ in range(self.message_passing_steps):
-            graph_net = ChebConv(out_channels=self.out_channels, K=self.K, bias=self.bias)
+            graph_net = ChebConv(
+                out_channels=self.out_channels, K=self.K, bias=self.bias
+            )
             if self.skip_connection:
                 new_graph = graph_net(graph, lambda_max)
                 graph = graph._replace(nodes=new_graph.nodes + graph.nodes)
@@ -169,5 +157,9 @@ class ChebConvNet(nn.Module):
 
         # Readout
         # graph = graph._replace(nodes=nn.Dense(in_channels)(graph.nodes))  # Linear readout
-        graph = graph._replace(nodes=MLP([2 * self.out_channels, 2 * self.out_channels, in_channels])(graph.nodes))
+        graph = graph._replace(
+            nodes=MLP([2 * self.out_channels, 2 * self.out_channels, in_channels])(
+                graph.nodes
+            )
+        )
         return graph

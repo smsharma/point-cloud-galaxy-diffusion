@@ -23,5 +23,7 @@ mamba activate jax
 # Go to dir and train
 cd /n/holystore01/LABS/iaifi_lab/Users/smsharma/set-diffuser/
 
+## Run for positions-only and all-features runs
 # Set seed as the job array index
 python -u infer.py --seed $SLURM_ARRAY_TASK_ID --n_steps 50 --n_elbo_samples 8 --n_test 32 --run_name "gallant-cherry-87"
+python -u infer.py --seed $SLURM_ARRAY_TASK_ID --n_steps 50 --n_elbo_samples 8 --n_test 32 --run_name "magical-goosebump-109"
