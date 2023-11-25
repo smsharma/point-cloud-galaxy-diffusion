@@ -70,23 +70,6 @@ def get_config():
     # score.attend_global = False
     # score.norm = True
 
-    # # EdgeConv score model
-    # config.score = score = ml_collections.ConfigDict()
-    # score.score = "edgeconv"
-    # score.k = 20
-    # score.n_pos_features = 3
-    # score.num_mlp_layers = 4
-    # score.latent_size = 64
-    # score.hidden_size = 64
-    # score.skip_connections = True
-    # score.message_passing_steps = 4
-    # score.use_edges = True
-    # score.use_pbc = True
-    # score.use_absolute_distances = False
-    # score.use_fourier_features = False
-    # score.n_fourier_features = 16
-    # score.graph_construction = "pairwise_dist"  # "kd_tree" or "pairwise_dist"
-
     # # Transformwe with adaptive norm conditioning score model
     # config.score = score = ml_collections.ConfigDict()
     # score.score = "transformer_adanorm"

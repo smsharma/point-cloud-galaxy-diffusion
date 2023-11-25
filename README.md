@@ -1,15 +1,17 @@
-# Set Diffuser: Transformer-guided diffusion for set modeling
+# A point cloud approach to field level generative modeling
 
-Jax implementation of a transformer-guided variational diffusion model for class- and context-conditional generative modeling of and inference on set data.
+Carolina Cuesta-Lazaro and Siddharth Mishra-Sharma
 
-![MNIST](./notebooks/plots/mnist_dark.png#gh-dark-mode-only)
-![MNIST](./notebooks/plots/mnist_light.png#gh-light-mode-only)
+[![License: MIT](https://img.shields.io/badge/License-MIT-red.svg)](https://opensource.org/licenses/MIT)
+[![arXiv](https://img.shields.io/badge/arXiv-2311.xxxxx%20-green.svg)](https://arxiv.org/abs/2311.xxxxx)
 
-## NOTE
 
-The description below is likely to be out of date as the project is in active development.
+## Abstract
 
-## Description
+We introduce a diffusion-based generative model to describe the distribution of galaxies in our Universe directly as a collection of points in 3-D space (coordinates) optionally with associated attributes (e.g., velocities and masses), without resorting to binning or voxelization. The custom diffusion model, which employs either a graph neural network or transformer as the backbone neural network, can be used as an emulator that accurately reproduces essential summary statistics of the galaxy distribution and enables the computation of the conditional likelihood of a galaxy field. We demonstrate a first application to massive dark matter haloes in the _Quijote_ simulations. This approach can be extended to enable a comprehensive analysis of cosmological data, circumventing limitations inherent to summary statistics- as well as neural simulation-based inference methods.
+
+
+## Implementation notes
 
 - The diffusion backbone is based on the implementation of a [variational diffusion model](https://github.com/google-research/vdm) ([blog post](https://blog.alexalemi.com/diffusion.html)). 
 - The score model is a transformer without positional encodings and with masked attention to account for sets of different cardinality.
@@ -27,7 +29,11 @@ For evaluation of the nbody dataset, Corrfunc is needed:
 python -m pip install git+https://github.com/cosmodesi/pycorr#egg=pycorr[corrfunc]
 ```
 
-## Usage
+## Code overview
+
+TODO
+
+## Basic usage
 
 ``` py
 import jax
@@ -72,4 +78,17 @@ conditioning_sample = jax.random.normal(rng, (24, 6))
 
 x_samples = generate(vdm, params, rng, (24, 100), conditioning_sample, mask_sample)
 x_samples.mean().shape  # Mean of decoded Normal distribution -- (24, 100, 4)
+```
+
+## Citation
+
+If you use this code, please cite our paper:
+
+```
+@article{cuesta2021point,
+  title={A point cloud approach to field level generative modeling},
+  author={Cuesta-Lazaro, Carolina and Mishra-Sharma, Siddharth},
+  journal={arXiv preprint arXiv:2311.xxxxx},
+  year={2021}
+}
 ```
