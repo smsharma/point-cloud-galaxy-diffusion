@@ -5,6 +5,8 @@ Carolina Cuesta-Lazaro and Siddharth Mishra-Sharma
 [![License: MIT](https://img.shields.io/badge/License-MIT-red.svg)](https://opensource.org/licenses/MIT)
 [![arXiv](https://img.shields.io/badge/arXiv-2311.xxxxx%20-green.svg)](https://arxiv.org/abs/2311.xxxxx)
 
+![Figure.](notebooks/plots/diffusion_fig.png)
+
 
 ## Abstract
 
