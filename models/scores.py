@@ -9,7 +9,6 @@ from models.transformer import Transformer
 from models.transformer_adanorm import Transformer as TransformerAdaNorm
 from models.gnn import GraphConvNet
 from models.chebconv import ChebConvNet
-from models.dynamic_edge_conv import DynamicEdgeConvNet
 from models.mlp import MLP
 
 from models.graph_utils import nearest_neighbors, nearest_neighbors_kd, fourier_features
@@ -194,8 +193,6 @@ class GraphScoreNet(nn.Module):
             h = jax.vmap(GraphConvNet(**score_dict, in_features=z.shape[-1]))(graph)
         elif self.gnn_type == "chebconv":
             h = jax.vmap(ChebConvNet(**score_dict))(graph)
-        elif self.gnn_type == "edgeconv":
-            h = jax.vmap(DynamicEdgeConvNet(**score_dict))(graph)
 
         # Predicted noise
         eps = graph.nodes - h.nodes
