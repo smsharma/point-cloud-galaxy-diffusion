@@ -11,6 +11,14 @@ Carolina Cuesta-Lazaro and Siddharth Mishra-Sharma
 
 We introduce a diffusion-based generative model to describe the distribution of galaxies in our Universe directly as a collection of points in 3-D space (coordinates) optionally with associated attributes (e.g., velocities and masses), without resorting to binning or voxelization. The custom diffusion model can be used both for emulation, reproducing essential summary statistics of the galaxy distribution, as well as inference, by computing the conditional likelihood of a galaxy field. We demonstrate a first application to massive dark matter haloes in the _Quijote_ simulation suite. This approach can be extended to enable a comprehensive analysis of cosmological data, circumventing limitations inherent to summary statistics- as well as neural simulation-based inference methods.
 
+- [A point cloud approach to generative modeling for galaxy surveys at the field level](#a-point-cloud-approach-to-generative-modeling-for-galaxy-surveys-at-the-field-level)
+  - [Abstract](#abstract)
+  - [Dependencies](#dependencies)
+  - [Dataset](#dataset)
+  - [Running the code](#running-the-code)
+  - [Diffusion model basic usage](#diffusion-model-basic-usage)
+  - [Citation](#citation)
+
 ## Dependencies
 
 For evaluation of the nbody dataset, `Corrfunc` is needed:
