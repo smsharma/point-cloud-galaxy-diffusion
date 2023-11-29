@@ -16,8 +16,8 @@ We introduce a diffusion-based generative model to describe the distribution of 
 ## Implementation notes
 
 - The diffusion backbone is based on the implementation of a [variational diffusion model](https://github.com/google-research/vdm) ([blog post](https://blog.alexalemi.com/diffusion.html)). 
-- The score model is a transformer without positional encodings and with masked attention to account for sets of different cardinality.
-- Simple element-wise residual MLPs project the set features to and from a latent space, where diffusion is modeled.
+- The score models implemented are, i) a transformer without positional encodings and with masked attention to account for sets of different cardinality, and ii) a message passing graph neural network implemented in jraph.
+- Optioanl simple element-wise residual MLPs project the set features to and from a latent space, where diffusion is modeled.
 - The model can be optionally conditioned on a class as well as a general context. If `n_classes` > 0, the first element of the conditioning vector is assumed to be the integer class of the sample.
 
 ## Examples
