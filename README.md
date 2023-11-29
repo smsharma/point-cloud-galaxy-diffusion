@@ -31,6 +31,10 @@ For evaluation of the nbody dataset, Corrfunc is needed:
 python -m pip install git+https://github.com/cosmodesi/pycorr#egg=pycorr[corrfunc]
 ```
 
+## Dataset
+
+The processed dark matter halo features from the _Quijote_ simulations used to train the model can be found [here](https://drive.google.com/drive/folders/16etX6fHLlJQqD9K_UIzAbiDFkSmAuIBu?usp=share_link) 
+
 ## Code overview
 
 TODO
