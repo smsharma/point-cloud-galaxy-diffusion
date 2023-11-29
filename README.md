@@ -7,24 +7,11 @@ Carolina Cuesta-Lazaro and Siddharth Mishra-Sharma
 
 ![Figure.](notebooks/plots/diffusion_fig.png)
 
-
 ## Abstract
 
-We introduce a diffusion-based generative model to describe the distribution of galaxies in our Universe directly as a collection of points in 3-D space (coordinates) optionally with associated attributes (e.g., velocities and masses), without resorting to binning or voxelization. The custom diffusion model, which employs either a graph neural network or transformer as the backbone neural network, can be used as an emulator that accurately reproduces essential summary statistics of the galaxy distribution and enables the computation of the conditional likelihood of a galaxy field. We demonstrate a first application to massive dark matter haloes in the _Quijote_ simulations. This approach can be extended to enable a comprehensive analysis of cosmological data, circumventing limitations inherent to summary statistics- as well as neural simulation-based inference methods.
+We introduce a diffusion-based generative model to describe the distribution of galaxies in our Universe directly as a collection of points in 3-D space (coordinates) optionally with associated attributes (e.g., velocities and masses), without resorting to binning or voxelization. The custom diffusion model can be used both for emulation, reproducing essential summary statistics of the galaxy distribution, as well as inference, by computing the conditional likelihood of a galaxy field. We demonstrate a first application to massive dark matter haloes in the _Quijote_ simulation suite. This approach can be extended to enable a comprehensive analysis of cosmological data, circumventing limitations inherent to summary statistics- as well as neural simulation-based inference methods.
 
-
-## Implementation notes
-
-- The diffusion backbone is based on the implementation of a [variational diffusion model](https://github.com/google-research/vdm) ([blog post](https://blog.alexalemi.com/diffusion.html)). 
-- The score models implemented are, i) a transformer without positional encodings and with masked attention to account for sets of different cardinality, and ii) a message passing graph neural network implemented in jraph.
-- Optioanl simple element-wise residual MLPs project the set features to and from a latent space, where diffusion is modeled.
-- The model can be optionally conditioned on a class as well as a general context. If `n_classes` > 0, the first element of the conditioning vector is assumed to be the integer class of the sample.
-
-## Examples
-
-The [`notebooks`](notebooks/) directory contains usage example, including a simple [MNIST point cloud example](notebooks/example-mnist.ipynb) showing class-conditional generation, as well as a [particle physics example](notebooks/example-jets-minimal.ipynb). 
-
-## Install
+## Dependencies
 
 For evaluation of the nbody dataset, Corrfunc is needed:
 ```
@@ -37,9 +24,9 @@ The processed dark matter halo features from the _Quijote_ simulations used to t
 
 ## Code overview
 
-TODO
+The [`notebooks`](notebooks/) directory contains usage example, including a simple [MNIST point cloud example](notebooks/example-mnist.ipynb) showing class-conditional generation, as well as a [particle physics example](notebooks/example-jets-minimal.ipynb). 
 
-## Basic usage
+## Diffusion model basic usage
 
 ``` py
 import jax
