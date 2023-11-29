@@ -15,7 +15,11 @@ from flax.training import train_state, checkpoints
 from flax.core import FrozenDict
 
 from models.diffusion_utils import variance_preserving_map, alpha, sigma2
-from models.diffusion_utils import NoiseScheduleScalar, NoiseScheduleFixedLinear, NoiseScheduleNet
+from models.diffusion_utils import (
+    NoiseScheduleScalar,
+    NoiseScheduleFixedLinear,
+    NoiseScheduleNet,
+)
 from models.scores import (
     TransformerScoreNet,
     GraphScoreNet,
@@ -35,7 +39,7 @@ class VariationalDiffusionModel(nn.Module):
       gamma_min: Minimum log-SNR in the noise schedule (init if learned).
       gamma_max: Maximum log-SNR in the noise schedule (init if learned).
       antithetic_time_sampling: Antithetic time sampling to reduce variance.
-      noise_schedule: Noise schedule; "learned_linear" or "scalar".
+      noise_schedule: Noise schedule; "learned_linear", "linear", or "learned_net"
       noise_scale: Std of Normal noise model.
       d_t_embedding: Dimensions the timesteps are embedded to.
       score: Score function; "transformer", "graph".
@@ -43,6 +47,9 @@ class VariationalDiffusionModel(nn.Module):
       n_classes: Number of classes in data. If >0, the first element of the conditioning vector is assumed to be integer class.
       embed_context: Whether to embed the conditioning context.
       use_encdec: Whether to use an encoder-decoder for latent diffusion.
+      norm_dict: Dict of normalization arguments (see datasets.py docstrings).
+      n_pos_features: Number of positional features, for graph-building etc.
+      scale_non_linear_init: Whether to scale the initialization of the non-linear layers in the noise model.
     """
 
     d_feature: int = 3
@@ -54,14 +61,27 @@ class VariationalDiffusionModel(nn.Module):
     noise_scale: float = 1.0e-3
     d_t_embedding: int = 32
     score: str = "transformer"  # "transformer", "graph"
-    score_dict: dict = dataclasses.field(default_factory=lambda: {"d_model": 256, "d_mlp": 512, "n_layers": 4, "n_heads": 4})
-    encoder_dict: dict = dataclasses.field(default_factory=lambda: {"d_embedding": 12, "d_hidden": 256, "n_layers": 4})
-    decoder_dict: dict = dataclasses.field(default_factory=lambda: {"d_hidden": 256, "n_layers": 4})
+    score_dict: dict = dataclasses.field(
+        default_factory=lambda: {
+            "d_model": 256,
+            "d_mlp": 512,
+            "n_layers": 4,
+            "n_heads": 4,
+        }
+    )
+    encoder_dict: dict = dataclasses.field(
+        default_factory=lambda: {"d_embedding": 12, "d_hidden": 256, "n_layers": 4}
+    )
+    decoder_dict: dict = dataclasses.field(
+        default_factory=lambda: {"d_hidden": 256, "n_layers": 4}
+    )
     n_classes: int = 0
     embed_context: bool = False
     d_context_embedding: int = 32
     use_encdec: bool = True
-    norm_dict: dict = dataclasses.field(default_factory=lambda: {"x_mean": 0.0, "x_std": 1.0, "box_size": 1000.0})
+    norm_dict: dict = dataclasses.field(
+        default_factory=lambda: {"x_mean": 0.0, "x_std": 1.0, "box_size": 1000.0}
+    )
     n_pos_features: int = 3
     scale_non_linear_init: bool = False
 
@@ -98,8 +118,10 @@ class VariationalDiffusionModel(nn.Module):
             )
         x_mean = tuple(map(float, norm_dict["mean"]))
         x_std = tuple(map(float, norm_dict["std"]))
-        norm_dict_input = FrozenDict({"x_mean": x_mean, "x_std": x_std, "box_size": config.data.box_size})
-        n_pos_features = config.score.get('n_pos_features', 3)
+        norm_dict_input = FrozenDict(
+            {"x_mean": x_mean, "x_std": x_std, "box_size": config.data.box_size}
+        )
+        n_pos_features = config.score.get("n_pos_features", 3)
         vdm = VariationalDiffusionModel(
             d_feature=config.data.n_features,
             timesteps=config.vdm.timesteps,
@@ -131,7 +153,9 @@ class VariationalDiffusionModel(nn.Module):
         )
         conditioning_dummy = jax.random.normal(rng, (config.training.batch_size, 2))
         mask_dummy = np.ones((config.training.batch_size, config.data.n_particles))
-        _, params = vdm.init_with_output({"sample": rng, "params": rng}, x_dummy, conditioning_dummy, mask_dummy)
+        _, params = vdm.init_with_output(
+            {"sample": rng, "params": rng}, x_dummy, conditioning_dummy, mask_dummy
+        )
         schedule = optax.warmup_cosine_decay_schedule(
             init_value=0.0,
             peak_value=config.optim.learning_rate,
@@ -160,9 +184,13 @@ class VariationalDiffusionModel(nn.Module):
     def setup(self):
         # Noise schedule for diffusion
         if self.noise_schedule == "linear":
-            self.gamma = NoiseScheduleFixedLinear(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
+            self.gamma = NoiseScheduleFixedLinear(
+                gamma_min=self.gamma_min, gamma_max=self.gamma_max
+            )
         elif self.noise_schedule == "learned_linear":
-            self.gamma = NoiseScheduleScalar(gamma_min=self.gamma_min, gamma_max=self.gamma_max)
+            self.gamma = NoiseScheduleScalar(
+                gamma_min=self.gamma_min, gamma_max=self.gamma_max
+            )
         elif self.noise_schedule == "learned_net":
             self.gamma = NoiseScheduleNet(
                 gamma_min=self.gamma_min,
@@ -174,11 +202,24 @@ class VariationalDiffusionModel(nn.Module):
 
         # Score model specification
         if self.score == "transformer":
-            self.score_model = TransformerScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict, adanorm=False)
+            self.score_model = TransformerScoreNet(
+                d_t_embedding=self.d_t_embedding,
+                score_dict=self.score_dict,
+                adanorm=False,
+            )
         elif self.score == "transformer_adanorm":
-            self.score_model = TransformerScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict, adanorm=True)
+            self.score_model = TransformerScoreNet(
+                d_t_embedding=self.d_t_embedding,
+                score_dict=self.score_dict,
+                adanorm=True,
+            )
         elif self.score in ["graph", "chebconv", "edgeconv"]:
-            self.score_model = GraphScoreNet(d_t_embedding=self.d_t_embedding, score_dict=self.score_dict, norm_dict=self.norm_dict, gnn_type=self.score)
+            self.score_model = GraphScoreNet(
+                d_t_embedding=self.d_t_embedding,
+                score_dict=self.score_dict,
+                norm_dict=self.norm_dict,
+                gnn_type=self.score,
+            )
         else:
             raise NotImplementedError(f"Unknown score model {self.score}")
 
@@ -297,18 +338,26 @@ class VariationalDiffusionModel(nn.Module):
         if not self.embed_context:
             return conditioning
         else:
-            if self.n_classes > 0 and conditioning.shape[-1] > 1:  # If both classes and conditioning
+            if (
+                self.n_classes > 0 and conditioning.shape[-1] > 1
+            ):  # If both classes and conditioning
                 classes, conditioning = (
                     conditioning[..., 0].astype(np.int32),
                     conditioning[..., 1:],
                 )
-                class_embedding, context_embedding = self.embedding_class(classes), self.embedding_context(conditioning)
+                class_embedding, context_embedding = self.embedding_class(
+                    classes
+                ), self.embedding_context(conditioning)
                 return class_embedding + context_embedding
-            elif self.n_classes > 0 and conditioning.shape[-1] == 1:  # If no conditioning but classes
+            elif (
+                self.n_classes > 0 and conditioning.shape[-1] == 1
+            ):  # If no conditioning but classes
                 classes = conditioning[..., 0].astype(np.int32)
                 class_embedding = self.embedding_class(classes)
                 return class_embedding
-            elif self.n_classes == 0 and conditioning is not None:  # If no classes but conditioning
+            elif (
+                self.n_classes == 0 and conditioning is not None
+            ):  # If no classes but conditioning
                 context_embedding = self.embedding_context(conditioning)
                 return context_embedding
             else:  # If no conditioning
@@ -366,7 +415,10 @@ class VariationalDiffusionModel(nn.Module):
         b = nn.sigmoid(g_t)
         c = -np.expm1(g_t - g_s)
         sigma_t = np.sqrt(sigma2(g_t))
-        z_s = np.sqrt(a / b) * (z_t - sigma_t * c * eps_hat_cond) + np.sqrt((1.0 - a) * c) * eps
+        z_s = (
+            np.sqrt(a / b) * (z_t - sigma_t * c * eps_hat_cond)
+            + np.sqrt((1.0 - a) * c) * eps
+        )
 
         return z_s
 

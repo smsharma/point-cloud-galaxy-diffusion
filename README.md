@@ -1,4 +1,4 @@
-# A point cloud approach to field level generative modeling
+# A point cloud approach to generative modeling for galaxy surveys at the field level
 
 Carolina Cuesta-Lazaro and Siddharth Mishra-Sharma
 
@@ -20,13 +20,21 @@ python -m pip install git+https://github.com/cosmodesi/pycorr#egg=pycorr[corrfun
 
 ## Dataset
 
-The processed dark matter halo features from the _Quijote_ simulations used to train the model can be found [here](https://drive.google.com/drive/folders/16etX6fHLlJQqD9K_UIzAbiDFkSmAuIBu?usp=share_link) 
+The processed dark matter halo features from the _Quijote_ simulations used to train the model can be found [here](https://drive.google.com/drive/folders/16etX6fHLlJQqD9K_UIzAbiDFkSmAuIBu?usp=share_link). Make sure to update the hard-coded `DATA_DIR` in [`datasets.py`](datasets.py) to point to the location of the dataset before training.
 
-## Code overview
+## Running the code
 
-The [`notebooks`](notebooks/) directory contains usage example, including a simple [MNIST point cloud example](notebooks/example-mnist.ipynb) showing class-conditional generation, as well as a [particle physics example](notebooks/example-jets-minimal.ipynb). 
+With the dataset in place, the diffusion model can be trained via
+```
+python train.py --config ./configs/nbody.py
+```
+which is called from `scripts/submit_train.sh`. The model configuration `./configs/nbody.py` (diffusion, score model, and dataset configuration) can be edited accordingly. Similarly, `scripts/submit_infer.sh` computes the likelihood profiles for the trained model, calling `infer.py`.
+
+The [`notebooks`](notebooks/) directory contains notebooks used to produce results for the paper, each linked from the respective figures. 
 
 ## Diffusion model basic usage
+
+For standalone usage, the following can be used to compute the variational lower bound loss and sample from the model:
 
 ``` py
 import jax
@@ -42,15 +50,16 @@ score_dict = FrozenDict({"d_model":256, "d_mlp":512, "n_layers":5, "n_heads":4, 
 
 # Instantiate model
 vdm = VariationalDiffusionModel(gamma_min=-6.0, gamma_max=6.0,  # Min and max initial log-SNR in the noise schedule
-          d_feature=4,  # Number of features per set element
-          score="transformer",  # Score model; "transformer", "graph", or "equiariant"
+          d_feature=4,  # Number of features per set element, e.g. 7 for (x, y, z, vx, vy, vz, m)
+          score="transformer",  # Score model; "transformer", "graph"
           score_dict=score_dict,  # Score-prediction transformer parameters
-          noise_schedule="learned_linear",  # Noise schedule; "learned_linear" or "scalar"
-          embed_context=False,  # Whether to embed context vector. Must be true for class-conditioning i.e., if n_classes > 0.
-          timesteps=300,  # Number of diffusion steps; set 0 for continuous-time version of variational lower bound
+          noise_schedule="learned_linear",  # Noise schedule; "learned_linear", "learned_net", or "scalar"
+          embed_context=False,  # Whether to embed context vector.
+          timesteps=0,  # Number of diffusion steps; set 0 for continuous-time version of variational lower bound
           d_t_embedding=16,  # Timestep embedding dimension
           noise_scale=1e-3,  # Data noise model
-          n_classes=0)  # Number of data classes. If >0, the first element of the conditioning vector is assumed to be integer class.
+          n_pos_features=3,  # Number of positional features, for graph-building
+        )
 
 rng = jax.random.PRNGKey(42)
 
@@ -62,7 +71,7 @@ conditioning = jax.random.normal(rng, (32, 6))  # Optional conditioning context,
 (loss_diff, loss_klz, loss_recon), params = vdm.init_with_output({"sample": rng, "params": rng}, x, conditioning, mask)
 
 # Compute full loss, accounting for masking
-loss_vdm(params, vdm, rng, x, conditioning, mask)  # DeviceArray(5606182.5, dtype=float32)
+loss_vdm(params, vdm, rng, x, conditioning, mask)
 
 # Sample from model
 
