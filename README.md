@@ -13,7 +13,7 @@ We introduce a diffusion-based generative model to describe the distribution of 
 
 ## Dependencies
 
-For evaluation of the nbody dataset, Corrfunc is needed:
+For evaluation of the nbody dataset, `Corrfunc` is needed:
 ```
 python -m pip install git+https://github.com/cosmodesi/pycorr#egg=pycorr[corrfunc]
 ```
@@ -28,7 +28,7 @@ With the dataset in place, the diffusion model can be trained via
 ```
 python train.py --config ./configs/nbody.py
 ```
-which is called from `scripts/submit_train.sh`. The model configuration `./configs/nbody.py` (diffusion, score model, and dataset configuration) can be edited accordingly. Similarly, `scripts/submit_infer.sh` computes the likelihood profiles for the trained model, calling `infer.py`.
+which is called from `scripts/submit_train.sh`. The config file `./configs/nbody.py` (which sets diffusion, score model, and dataset configuration) can be edited accordingly. Similarly, `scripts/submit_infer.sh` computes the likelihood profiles for the trained model, calling `infer.py`.
 
 The [`notebooks`](notebooks/) directory contains notebooks used to produce results for the paper, each linked from the respective figures. 
 
@@ -53,7 +53,7 @@ vdm = VariationalDiffusionModel(gamma_min=-6.0, gamma_max=6.0,  # Min and max in
           d_feature=4,  # Number of features per set element, e.g. 7 for (x, y, z, vx, vy, vz, m)
           score="transformer",  # Score model; "transformer", "graph"
           score_dict=score_dict,  # Score-prediction transformer parameters
-          noise_schedule="learned_linear",  # Noise schedule; "learned_linear", "learned_net", or "scalar"
+          noise_schedule="learned_linear",  # Noise schedule; "learned_linear", "learned_net" (monotonic neural network), or "linear" (fixed)
           embed_context=False,  # Whether to embed context vector.
           timesteps=0,  # Number of diffusion steps; set 0 for continuous-time version of variational lower bound
           d_t_embedding=16,  # Timestep embedding dimension
