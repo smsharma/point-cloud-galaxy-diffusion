@@ -3,7 +3,7 @@
 Carolina Cuesta-Lazaro and Siddharth Mishra-Sharma
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-red.svg)](https://opensource.org/licenses/MIT)
-[![arXiv](https://img.shields.io/badge/arXiv-2311.xxxxx%20-green.svg)](https://arxiv.org/abs/2311.xxxxx)
+[![arXiv](https://img.shields.io/badge/arXiv-2311.xxxxx%20-green.svg)](https://arxiv.org/abs/2311.17141)
 
 ![Figure.](notebooks/plots/diffusion_fig.png)
 
@@ -22,7 +22,7 @@ We introduce a diffusion-based generative model to describe the distribution of 
 ## Dependencies
 
 For evaluation of the nbody dataset, `Corrfunc` is needed:
-```
+``` sh
 python -m pip install git+https://github.com/cosmodesi/pycorr#egg=pycorr[corrfunc]
 ```
 
@@ -33,7 +33,7 @@ The processed dark matter halo features from the _Quijote_ simulations used to t
 ## Running the code
 
 With the dataset in place, the diffusion model can be trained via
-```
+``` sh
 python train.py --config ./configs/nbody.py
 ```
 which is called from `scripts/submit_train.sh`. The config file `./configs/nbody.py` (which sets diffusion, score model, and dataset configuration) can be edited accordingly. Similarly, `scripts/submit_infer.sh` computes the likelihood profiles for the trained model, calling `infer.py`.
@@ -95,10 +95,14 @@ x_samples.mean().shape  # Mean of decoded Normal distribution -- (24, 100, 4)
 If you use this code, please cite our paper:
 
 ```
-@article{cuesta2021point,
-  title={A point cloud approach to field level generative modeling},
-  author={Cuesta-Lazaro, Carolina and Mishra-Sharma, Siddharth},
-  journal={arXiv preprint arXiv:2311.xxxxx},
-  year={2021}
+@article{Cuesta-Lazaro:2023zuk,
+    author = "Cuesta-Lazaro, Carolina and Mishra-Sharma, Siddharth",
+    title = "{A point cloud approach to generative modeling for galaxy surveys at the field level}",
+    eprint = "2311.17141",
+    archivePrefix = "arXiv",
+    primaryClass = "astro-ph.CO",
+    reportNumber = "MIT-CTP/5651",
+    month = "11",
+    year = "2023"
 }
 ```
