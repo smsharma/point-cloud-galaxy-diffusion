@@ -1,4 +1,4 @@
-# A point cloud approach to generative modeling for galaxy surveys at the field level
+# A point cloud approach to field level generative modeling
 
 Carolina Cuesta-Lazaro and Siddharth Mishra-Sharma
 
@@ -7,19 +7,29 @@ Carolina Cuesta-Lazaro and Siddharth Mishra-Sharma
 
 ![Figure.](notebooks/plots/diffusion_fig.png)
 
-## Abstract
+## Contents
 
-We introduce a diffusion-based generative model to describe the distribution of galaxies in our Universe directly as a collection of points in 3-D space (coordinates) optionally with associated attributes (e.g., velocities and masses), without resorting to binning or voxelization. The custom diffusion model can be used both for emulation, reproducing essential summary statistics of the galaxy distribution, as well as inference, by computing the conditional likelihood of a galaxy field. We demonstrate a first application to massive dark matter haloes in the _Quijote_ simulation suite. This approach can be extended to enable a comprehensive analysis of cosmological data, circumventing limitations inherent to summary statistics- as well as neural simulation-based inference methods.
-
-- [A point cloud approach to generative modeling for galaxy surveys at the field level](#a-point-cloud-approach-to-generative-modeling-for-galaxy-surveys-at-the-field-level)
+- [A point cloud approach to field level generative modeling](#a-point-cloud-approach-to-field-level-generative-modeling)
+  - [Contents](#contents)
   - [Abstract](#abstract)
   - [Dependencies](#dependencies)
   - [Dataset](#dataset)
+  - [Code overview](#code-overview)
   - [Running the code](#running-the-code)
   - [Diffusion model basic usage](#diffusion-model-basic-usage)
   - [Citation](#citation)
 
+
+## Abstract
+
+We introduce a diffusion-based generative model to describe the distribution of galaxies in our Universe directly as a collection of points in 3-D space (coordinates) optionally with associated attributes (e.g., velocities and masses), without resorting to binning or voxelization. The custom diffusion model can be used both for emulation, reproducing essential summary statistics of the galaxy distribution, as well as inference, by computing the conditional likelihood of a galaxy field. We demonstrate a first application to massive dark matter haloes in the _Quijote_ simulation suite. This approach can be extended to enable a comprehensive analysis of cosmological data, circumventing limitations inherent to summary statistics- as well as neural simulation-based inference methods.
+
 ## Dependencies
+
+The Python environment is defined in `environment.yml`. To create the environment run e.g.,
+``` sh
+mamba env create --file environment.yaml
+```
 
 For evaluation of the nbody dataset, `Corrfunc` is needed:
 ``` sh
@@ -29,6 +39,12 @@ python -m pip install git+https://github.com/cosmodesi/pycorr#egg=pycorr[corrfun
 ## Dataset
 
 The processed dark matter halo features from the _Quijote_ simulations used to train the model can be found [here](https://drive.google.com/drive/folders/16etX6fHLlJQqD9K_UIzAbiDFkSmAuIBu?usp=share_link). Make sure to update the hard-coded `DATA_DIR` in [`datasets.py`](datasets.py) to point to the location of the dataset before training.
+
+## Code overview
+
+- The diffusion model is defined in [`models/diffusion.py`](models/diffusion.py), with auxiliary utilities (loss, sampling, noise schedules) in [`models/diffusion_utils.py`](models/diffusion_utils.py).
+- Score models are called from [`models/score.py`](models/score.py), with the transformer model defined in [`models/transformer.py`](models/transformer.py) and the GNN model in [`models/gnn.py`](models/gnn.py).
+
 
 ## Running the code
 

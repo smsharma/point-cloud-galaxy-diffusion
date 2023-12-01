@@ -82,6 +82,8 @@ class Transformer(nn.Module):
       n_heads: The number of attention heads.
       induced_attention: Whether to use induced attention.
       n_inducing_points: The number of inducing points for induced attention.
+      concat_conditioning: Whether to concatenate conditioning to input.
+      ada_norm: Whether to use AdaNorm (LayerNorm with bias parameters learned via conditioning context).
     """
 
     n_input: int
