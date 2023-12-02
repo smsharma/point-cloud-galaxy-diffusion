@@ -1,4 +1,4 @@
-# A point cloud approach to field level generative modeling
+# A point cloud approach to field level generative modeling<!-- omit from toc -->
 
 Carolina Cuesta-Lazaro and Siddharth Mishra-Sharma
 
@@ -7,18 +7,15 @@ Carolina Cuesta-Lazaro and Siddharth Mishra-Sharma
 
 ![Figure.](notebooks/plots/diffusion_fig.png)
 
-## Contents
+## Contents<!-- omit from toc -->
 
-- [A point cloud approach to field level generative modeling](#a-point-cloud-approach-to-field-level-generative-modeling)
-  - [Contents](#contents)
-  - [Abstract](#abstract)
-  - [Dependencies](#dependencies)
-  - [Dataset](#dataset)
-  - [Code overview](#code-overview)
-  - [Running the code](#running-the-code)
-  - [Diffusion model basic usage](#diffusion-model-basic-usage)
-  - [Citation](#citation)
-
+- [Abstract](#abstract)
+- [Dependencies](#dependencies)
+- [Dataset](#dataset)
+- [Code overview](#code-overview)
+- [Running the code](#running-the-code)
+- [Diffusion model basic usage](#diffusion-model-basic-usage)
+- [Citation](#citation)
 
 ## Abstract
 
@@ -42,9 +39,8 @@ The processed dark matter halo features from the _Quijote_ simulations used to t
 
 ## Code overview
 
-- The diffusion model is defined in [`models/diffusion.py`](models/diffusion.py), with auxiliary utilities (loss, sampling, noise schedules) in [`models/diffusion_utils.py`](models/diffusion_utils.py).
+- The diffusion model is defined in [`models/diffusion.py`](models/diffusion.py), with auxiliary utilities (loss, sampling, noise schedules) in [`models/diffusion_utils.py`](models/diffusion_utils.py). The model is based on the [google-research/vdm](https://github.com/google-research/vdm) repo.
 - Score models are called from [`models/score.py`](models/score.py), with the transformer model defined in [`models/transformer.py`](models/transformer.py) and the GNN model in [`models/gnn.py`](models/gnn.py).
-
 
 ## Running the code
 
@@ -91,11 +87,11 @@ x = jax.random.normal(rng, (32, 100, 4))  # Input set, (batch_size, max_set_size
 mask = jax.random.randint(rng, (32, 100), 0, 2)  # Optional set mask, (batch_size, max_set_size); can be `None`
 conditioning = jax.random.normal(rng, (32, 6))  # Optional conditioning context, (batch_size, context_size); can be `None`
 
-# Call to get losses; see https://blog.alexalemi.com/diffusion.html
+# Call to get losses
 (loss_diff, loss_klz, loss_recon), params = vdm.init_with_output({"sample": rng, "params": rng}, x, conditioning, mask)
 
 # Compute full loss, accounting for masking
-loss_vdm(params, vdm, rng, x, conditioning, mask)
+loss = loss_vdm(params, vdm, rng, x, conditioning, mask)
 
 # Sample from model
 
