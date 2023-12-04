@@ -1,11 +1,13 @@
 # A point cloud approach to field level generative modeling<!-- omit from toc -->
 
-Carolina Cuesta-Lazaro and Siddharth Mishra-Sharma
+[Carolina Cuesta-Lazaro](mailto:cuestalz@mit.edu) and [Siddharth Mishra-Sharma](mailto:smsharma@mit.edu)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-red.svg)](https://opensource.org/licenses/MIT)
 [![arXiv](https://img.shields.io/badge/arXiv-2311.17141%20-green.svg)](https://arxiv.org/abs/2311.17141)
 
-![Figure.](notebooks/plots/diffusion_fig.png)
+![Figure-Light](notebooks/plots/diffusion_fig.png#gh-light-mode-only)
+![Figure-Dark](notebooks/plots/diffusion_fig_dark.png#gh-dark-mode-only)
+
 
 ## Contents<!-- omit from toc -->
 
