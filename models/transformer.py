@@ -34,7 +34,7 @@ class MultiHeadAttentionBlock(nn.Module):
                 num_heads=self.n_heads,
                 kernel_init=nn.initializers.xavier_uniform(),
                 bias_init=nn.initializers.zeros,
-            )(x_sa, y_sa, mask)
+            )(x_sa, y_sa, mask=mask)
 
         # Add into residual stream
         x += x_sa
