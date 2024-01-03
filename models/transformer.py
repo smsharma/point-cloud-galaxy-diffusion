@@ -27,7 +27,7 @@ class MultiHeadAttentionBlock(nn.Module):
                 num_heads=self.n_heads,
                 kernel_init=nn.initializers.xavier_uniform(),
                 bias_init=nn.initializers.zeros,
-            )(x_sa, x_sa, mask)
+            )(x_sa, x_sa, mask=mask)
         else:  # Cross-attention
             x_sa, y_sa = nn.LayerNorm()(x), nn.LayerNorm()(y)
             x_sa = nn.MultiHeadDotProductAttention(
